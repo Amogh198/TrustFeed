@@ -66,7 +66,9 @@ def _search_check(coverage: dict[str, Any] | None, synthetic: bool) -> dict[str,
     prefix = "Replayed synthetic posts from" if coverage.get("synthetic") else "Searched"
     result = f"{prefix} {len(read)} of {len(platforms)} connected platforms: {', '.join(read) or 'none'}."
     notes = [f"{item['label']}: {note}" for item in platforms for note in item.get("notes", [])]
-    not_connected = [f"Not connected, {item['platform']}: {item['reason']}" for item in coverage["not_connected"]]
+    not_connected = [
+        f"Not connected, {item['platform']}: {item['reason']}" for item in coverage.get("not_connected", [])
+    ]
     return _check(
         "network.platform_search",
         label,

@@ -566,6 +566,31 @@ def get_explanation(case_id: str) -> ExplanationResponse:
         if detail and "network" in case.modules
         else []
     )
+    if detail and "network" in case.modules:
+        # Keep the original aggregate ID available alongside the newer granular
+        # network checks so existing clients can migrate without losing a result.
+        network_result = case.modules["network"]
+        coverage = detail["coverage"] or {}
+        network_checks.append({
+            "check_id": "network-trace",
+            "module": "network",
+            "label": "Public-post trace summary",
+            "status": network_result.status.value,
+            "result": network_result.status.value,
+            "reasoning": "; ".join(network_result.evidence + network_result.limitations)
+            or "No public-post trace details were recorded.",
+            "benchmark": None,
+            "artifacts": [
+                {
+                    "kind": "public_post",
+                    "label": "Matching public post",
+                    "url": item.get("permalink"),
+                }
+                for item in coverage.get("spread", [])
+                if item.get("permalink")
+            ],
+            "limitations": network_result.limitations,
+        })
     return build_explanation(case, media_detail.get("checks", []), provenance_checks, network_checks)
 
 
