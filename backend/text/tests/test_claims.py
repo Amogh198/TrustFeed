@@ -8,7 +8,12 @@ import pytest
 from backend.text.claim_report import analyze_claims
 from backend.text.claims import split_claims
 from backend.text.entities import find_dates, find_numbers
-from backend.text.ner import ModelEntity, NerRunner, NerUnavailable
+from backend.text.ner import (
+    ModelEntity,
+    NerRunner,
+    NerUnavailable,
+    entities_from_output,
+)
 
 NOW = datetime(2026, 11, 5, tzinfo=UTC)
 
@@ -358,6 +363,25 @@ def test_flags_are_capped_and_the_cap_is_reported():
     report = analyze(text)
     assert len(report.inconsistencies) == 25
     assert any("first 25 of 190" in item for item in report.limitations)
+
+
+def raw(group, start, end, score=0.99):
+    return {"entity_group": group, "start": start, "end": end, "score": score}
+
+
+def test_names_split_by_the_model_are_rejoined():
+    text = "Narendra Modi met Dr. A. Rao."
+    output = [raw("PER", 0, 2, 0.99), raw("PER", 2, 13, 0.8), raw("PER", 22, 23), raw("PER", 23, 28)]
+    assert entities_from_output(text, output) == [
+        ModelEntity("Narendra Modi", "person", 0.8, 0, 13),
+        ModelEntity("A. Rao", "person", 0.99, 22, 28),
+    ]
+
+
+def test_separate_names_stay_apart_and_weak_or_empty_ones_are_dropped():
+    text = "Mumbai Pune Rao , ok"
+    output = [raw("LOC", 0, 6), raw("LOC", 7, 11), raw("PER", 12, 15, 0.2), raw("MISC", 16, 17), raw("XXX", 18, 20)]
+    assert [item.text for item in entities_from_output(text, output)] == ["Mumbai", "Pune"]
 
 
 def test_claim_limit_is_reported_not_silent():
