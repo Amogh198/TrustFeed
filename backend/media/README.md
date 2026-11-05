@@ -115,6 +115,31 @@ python -m backend.media.eval.recompress --in C:/Projects/samples/real --out C:/P
 
 Both refuse to write inside the repository. Commons labels come from human-curated categories, so some can be wrong. Real photos are limited to uploads before 2020 to reduce the chance of generated images among them.
 
+### Results from 2026-11-05
+
+**At its current settings, the detector almost never flags a fake.** Across all 301 fake images it flagged 3, and it scored 236 of them `low`, so a `low` result says very little. The model's scores do separate fake from real, but nearly all of them are tiny, so they rarely reach the current bands of 0.25 and 0.75.
+
+The set has 452 images from Wikimedia Commons: 150 AI-generated, 150 edited and 150 real photos of people, plus one labelled face-swap pair. These figures come from the test split only, which has 157 fake and 75 real images. Brackets show the 95% interval.
+
+| Model | AUC | Flagged at current bands: fakes | Flagged at current bands: real | Best threshold | Fakes above it | Real above it |
+|---|---|---|---|---|---|---|
+| `dima806/deepfake_vs_real_image_detection` (in use) | 0.85 | 1 of 157 | 1 of 75 | 0.0068 | 82% [75–87] | 19% [11–29] |
+| `prithivMLmods/open-deepfake-detection` | 0.46 | 16 of 157 | 22 of 75 | 0.2724 | 80% [73–85] | 69% [58–79] |
+| `Ateeqq/ai-vs-human-image-detector` | 0.56 | 88 of 157 | 43 of 75 | 0.9989 | 46% [38–54] | 23% [15–33] |
+
+- Neither alternative beats the model in use. An AUC near 0.5 is close to guessing.
+- Recompressing every image as a low-quality JPEG barely changed the model in use: AUC 0.85, and at its own best threshold of 0.0101, 78% of fakes [71–84] and 15% of real photos [9–24] on a test split of 156 fake and 81 real.
+- The bands in the code are unchanged. These thresholds are measurements, not settings in use.
+
+What these figures can't show:
+
+- **Face swaps are unmeasured.** The set has one labelled pair, so the result is marked too few to conclude.
+- **False positives were measured only on photos of people.** Other kinds of real image are unmeasured.
+- **Video and images re-saved by social media platforms are unmeasured.**
+- Results on this set don't predict results on other kinds of image, and no score proves that an image is authentic or false.
+
+Full results are in `data/eval/commons_2026-11-05.json` and `data/eval/commons_recompressed_2026-11-05.json`.
+
 ## Limitations
 
 - The classifier's accuracy has not been measured for this project. Recompressed media, images without faces and newer generators may be unreliable. On Windows stock wallpapers it scored between 0.20 and 0.73, so mid-range scores should not be read as a signal.
