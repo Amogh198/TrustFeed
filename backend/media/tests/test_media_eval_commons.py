@@ -66,6 +66,13 @@ def test_usable_checks_licence_type_date_and_host():
     assert usable(info(thumb="http://upload.wikimedia.org/a.jpg"), REAL_PLAN) is False
 
 
+def test_both_commons_image_hosts_are_accepted_and_lookalikes_are_not():
+    assert usable(info(thumb="https://thumb.wikimedia.org/wikipedia/commons/thumb/a.jpg"), REAL_PLAN) is True
+    assert usable(info(thumb="https://upload.wikimedia.org/wikipedia/commons/a.jpg"), REAL_PLAN) is True
+    assert usable(info(thumb="https://thumb.wikimedia.org.evil.test/a.jpg"), REAL_PLAN) is False
+    assert usable(info(thumb="http://thumb.wikimedia.org/a.jpg"), REAL_PLAN) is False
+
+
 def test_date_limit_applies_only_to_real_photos():
     assert usable(info(timestamp="2023-05-01T00:00:00Z"), FAKE_PLAN) is True
 

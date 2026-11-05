@@ -15,6 +15,7 @@ from backend.media.errors import HashIndexUnavailable, MediaInputError
 from backend.media.heatmap import occlusion_heatmap, render_overlay
 from backend.media.metadata import read_image
 from backend.media.models import CheckStatus
+from backend.media.panel import download_panel
 from backend.media.phash import JsonHashIndex, ReferenceEntry, compute_phash
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -28,6 +29,7 @@ def _parser() -> argparse.ArgumentParser:
     analyze.add_argument("file", type=Path)
     analyze.add_argument("--index", type=Path, help="pHash reference index (JSON)")
     analyze.add_argument("--module-only", action="store_true", help="print only the contract-shaped result")
+    analyze.add_argument("--panel", action="store_true", help="also run every detector on the panel (slow on CPU)")
 
     add = commands.add_parser("index-add", help="add an image to a pHash reference index")
     add.add_argument("file", type=Path)
@@ -41,6 +43,7 @@ def _parser() -> argparse.ArgumentParser:
     heatmap.add_argument("--out", type=Path, required=True, help="PNG holding the image, outside the repository")
 
     commands.add_parser("download-model", help="download the classifier's safetensors weights")
+    commands.add_parser("download-panel", help="download every panel detector's safetensors weights (about 2.3 GB)")
     return parser
 
 
@@ -64,7 +67,7 @@ def _heatmap(args: argparse.Namespace, config: MediaConfig) -> int:
 def _analyze(args: argparse.Namespace, config: MediaConfig) -> int:
     if args.index:
         config = replace(config, phash_index_path=args.index)
-    result = analyze_media(args.file, config=config)
+    result = analyze_media(args.file, config=config, run_panel=args.panel)
     output = result.to_module_result() if args.module_only else result.model_dump(mode="json")
     print(json.dumps(output, indent=2))
     return 2 if result.failure_code else 0
@@ -94,9 +97,21 @@ def _download_model(config: MediaConfig) -> int:
     return 0
 
 
+def _download_panel(config: MediaConfig) -> int:
+    try:
+        locations = download_panel(config)
+    except Exception as exc:
+        print(f"error: model download failed ({type(exc).__name__})", file=sys.stderr)
+        return 1
+    print(f"{len(locations)} models ready")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     config = MediaConfig.from_env()
+    if args.command == "download-panel":
+        return _download_panel(config)
     if args.command == "analyze":
         return _analyze(args, config)
     if args.command == "index-add":

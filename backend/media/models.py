@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 
 
 class CheckStatus(StrEnum):
@@ -101,11 +101,38 @@ class KeyframeCheck(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class DetectorResult(BaseModel):
+    """One detector's own result. Only the detector in use affects the overall score."""
+
+    model_id: str
+    model_revision: str | None = None
+    status: CheckStatus
+    score: float | None = None
+    band: ModelBand | None = None
+    counted: bool = False
+    limitations: list[str] = Field(default_factory=list)
+
+
+class DetectorPanelCheck(BaseModel):
+    status: CheckStatus
+    detectors: list[DetectorResult] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class MediaChecks(BaseModel):
     metadata: MetadataCheck
     classifier: ClassifierCheck
     phash: PHashCheck
     keyframes: KeyframeCheck
+    # Only present when requested, because running every detector is slow on CPU.
+    detector_panel: DetectorPanelCheck | None = None
+
+    @model_serializer(mode="wrap")
+    def _leave_out_a_panel_that_did_not_run(self, handler: Any) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("detector_panel") is None:
+            data.pop("detector_panel", None)
+        return data
 
 
 def _not_run(reason: str) -> dict[str, Any]:
