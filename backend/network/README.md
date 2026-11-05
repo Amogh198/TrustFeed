@@ -52,6 +52,8 @@ After `trace_case`, `get_network_payload`, `get_network_module_result` and `get_
 | X | Not connected | Not tried: no paid API access |
 | WhatsApp and other private channels | Can't be traced | No public API can see them |
 
+- **Ask first.** Searching sends the submitted text and links to these platforms' search services, so the product should make it opt-in. Fill only `text`, `url`, `urls` and `hashtags` from request data.
+- **Render links safely.** `spread[].permalink` is null unless it's http or https. Handles and other fields come from the platforms, so treat them as untrusted text in the UI.
 - **Only real matches count.** Search results are candidates. A post is kept only if it carries the searched link, hashtag or phrase.
 - **Repetition comes from account histories.** Searching for one item can only find one shared item, and one item is never treated as coordination. So the other recent public posts of up to 20 accounts that posted within the window are read as well.
 - **Account identity stays per platform.** The same name on two platforms is two accounts.

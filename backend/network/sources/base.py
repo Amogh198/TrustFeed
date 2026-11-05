@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 from backend.network.coshare import normalize_text
 
@@ -72,6 +73,17 @@ class PublicPost:
     mentions: tuple[tuple[str, str], ...] = ()
     followers: int = 0
 
+    def __post_init__(self) -> None:
+        # Platform responses are untrusted. A wrong type here counts as one malformed
+        # record, rather than stopping the whole trace later on.
+        for name in ("id", "author_id", "author_handle", "author_ref", "created_at", "text"):
+            if not isinstance(getattr(self, name), str):
+                raise ValueError(f"Post field {name} must be text")  # noqa: TRY004
+        for name in ("permalink", "url"):
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"Post field {name} must be text")
+
 
 @dataclass
 class SearchOutcome:
@@ -91,6 +103,17 @@ class Source(Protocol):
     def search(self, query: SearchQuery, fetch: Fetch) -> SearchOutcome: ...
 
     def author_posts(self, post: PublicPost, fetch: Fetch) -> list[PublicPost]: ...
+
+
+def safe_web_link(link: str | None) -> str | None:
+    """Return the link only if it's http or https, as a page may render it as a link."""
+    if not link:
+        return None
+    try:
+        scheme = urlsplit(link.strip()).scheme.lower()
+    except ValueError:
+        return None
+    return link if scheme in ("http", "https") else None
 
 
 def utc_timestamp(value: Any) -> str:
