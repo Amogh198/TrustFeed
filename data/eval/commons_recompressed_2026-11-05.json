@@ -1,0 +1,1686 @@
+{
+  "schema": "media-eval-1",
+  "generated_at": "2026-11-05T13:21:04.048688Z",
+  "notice": "Measured on the listed images only. These figures do not predict results on other kinds of image, and no single result from this detector proves that an image is authentic or false.",
+  "sources": [
+    {
+      "name": "Recompressed copies of the Wikimedia Commons set, at most 800 px and JPEG quality 40",
+      "licence": "Same per-file licences as the originals",
+      "url": "https://commons.wikimedia.org/"
+    },
+    {
+      "name": "Akshay's labelled pair",
+      "licence": "Provided by Akshay for local testing; never committed",
+      "url": ""
+    }
+  ],
+  "settings": {
+    "seed": 0,
+    "calibration_fraction": 0.5,
+    "elevated_score": 0.75,
+    "low_score": 0.25
+  },
+  "dataset": {
+    "real": 151,
+    "fake": 301,
+    "by_category": {
+      "fake/ai_generated": 150,
+      "fake/edited": 150,
+      "fake/face_swap": 1,
+      "real/face_swap_pair": 1,
+      "real/people": 150
+    },
+    "by_split": {
+      "fake/calibration": 145,
+      "fake/test": 156,
+      "real/calibration": 70,
+      "real/test": 81
+    },
+    "duplicates_removed": 0,
+    "same_file_under_both_labels": 0,
+    "unreadable_files": 0,
+    "skipped_other_types": 0
+  },
+  "models": [
+    {
+      "model_id": "dima806/deepfake_vs_real_image_detection",
+      "model_revision": "29e4cf9efc543845610045f6ba7e88e5cf9d9301",
+      "scored": 452,
+      "not_scored": 0,
+      "status": "complete",
+      "current_bands": {
+        "all_images": {
+          "n": {
+            "fake": 301,
+            "real": 151
+          },
+          "too_few_to_conclude": false,
+          "confusion": {
+            "fake": {
+              "elevated": 2,
+              "inconclusive": 62,
+              "low": 237
+            },
+            "real": {
+              "elevated": 1,
+              "inconclusive": 2,
+              "low": 148
+            }
+          },
+          "recall": {
+            "count": 2,
+            "total": 301,
+            "value": 0.0066,
+            "ci95": [
+              0.0018,
+              0.0239
+            ]
+          },
+          "false_positive_rate": {
+            "count": 1,
+            "total": 151,
+            "value": 0.0066,
+            "ci95": [
+              0.0012,
+              0.0366
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 64,
+            "total": 452,
+            "value": 0.1416,
+            "ci95": [
+              0.1125,
+              0.1768
+            ]
+          },
+          "auc": 0.8797,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              171,
+              50,
+              34,
+              22,
+              13,
+              6,
+              1,
+              2,
+              2,
+              0
+            ],
+            "real": [
+              145,
+              2,
+              1,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        },
+        "test_split": {
+          "n": {
+            "fake": 156,
+            "real": 81
+          },
+          "too_few_to_conclude": false,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 28,
+              "low": 128
+            },
+            "real": {
+              "elevated": 1,
+              "inconclusive": 2,
+              "low": 78
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 156,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.024
+            ]
+          },
+          "false_positive_rate": {
+            "count": 1,
+            "total": 81,
+            "value": 0.0123,
+            "ci95": [
+              0.0022,
+              0.0667
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 30,
+            "total": 237,
+            "value": 0.1266,
+            "ci95": [
+              0.0901,
+              0.175
+            ]
+          },
+          "auc": 0.8546,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              93,
+              27,
+              16,
+              9,
+              6,
+              4,
+              1,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              77,
+              0,
+              1,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        }
+      },
+      "best_threshold": {
+        "value": 0.0101,
+        "chosen_on": "calibration split",
+        "not_chosen_because": null,
+        "calibration_n": 215,
+        "test_split": {
+          "n": {
+            "fake": 156,
+            "real": 81
+          },
+          "too_few_to_conclude": false,
+          "recall": {
+            "count": 122,
+            "total": 156,
+            "value": 0.7821,
+            "ci95": [
+              0.7109,
+              0.8396
+            ]
+          },
+          "false_positive_rate": {
+            "count": 12,
+            "total": 81,
+            "value": 0.1481,
+            "ci95": [
+              0.0868,
+              0.2413
+            ]
+          }
+        }
+      },
+      "by_category": {
+        "ai_generated": {
+          "n": {
+            "fake": 150,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 1,
+              "inconclusive": 35,
+              "low": 114
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 1,
+            "total": 150,
+            "value": 0.0067,
+            "ci95": [
+              0.0012,
+              0.0368
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 35,
+            "total": 150,
+            "value": 0.2333,
+            "ci95": [
+              0.1728,
+              0.3072
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              78,
+              27,
+              22,
+              11,
+              7,
+              2,
+              1,
+              1,
+              1,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "edited": {
+          "n": {
+            "fake": 150,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 1,
+              "inconclusive": 27,
+              "low": 122
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 1,
+            "total": 150,
+            "value": 0.0067,
+            "ci95": [
+              0.0012,
+              0.0368
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 27,
+            "total": 150,
+            "value": 0.18,
+            "ci95": [
+              0.1268,
+              0.2492
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              92,
+              23,
+              12,
+              11,
+              6,
+              4,
+              0,
+              1,
+              1,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "face_swap": {
+          "n": {
+            "fake": 1,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 1
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "face_swap_pair": {
+          "n": {
+            "fake": 0,
+            "real": 1
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 1
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "people": {
+          "n": {
+            "fake": 0,
+            "real": 150
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 1,
+              "inconclusive": 2,
+              "low": 147
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "false_positive_rate": {
+            "count": 1,
+            "total": 150,
+            "value": 0.0067,
+            "ci95": [
+              0.0012,
+              0.0368
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 2,
+            "total": 150,
+            "value": 0.0133,
+            "ci95": [
+              0.0037,
+              0.0473
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              144,
+              2,
+              1,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        }
+      }
+    },
+    {
+      "model_id": "prithivMLmods/open-deepfake-detection",
+      "model_revision": "aaa680d8ff799424ba5d092b6d5e0b999f0e0ab6",
+      "scored": 452,
+      "not_scored": 0,
+      "status": "complete",
+      "current_bands": {
+        "all_images": {
+          "n": {
+            "fake": 301,
+            "real": 151
+          },
+          "too_few_to_conclude": false,
+          "confusion": {
+            "fake": {
+              "elevated": 35,
+              "inconclusive": 222,
+              "low": 44
+            },
+            "real": {
+              "elevated": 43,
+              "inconclusive": 64,
+              "low": 44
+            }
+          },
+          "recall": {
+            "count": 35,
+            "total": 301,
+            "value": 0.1163,
+            "ci95": [
+              0.0848,
+              0.1574
+            ]
+          },
+          "false_positive_rate": {
+            "count": 43,
+            "total": 151,
+            "value": 0.2848,
+            "ci95": [
+              0.2188,
+              0.3614
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 286,
+            "total": 452,
+            "value": 0.6327,
+            "ci95": [
+              0.5874,
+              0.6759
+            ]
+          },
+          "auc": 0.4937,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              6,
+              26,
+              30,
+              55,
+              49,
+              44,
+              39,
+              28,
+              16,
+              8
+            ],
+            "real": [
+              18,
+              24,
+              12,
+              14,
+              7,
+              13,
+              16,
+              9,
+              16,
+              22
+            ]
+          }
+        },
+        "test_split": {
+          "n": {
+            "fake": 156,
+            "real": 81
+          },
+          "too_few_to_conclude": false,
+          "confusion": {
+            "fake": {
+              "elevated": 15,
+              "inconclusive": 116,
+              "low": 25
+            },
+            "real": {
+              "elevated": 25,
+              "inconclusive": 35,
+              "low": 21
+            }
+          },
+          "recall": {
+            "count": 15,
+            "total": 156,
+            "value": 0.0962,
+            "ci95": [
+              0.0591,
+              0.1526
+            ]
+          },
+          "false_positive_rate": {
+            "count": 25,
+            "total": 81,
+            "value": 0.3086,
+            "ci95": [
+              0.2186,
+              0.416
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 151,
+            "total": 237,
+            "value": 0.6371,
+            "ci95": [
+              0.5742,
+              0.6957
+            ]
+          },
+          "auc": 0.4631,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              4,
+              14,
+              15,
+              28,
+              33,
+              18,
+              19,
+              14,
+              7,
+              4
+            ],
+            "real": [
+              10,
+              10,
+              6,
+              10,
+              1,
+              10,
+              7,
+              4,
+              13,
+              10
+            ]
+          }
+        }
+      },
+      "best_threshold": {
+        "value": 0.2015,
+        "chosen_on": "calibration split",
+        "not_chosen_because": null,
+        "calibration_n": 215,
+        "test_split": {
+          "n": {
+            "fake": 156,
+            "real": 81
+          },
+          "too_few_to_conclude": false,
+          "recall": {
+            "count": 137,
+            "total": 156,
+            "value": 0.8782,
+            "ci95": [
+              0.8176,
+              0.9206
+            ]
+          },
+          "false_positive_rate": {
+            "count": 61,
+            "total": 81,
+            "value": 0.7531,
+            "ci95": [
+              0.6492,
+              0.8341
+            ]
+          }
+        }
+      },
+      "by_category": {
+        "ai_generated": {
+          "n": {
+            "fake": 150,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 11,
+              "inconclusive": 113,
+              "low": 26
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 11,
+            "total": 150,
+            "value": 0.0733,
+            "ci95": [
+              0.0414,
+              0.1265
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 113,
+            "total": 150,
+            "value": 0.7533,
+            "ci95": [
+              0.6786,
+              0.8154
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              4,
+              15,
+              19,
+              34,
+              25,
+              17,
+              17,
+              11,
+              8,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "edited": {
+          "n": {
+            "fake": 150,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 24,
+              "inconclusive": 108,
+              "low": 18
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 24,
+            "total": 150,
+            "value": 0.16,
+            "ci95": [
+              0.1099,
+              0.227
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 108,
+            "total": 150,
+            "value": 0.72,
+            "ci95": [
+              0.6433,
+              0.7857
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              2,
+              11,
+              11,
+              21,
+              24,
+              26,
+              22,
+              17,
+              8,
+              8
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "face_swap": {
+          "n": {
+            "fake": 1,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 1,
+              "low": 0
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 1,
+            "total": 1,
+            "value": 1.0,
+            "ci95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "face_swap_pair": {
+          "n": {
+            "fake": 0,
+            "real": 1
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 1,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "false_positive_rate": {
+            "count": 1,
+            "total": 1,
+            "value": 1.0,
+            "ci95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ]
+          }
+        },
+        "people": {
+          "n": {
+            "fake": 0,
+            "real": 150
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 42,
+              "inconclusive": 64,
+              "low": 44
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "false_positive_rate": {
+            "count": 42,
+            "total": 150,
+            "value": 0.28,
+            "ci95": [
+              0.2143,
+              0.3567
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 64,
+            "total": 150,
+            "value": 0.4267,
+            "ci95": [
+              0.3503,
+              0.5067
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              18,
+              24,
+              12,
+              14,
+              7,
+              13,
+              16,
+              8,
+              16,
+              22
+            ]
+          }
+        }
+      }
+    },
+    {
+      "model_id": "Ateeqq/ai-vs-human-image-detector",
+      "model_revision": "60e82406916921b823616bee33397baab38af3f0",
+      "scored": 452,
+      "not_scored": 0,
+      "status": "complete",
+      "current_bands": {
+        "all_images": {
+          "n": {
+            "fake": 301,
+            "real": 151
+          },
+          "too_few_to_conclude": false,
+          "confusion": {
+            "fake": {
+              "elevated": 168,
+              "inconclusive": 7,
+              "low": 126
+            },
+            "real": {
+              "elevated": 82,
+              "inconclusive": 1,
+              "low": 68
+            }
+          },
+          "recall": {
+            "count": 168,
+            "total": 301,
+            "value": 0.5581,
+            "ci95": [
+              0.5017,
+              0.6132
+            ]
+          },
+          "false_positive_rate": {
+            "count": 82,
+            "total": 151,
+            "value": 0.543,
+            "ci95": [
+              0.4635,
+              0.6204
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 8,
+            "total": 452,
+            "value": 0.0177,
+            "ci95": [
+              0.009,
+              0.0345
+            ]
+          },
+          "auc": 0.5833,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              124,
+              4,
+              1,
+              2,
+              1,
+              0,
+              0,
+              0,
+              2,
+              167
+            ],
+            "real": [
+              66,
+              1,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              82
+            ]
+          }
+        },
+        "test_split": {
+          "n": {
+            "fake": 156,
+            "real": 81
+          },
+          "too_few_to_conclude": false,
+          "confusion": {
+            "fake": {
+              "elevated": 82,
+              "inconclusive": 2,
+              "low": 72
+            },
+            "real": {
+              "elevated": 44,
+              "inconclusive": 0,
+              "low": 37
+            }
+          },
+          "recall": {
+            "count": 82,
+            "total": 156,
+            "value": 0.5256,
+            "ci95": [
+              0.4476,
+              0.6024
+            ]
+          },
+          "false_positive_rate": {
+            "count": 44,
+            "total": 81,
+            "value": 0.5432,
+            "ci95": [
+              0.4352,
+              0.6473
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 2,
+            "total": 237,
+            "value": 0.0084,
+            "ci95": [
+              0.0023,
+              0.0302
+            ]
+          },
+          "auc": 0.5639,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              70,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              81
+            ],
+            "real": [
+              36,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              44
+            ]
+          }
+        }
+      },
+      "best_threshold": {
+        "value": 0.9985,
+        "chosen_on": "calibration split",
+        "not_chosen_because": null,
+        "calibration_n": 215,
+        "test_split": {
+          "n": {
+            "fake": 156,
+            "real": 81
+          },
+          "too_few_to_conclude": false,
+          "recall": {
+            "count": 70,
+            "total": 156,
+            "value": 0.4487,
+            "ci95": [
+              0.3728,
+              0.5271
+            ]
+          },
+          "false_positive_rate": {
+            "count": 29,
+            "total": 81,
+            "value": 0.358,
+            "ci95": [
+              0.2622,
+              0.4667
+            ]
+          }
+        }
+      },
+      "by_category": {
+        "ai_generated": {
+          "n": {
+            "fake": 150,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 113,
+              "inconclusive": 3,
+              "low": 34
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 113,
+            "total": 150,
+            "value": 0.7533,
+            "ci95": [
+              0.6786,
+              0.8154
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 3,
+            "total": 150,
+            "value": 0.02,
+            "ci95": [
+              0.0068,
+              0.0571
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              34,
+              1,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              114
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "edited": {
+          "n": {
+            "fake": 150,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 54,
+              "inconclusive": 4,
+              "low": 92
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 54,
+            "total": 150,
+            "value": 0.36,
+            "ci95": [
+              0.2876,
+              0.4394
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 4,
+            "total": 150,
+            "value": 0.0267,
+            "ci95": [
+              0.0104,
+              0.0666
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              90,
+              3,
+              1,
+              1,
+              1,
+              0,
+              0,
+              0,
+              2,
+              52
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "face_swap": {
+          "n": {
+            "fake": 1,
+            "real": 0
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 1,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 1,
+            "total": 1,
+            "value": 1.0,
+            "ci95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "false_positive_rate": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "inconclusive_rate": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "face_swap_pair": {
+          "n": {
+            "fake": 0,
+            "real": 1
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 1,
+              "inconclusive": 0,
+              "low": 0
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "false_positive_rate": {
+            "count": 1,
+            "total": 1,
+            "value": 1.0,
+            "ci95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 0,
+            "total": 1,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        },
+        "people": {
+          "n": {
+            "fake": 0,
+            "real": 150
+          },
+          "too_few_to_conclude": true,
+          "confusion": {
+            "fake": {
+              "elevated": 0,
+              "inconclusive": 0,
+              "low": 0
+            },
+            "real": {
+              "elevated": 81,
+              "inconclusive": 1,
+              "low": 68
+            }
+          },
+          "recall": {
+            "count": 0,
+            "total": 0,
+            "value": null,
+            "ci95": null
+          },
+          "false_positive_rate": {
+            "count": 81,
+            "total": 150,
+            "value": 0.54,
+            "ci95": [
+              0.4602,
+              0.6178
+            ]
+          },
+          "inconclusive_rate": {
+            "count": 1,
+            "total": 150,
+            "value": 0.0067,
+            "ci95": [
+              0.0012,
+              0.0368
+            ]
+          },
+          "auc": null,
+          "score_histogram": {
+            "bin_width": 0.1,
+            "fake": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "real": [
+              66,
+              1,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              81
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Recall counts inconclusive results as not flagged.",
+    "Images in one split can still be near-duplicates of images in the other, unless they share a perceptual hash.",
+    "Labels and licences are as stated by whoever ran this benchmark. The tool does not check them."
+  ]
+}
