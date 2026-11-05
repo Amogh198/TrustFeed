@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
@@ -19,12 +18,23 @@ class ModuleStatus(StrEnum):
     NOT_APPLICABLE = "not_applicable"
 
 
+class ClaimVerdict(StrEnum):
+    UNVERIFIED = "unverified"
+
+
 class ModuleResult(BaseModel):
     status: ModuleStatus
     score: float | None = Field(default=None, ge=0, le=1)
     confidence: float | None = Field(default=None, ge=0, le=1)
     evidence: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+
+
+class ClaimRecord(BaseModel):
+    id: str
+    text: str
+    verdict: ClaimVerdict = ClaimVerdict.UNVERIFIED
+    rationale: str = "No external evidence source was queried for this claim."
 
 
 class AnalyzeRequest(BaseModel):
@@ -40,12 +50,15 @@ class AnalyzeRequest(BaseModel):
 
 class AnalysisResponse(BaseModel):
     case_id: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     overall_risk: RiskLevel
     summary: str
     modules: dict[str, ModuleResult]
+    claims: list[ClaimRecord] = Field(default_factory=list)
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
+    is_replay: bool = False
+    replay_label: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -57,9 +70,40 @@ class ActionPacketRequest(BaseModel):
     audience: str = Field(default="public", max_length=80)
 
 
+class ActionPacketSection(BaseModel):
+    heading: str
+    items: list[str]
+
+
 class ActionPacketResponse(BaseModel):
     case_id: str
     generated: bool = False
     label: str = "Template only; not generated or independently verified by an AI model."
     draft: str
     evidence_references: list[str] = Field(default_factory=list)
+    sections: list[ActionPacketSection] = Field(default_factory=list)
+
+
+class CaseSummary(BaseModel):
+    case_id: str
+    created_at: datetime
+    overall_risk: RiskLevel
+    summary: str
+    is_replay: bool = False
+    replay_label: str | None = None
+
+
+class CaseHistoryResponse(BaseModel):
+    cases: list[CaseSummary]
+    total: int
+
+
+class ReplayScenario(BaseModel):
+    id: str
+    title: str
+    description: str
+    label: str
+
+
+class ReplayScenariosResponse(BaseModel):
+    scenarios: list[ReplayScenario]

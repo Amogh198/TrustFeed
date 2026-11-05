@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import HttpUrl
@@ -15,13 +15,19 @@ from backend.api.app.fusion import combine_risks, fused_summary, media_risk
 from backend.api.app.models import (
     ActionPacketRequest,
     ActionPacketResponse,
+    ActionPacketSection,
     AnalysisResponse,
     AnalyzeRequest,
+    CaseHistoryResponse,
+    ClaimRecord,
     HealthResponse,
     ModuleResult,
     ModuleStatus,
+    ReplayScenariosResponse,
     RiskLevel,
 )
+from backend.api.app.replay import get_scenario, list_scenarios
+from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media
 from backend.media.models import Assessment, MediaAnalysisResult
 from backend.network import (
@@ -83,6 +89,7 @@ app.add_middleware(
 
 # Hackathon starter storage: process-local and intentionally non-persistent.
 CASES: dict[str, AnalysisResponse] = {}
+CASE_STORE = default_store()
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -98,6 +105,8 @@ def _store_case(
     text_result: ModuleResult | None,
     url_result: ModuleResult | None,
     media: MediaAnalysisResult | None = None,
+    claims: list[str] | None = None,
+    replay_label: str | None = None,
 ) -> AnalysisResponse:
     if media is None:
         risk = fuse_risk(text_result, url_result)
@@ -117,6 +126,8 @@ def _store_case(
         uncertainties.append(media.summary)
         if media.assessment is Assessment.SIGNALS_PRESENT:
             recommended_actions.append("Have a person review the media before acting on this result.")
+    if replay_label:
+        uncertainties.append(replay_label)
 
     case_id = str(uuid4())
     result = AnalysisResponse(
@@ -135,18 +146,25 @@ def _store_case(
                 limitations=["No dissemination data exists for this submission, so network analysis did not run."],
             ),
         },
+        claims=[ClaimRecord(id=f"claim-{index}", text=claim) for index, claim in enumerate(claims or [], start=1)],
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
+        is_replay=replay_label is not None,
+        replay_label=replay_label,
     )
     CASES[case_id] = result
+    CASE_STORE.save(result)
     return result
 
 
 @lru_cache(maxsize=1)
 def _demo_case() -> AnalysisResponse:
-    flagged = [cluster for cluster in get_network_clusters(DEMO_CASE_ID) if cluster["flagged"]]
+    flagged = [
+        cluster for cluster in (get_network_clusters(DEMO_CASE_ID) or []) if cluster["flagged"]
+    ]
     risk = combine_risks(RiskLevel(cluster["risk_level"]) for cluster in flagged)
     reason = "The synthetic demo case has only network data."
+    network_module = get_network_module_result(DEMO_CASE_ID)
     return AnalysisResponse(
         case_id=DEMO_CASE_ID,
         overall_risk=risk,
@@ -158,7 +176,11 @@ def _demo_case() -> AnalysisResponse:
             "text": _not_applicable(reason),
             "url": _not_applicable(reason),
             "media": _not_applicable(reason),
-            "network": ModuleResult(**get_network_module_result(DEMO_CASE_ID)),
+            "network": (
+                ModuleResult.model_validate(network_module)
+                if network_module is not None
+                else _not_applicable("No synthetic network data is available.")
+            ),
         },
         uncertainties=["All accounts and posts in this case are simulated."],
         recommended_actions=["Treat this as a demonstration; it makes no claim about real people or content."],
@@ -168,7 +190,7 @@ def _demo_case() -> AnalysisResponse:
 def _find_case(case_id: str) -> AnalysisResponse:
     if case_id == DEMO_CASE_ID:
         return _demo_case()
-    case = CASES.get(case_id)
+    case = CASES.get(case_id) or CASE_STORE.get(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found in this server process")
     return case
@@ -180,11 +202,14 @@ def _analyze_upload(file: UploadFile) -> MediaAnalysisResult:
     The client's file name is never used. The media lane identifies the type from
     the file's content.
     """
-    handle = tempfile.NamedTemporaryFile(prefix="trustfeed-upload-", delete=False)
-    path = Path(handle.name)
-    try:
-        with handle:
+    with tempfile.NamedTemporaryFile(prefix="trustfeed-upload-", delete=False) as handle:
+        path = Path(handle.name)
+        try:
             shutil.copyfileobj(file.file, handle)
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+    try:
         return analyze_media(path)
     finally:
         path.unlink(missing_ok=True)
@@ -192,9 +217,9 @@ def _analyze_upload(file: UploadFile) -> MediaAnalysisResult:
 
 @app.post("/api/cases/analyze", response_model=AnalysisResponse)
 def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
-    text_result = analyze_text(request.text)[0] if request.text else None
+    text_result, claims = analyze_text(request.text) if request.text else (None, [])
     url_result = analyze_url(str(request.url)) if request.url else None
-    return _store_case(text_result, url_result)
+    return _store_case(text_result, url_result, claims=claims)
 
 
 @app.post(MEDIA_UPLOAD_PATH, response_model=AnalysisResponse)
@@ -210,9 +235,39 @@ def analyze_media_case(
             status_code=rejection,
             detail={"code": media.failure_code, "message": media.limitations[0]},
         )
-    text_result = analyze_text(text)[0] if text and text.strip() else None
+    text_result, claims = analyze_text(text) if text and text.strip() else (None, [])
     url_result = analyze_url(str(url)) if url else None
-    return _store_case(text_result, url_result, media)
+    return _store_case(text_result, url_result, media, claims)
+
+
+@app.get("/api/cases", response_model=CaseHistoryResponse)
+def list_cases(
+    limit: int = Query(default=25, ge=1, le=100),
+    risk_level: RiskLevel | None = None,
+) -> CaseHistoryResponse:
+    cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level)
+    return CaseHistoryResponse(cases=cases, total=total)
+
+
+@app.get("/api/replay/scenarios", response_model=ReplayScenariosResponse)
+def replay_scenarios() -> ReplayScenariosResponse:
+    return ReplayScenariosResponse(scenarios=list_scenarios())
+
+
+@app.post("/api/replay/{scenario_id}/start", response_model=AnalysisResponse)
+def start_replay(scenario_id: str) -> AnalysisResponse:
+    scenario = get_scenario(scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Replay scenario not found")
+    text_result, claims = analyze_text(scenario.text)
+    url_result = analyze_url(str(scenario.url)) if scenario.url else None
+    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label)
+
+
+@app.get("/api/cases/{case_id}/export", response_model=AnalysisResponse)
+def export_case(case_id: str) -> AnalysisResponse:
+    """Return the stored report as JSON for offline export or presentation."""
+    return _find_case(case_id)
 
 
 @app.get("/api/cases/{case_id}", response_model=AnalysisResponse)
@@ -232,11 +287,37 @@ def get_network(case_id: str) -> dict[str, list[dict[str, object]]]:
 @app.post("/api/cases/{case_id}/action-packet", response_model=ActionPacketResponse)
 def action_packet(case_id: str, request: ActionPacketRequest) -> ActionPacketResponse:
     case = _find_case(case_id)
+    evidence = [item for module in case.modules.values() for item in module.evidence]
+    sections = [
+        ActionPacketSection(
+            heading="Assessment",
+            items=[case.summary, f"Risk level: {case.overall_risk.value}. This is a triage signal, not a factual verdict."],
+        ),
+        ActionPacketSection(
+            heading="Evidence observed",
+            items=evidence or ["No module produced evidence for this case."],
+        ),
+        ActionPacketSection(
+            heading="Claim status",
+            items=(
+                [f"{claim.text} — {claim.verdict.value}; {claim.rationale}" for claim in case.claims]
+                or ["No text claim was supplied for atomization."]
+            ),
+        ),
+        ActionPacketSection(heading="Uncertainties", items=case.uncertainties or ["No additional uncertainty was recorded."]),
+        ActionPacketSection(heading="Recommended next actions", items=case.recommended_actions),
+    ]
+    draft_lines = [
+        f"TruthTrace AI draft for {request.audience}.",
+        "This template is assembled from the case record; no generative model or external fact-check was used.",
+    ]
+    for section in sections:
+        draft_lines.append(f"\n{section.heading}:")
+        draft_lines.extend(f"- {item}" for item in section.items)
     return ActionPacketResponse(
         case_id=case_id,
-        draft=(
-            f"Public information note for {request.audience}: this content has not been independently verified. "
-            "Please check the cited evidence and consult trusted sources before acting or sharing."
-        ),
-        evidence_references=[item for module in case.modules.values() for item in module.evidence],
+        label="Evidence-based template only; no generative model or external verification was used.",
+        draft="\n".join(draft_lines),
+        evidence_references=evidence,
+        sections=sections,
     )

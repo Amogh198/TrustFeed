@@ -1,0 +1,38 @@
+name: Backend API checks
+
+on:
+  push:
+    branches:
+      - "feat/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-backend:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      CASE_STORE_PATH: ${{ runner.temp }}/trusttrace-test.db
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend development dependencies
+        run: python -m pip install --upgrade pip -r backend/api/requirements-dev.txt
+
+      - name: Lint
+        run: ruff check backend/api backend/text
+
+      - name: Type-check
+        run: pyright
+
+      - name: Test API
+        run: python -m pytest -p no:cacheprovider --basetemp="$RUNNER_TEMP/pytest" backend/api/tests -q
