@@ -234,3 +234,26 @@ When passing tasks to your 2× Claude Pro and 2× Gemini Pro assistants during t
 2. **Context & Historical Misattribution (0:45 – 1:15):** Show an example of an authentic photo paired with a false caption. Demonstrate how pHash provenance matches the image to an older event, exposing media recycling without relying solely on AI deepfake scores.
 3. **The Disinformation Network & Patient Zero (1:15 – 2:15):** Switch to the Dissemination Network tab. Show the `react-force-graph` visualization. Scrub the timeline slider forward to reveal how a cluster of 30+ coordinated accounts amplified the post within seconds. Click the red node to highlight **"Patient Zero"**.
 4. **Actionable Countermeasures (2:15 – 3:00):** Click **"Generate Action Packet"**. Show auto-generated Fact-Check Cards and ready-to-broadcast counter-narrative responses, closing the full threat-to-mitigation operational loop.
+
+---
+
+## 9. REUSABLE REPOSITORY AUDIT (2026-11-05)
+
+The projects below are reference candidates, not dependencies. A repository counts as integrated only if TrustFeed imports, vendors, runs, or explicitly adapts its code. Merely listing a link here does not mean it is used.
+
+| Repository | Intended contribution | Current TrustFeed use |
+|---|---|---|
+| [Harken](https://github.com/VladUZH/harken) | Multi-platform monitoring and ingestion | **Not integrated.** TrustFeed has its own limited public-search adapters for Mastodon, Lemmy, Hacker News, and Bluesky. |
+| [LockStep](https://github.com/Vriti29/LockStep) | Coordinated-disinformation relationships and campaign clustering | **Not integrated.** TrustFeed's network analysis is implemented in `backend/network` with NetworkX. |
+| [DeepTrace](https://github.com/obstinix/deeptrace) | Media deepfake detection | **Not integrated.** TrustFeed has its own `backend/media` pipeline and uses a Hugging Face image-classification model. |
+| [OpenMagpie](https://github.com/obris-dev/openmagpie) | Social-media monitoring and ingestion | **Not integrated.** It is an alternative reference to Harken, not an additional service in this application. |
+| [Nonescape](https://github.com/e3ntity/nonescape) | AI-generated image detection | **Not integrated.** No Nonescape model or code is installed or called. |
+| [OSoMe Coordination Detection](https://github.com/osome-iu/coordination-detection) | Research coordination-detection methods | **Not integrated.** No OSoMe code or algorithms are imported. |
+| [Multi-agent Fake News Detection](https://github.com/Aakashthakre-tech/multi-agent-fake-news-detection) | Multi-agent fake-news analysis | **Not integrated.** |
+| [MultiModal-DeepFake](https://github.com/rshaojimmy/MultiModal-DeepFake) | Multimodal deepfake detection | **Not integrated.** TrustFeed does not currently analyze audio or lip-sync. |
+| [OpenCV](https://github.com/opencv/opencv) | Image/video processing library | **Library used, repository not vendored.** The project installs `opencv-python-headless` and uses OpenCV for video frame/keyframe processing. |
+| [DeepfakeBench](https://github.com/SCLBD/DeepfakeBench) | Deepfake detector benchmarking framework | **Not integrated.** TrustFeed has its own benchmark scripts and records; it does not run DeepfakeBench. |
+
+**Current implementation summary:** TrustFeed is a Python/FastAPI service and React/TypeScript dashboard. It accepts text, links, images, and videos; runs rule-based text/link checks and an image detector with metadata, keyframe, and perceptual-hash analysis; optionally searches public sources and platform posts when the user opts in; and presents evidence, limitations, network/timeline views, history, replay, and rule-based action drafts. Unknown results remain unknown, and replay data is labelled synthetic.
+
+**Current limits:** the image detector performs poorly at its current thresholds; coordination accuracy on real campaigns is not measured; platform monitoring is limited public search rather than complete feeds; OCR, audio, and lip-sync are not implemented; and action packets are rule-based templates, not generated counter-narratives. Check the root `README.md` for the latest measured status before a demo.
