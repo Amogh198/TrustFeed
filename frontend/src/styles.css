@@ -470,3 +470,6 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
 .overview-list small { opacity: 0.75; }
 .check-artifacts { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .check-artifacts img { display: block; max-width: 180px; height: auto; }
+.page-narrow { max-width: 480px; }
+.account-form { display: grid; gap: 14px; }
+.link-button { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }

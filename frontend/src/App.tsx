@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, API_BASE_URL } from './api.js';
 import CaseFile from './case/CaseFile';
 import { useRoute } from './lib/route';
+import type { AccountState } from './types';
+import Account from './pages/Account';
 import Cases from './pages/Cases';
 import Home from './pages/Home';
 import Limits from './pages/Limits';
@@ -34,6 +36,9 @@ function useApiHealth(): boolean | null {
 export default function App() {
   const route = useRoute();
   const online = useApiHealth();
+  const [account, setAccount] = useState<AccountState | null>(null);
+  useEffect(() => { api.getAccount().then(setAccount).catch(() => setAccount(null)); }, []);
+  const mustSignIn = Boolean(account?.auth_required && !account.email);
   const caseKey = route.page === 'case' ? route.caseId : route.page;
 
   useEffect(() => { window.scrollTo(0, 0); }, [caseKey]);
@@ -55,6 +60,7 @@ export default function App() {
           {NAV.map(([page, href, name]) => (
             <a key={page} href={href} aria-current={route.page === page ? 'page' : undefined}>{name}</a>
           ))}
+          <a href="#/account" aria-current={route.page === 'account' ? 'page' : undefined}>{account?.email ? 'Account' : 'Sign in'}</a>
         </nav>
         <span className={`health health-${online === null ? 'wait' : online ? 'on' : 'off'}`} role="status">
           {online === null ? 'Looking for the API' : online ? 'API running' : 'API not running'}
@@ -67,13 +73,15 @@ export default function App() {
       )}
       <main id="main">
         <ErrorBoundary resetKey={window.location.hash}>
-          {route.page === 'home' && <Home />}
-          {route.page === 'overview' && <Overview />}
-          {route.page === 'cases' && <Cases />}
-          {route.page === 'watch' && <Watch />}
-          {route.page === 'walkthrough' && <Walkthrough />}
-          {route.page === 'limits' && <Limits />}
-          {route.page === 'case' && <CaseFile key={route.caseId} caseId={route.caseId} tab={route.tab} />}
+          {mustSignIn && <Account account={account} />}
+          {!mustSignIn && route.page === 'account' && <Account account={account} />}
+          {!mustSignIn && route.page === 'home' && <Home />}
+          {!mustSignIn && route.page === 'overview' && <Overview />}
+          {!mustSignIn && route.page === 'cases' && <Cases />}
+          {!mustSignIn && route.page === 'watch' && <Watch />}
+          {!mustSignIn && route.page === 'walkthrough' && <Walkthrough />}
+          {!mustSignIn && route.page === 'limits' && <Limits />}
+          {!mustSignIn && route.page === 'case' && <CaseFile key={route.caseId} caseId={route.caseId} tab={route.tab} />}
         </ErrorBoundary>
       </main>
     </>

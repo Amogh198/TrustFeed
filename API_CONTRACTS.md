@@ -180,6 +180,14 @@ The score combines counted components as `1 - product(1 - weight * score)`, so C
 
 `GET /api/cases` also takes `q` (words in a saved report) and `kind` (`media`, `link`, `text`, `scam` or `campaign`), searching the newest 500 reports. `GET /api/overview` gives counts, with replays counted apart.
 
+## Accounts
+
+`POST /api/auth/signup` and `POST /api/auth/login` take `{email, password}`. `POST /api/auth/logout` ends the session. `GET /api/auth/me` returns `{email, auth_required, signup_enabled}`, with `email` null when signed out. Sessions use an HttpOnly, SameSite=Lax cookie, so browser clients must send `credentials: 'include'`.
+
+A case saved while signed in is visible only to its owner. Anyone else gets the same 404 as a case that doesn't exist. `GET /api/cases` and `/api/overview` list only the caller's own cases. Cases saved while signed out have no owner, and anyone who knows the ID can open them.
+
+With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns 401 when signed out. Off by default, so the offline demo needs no account. Watches under `/api/monitors` aren't per-person.
+
 ## Common response sketch
 
 ```json

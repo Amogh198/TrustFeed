@@ -1,6 +1,7 @@
 import base64
 import logging
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -8,8 +9,10 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import unquote
 from uuid import uuid4
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -45,6 +48,14 @@ from backend.api.app.models import (
     TimelineResponse,
 )
 from backend.api.app.replay import get_scenario, list_scenarios
+from backend.api.app.auth import (
+    COOKIE_NAME,
+    CURRENT_USER,
+    AuthStore,
+    auth_required,
+    build_router,
+    current_owner,
+)
 from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
 from backend.api.app.risk import build_unified_risk, summary_for
 from backend.api.app.scam_records import build_scam_analysis
@@ -131,6 +142,7 @@ async def limit_upload_size(request: Request, call_next):
     return await call_next(request)
 
 
+CASE_NOT_FOUND = "Case not found in this server process"
 cors_origins = [
     origin.strip()
     for origin in os.getenv(
@@ -139,10 +151,44 @@ cors_origins = [
     ).split(",")
     if origin.strip()
 ]
+_CASE_PATH = re.compile(r"^/api/(?:cases|network)/([^/]+)")
+_OPEN_WHEN_REQUIRED = ("/health", "/api/auth/")
+
+
+@app.middleware("http")
+async def accounts(request: Request, call_next):
+    """Decide who is asking, and refuse what they can't see, before any route runs.
+
+    Checking here means a route added under a case's path is covered without further work.
+    """
+    token = request.cookies.get(COOKIE_NAME)
+    origin = request.headers.get("origin")
+    changes = request.method in ("POST", "PUT", "PATCH", "DELETE")
+    # A browser marks where a request came from, so a page on another site can't act as the user.
+    if changes and origin and origin not in cors_origins and (token or request.url.path.startswith("/api/auth/")):
+        return JSONResponse(status_code=403, content={"detail": "This request came from a site this server doesn't trust."})
+    user = await run_in_threadpool(AUTH_STORE.user_for_token, token)
+    if (
+        auth_required()
+        and user is None
+        and request.method != "OPTIONS"
+        and not request.url.path.startswith(_OPEN_WHEN_REQUIRED)
+    ):
+        return JSONResponse(status_code=401, content={"detail": "Sign in to use this server."})
+    found = _CASE_PATH.match(request.url.path)
+    if found:
+        saved, owner = await run_in_threadpool(CASE_STORE.owner_of, unquote(found.group(1)))
+        if saved and owner is not None and (user is None or user.id != owner):
+            # The same answer as a case that doesn't exist, so an ID can't be probed.
+            return JSONResponse(status_code=404, content={"detail": CASE_NOT_FOUND})
+    CURRENT_USER.set(user)
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
@@ -150,6 +196,8 @@ app.add_middleware(
 # Hackathon starter storage: process-local and intentionally non-persistent.
 CASES: dict[str, AnalysisResponse] = {}
 CASE_STORE = default_store()
+AUTH_STORE = AuthStore(CASE_STORE.path)
+app.include_router(build_router(AUTH_STORE))
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -403,7 +451,7 @@ def _store_case(
         replay_label=replay_label,
     )
     CASES[case_id] = result
-    CASE_STORE.save(result)
+    CASE_STORE.save(result, owner_id=current_owner())
     if media is not None:
         # The upload is deleted, so its explanation is saved now while the result exists.
         CASE_STORE.save_detail(case_id, "media_checks", {"checks": media.to_checks()})
@@ -629,12 +677,12 @@ def list_cases(
     kind: Annotated[Literal["media", "link", "text", "scam", "campaign"] | None, Query()] = None,
 ) -> CaseHistoryResponse:
     if not q and not kind:
-        cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level)
+        cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level, owner_id=current_owner())
         return CaseHistoryResponse(cases=cases, total=total)
     # Only the newest reports are searched, which keeps this quick on a local database.
     found = []
     needle = (q or "").casefold()
-    for case in CASE_STORE.recent(MAX_SEARCHED_CASES):
+    for case in CASE_STORE.recent(MAX_SEARCHED_CASES, current_owner()):
         if risk_level and case.overall_risk is not risk_level:
             continue
         if kind and kind not in case_kinds(case):
@@ -648,7 +696,8 @@ def list_cases(
 @app.get("/api/overview")
 def overview() -> dict[str, Any]:
     """Counts across saved reports, from their stored results."""
-    return build_overview(CASE_STORE.recent(MAX_SEARCHED_CASES), CASE_STORE.list(limit=1)[1])
+    owner = current_owner()
+    return build_overview(CASE_STORE.recent(MAX_SEARCHED_CASES, owner), CASE_STORE.list(limit=1, owner_id=owner)[1])
 
 
 @app.get("/api/replay/scenarios", response_model=ReplayScenariosResponse)

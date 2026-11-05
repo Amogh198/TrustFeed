@@ -309,3 +309,4 @@ export interface NetworkTests {
   repeated_media: { status: string; reason?: string | null; groups: { fingerprint: string; posts: number; accounts: number; variants: number }[] };
   activity_baseline?: { reason: string } | null;
 }
+export interface AccountState { email: string | null; auth_required: boolean; signup_enabled: boolean }
