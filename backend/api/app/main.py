@@ -45,6 +45,7 @@ from backend.api.app.models import (
 )
 from backend.api.app.replay import get_scenario, list_scenarios
 from backend.api.app.scam_records import build_scam_analysis
+from backend.text.cross_modal import compare_channels
 from backend.text.links import investigate_link
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
@@ -173,6 +174,9 @@ def _follow_short_link(url: str | None) -> str | None:
     return expand_shortener(url) if url and not _replay_mode() else None
 
 
+LINK_CHECK_LIMIT_SECONDS = 30.0
+
+
 def _check_link(url: str | None, search_web: bool, text: str | None = None) -> LinkAnalysis | None:
     """Look into a link. Opening it or asking a registry about it needs the user's consent."""
     if not url:
@@ -181,7 +185,21 @@ def _check_link(url: str | None, search_web: bool, text: str | None = None) -> L
         return investigate_link(url, offline_reason="Not checked, because outside requests were not allowed.")
     if _replay_mode() or is_demo_story(text, url):
         return investigate_link(url, offline_reason="Replay stays offline, so this was not checked.")
-    return investigate_link(url)
+    # Run apart with a hard limit, as a site sending its headers very slowly can outlast the request timeouts.
+    box: dict[str, LinkAnalysis] = {}
+
+    def work() -> None:
+        try:
+            box["report"] = investigate_link(url)
+        except Exception as exc:  # noqa: BLE001 - A failed check must not lose the rest of the case.
+            logger.warning("Link check failed: %s", type(exc).__name__)
+
+    worker = threading.Thread(target=work, daemon=True, name="link-check")
+    worker.start()
+    worker.join(LINK_CHECK_LIMIT_SECONDS)
+    return box.get("report") or investigate_link(
+        url, offline_reason="The link check failed or ran out of time, so only the address was checked."
+    )
 
 
 def _traceable_links(provenance: ProvenanceReport | None) -> tuple[str, ...]:
@@ -320,6 +338,14 @@ def _store_case(
             "Do not open this link or enter any details. Go to the organization's official site directly instead."
         )
 
+    cross_modal = None
+    if media is not None:
+        # The media check doesn't send text yet. When it does, this picks it up without a change.
+        cross_modal = compare_channels(" ".join(claims or []), getattr(media, "extracted_text", None))
+    if cross_modal and text_result:
+        # Shown as evidence, but not scored, as this hasn't been measured.
+        text_result.evidence.extend(f"Media and caption differ: {item.explanation}" for item in cross_modal.conflicts)
+
     result = AnalysisResponse(
         case_id=case_id,
         overall_risk=risk,
@@ -346,6 +372,7 @@ def _store_case(
         claim_analysis=claim_analysis,
         scam_analysis=scam_analysis,
         link_analysis=link_analysis,
+        cross_modal=cross_modal,
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
         is_replay=replay_label is not None,

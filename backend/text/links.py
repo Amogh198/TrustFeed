@@ -46,6 +46,10 @@ _MAX_PAGE_BYTES = 3 * 1024 * 1024
 _REQUEST_TIMEOUT_S = 5.0
 _TOTAL_BUDGET_S = 20.0
 _MAX_TITLE = 200
+# Only the first part of a page is read, as parsing a crafted page can be slow.
+_MAX_PARSE_CHARS = 512 * 1024
+_PARSE_CHUNK = 32 * 1024
+_MAX_PARSE_SECONDS = 2.0
 _NEW_DOMAIN_DAYS = 30
 _YOUNG_DOMAIN_DAYS = 180
 _SIMILAR_TITLE = 0.6
@@ -74,6 +78,7 @@ _PRETEXT_WORDS = {
 }
 _CARD_FIELD = re.compile(r"card.?(num|no\b)|cc.?num|cvv|cvc|expiry|exp.?date|(^|[^a-z])upi([^a-z]|$)|ifsc|account.?(num|no\b)", re.I)
 _CODE_FIELD = re.compile(r"(^|[^a-z])otp([^a-z]|$)|one.?time|atm.?pin|(^|[^a-z])m?pin([^a-z]|$)", re.I)
+_VALID_HOST = re.compile(r"^[a-z0-9.-]{1,253}$")
 _REFRESH = re.compile(r"url\s*=\s*['\"]?([^'\";>\s]+)", re.I)
 
 LIMITATIONS = [
@@ -99,6 +104,16 @@ def _host(url: str) -> str:
         return (urlsplit(url).hostname or "").casefold().rstrip(".")
     except ValueError:
         return ""
+
+
+def _join(base: str, target: str) -> str | None:
+    """Resolve an address the page wrote, which can be malformed on purpose."""
+    try:
+        joined = urljoin(base, target)
+        urlsplit(joined).port  # noqa: B018 - Reading the port is what checks it.
+    except ValueError:
+        return None
+    return joined
 
 
 def _is_ip(host: str) -> bool:
@@ -252,14 +267,23 @@ def _charset(response: HttpResponse) -> str:
     return found.group(1) if found else "utf-8"
 
 
-def _read_page(response: HttpResponse) -> _PageReader:
+def _read_page(response: HttpResponse) -> _PageReader | None:
+    """Read the page's first part, stopping at a time limit. A page that breaks the parser returns None."""
     reader = _PageReader()
     try:
         body = response.body.decode(_charset(response), errors="replace")
-    except LookupError:
+    except (LookupError, ValueError):
         body = response.body.decode("utf-8", errors="replace")
-    reader.feed(body)
-    reader.close()
+    body = body[:_MAX_PARSE_CHARS]
+    limit = time.monotonic() + _MAX_PARSE_SECONDS
+    try:
+        for start in range(0, len(body), _PARSE_CHUNK):
+            if time.monotonic() > limit:
+                break
+            reader.feed(body[start : start + _PARSE_CHUNK])
+        reader.close()
+    except Exception:  # noqa: BLE001 - A hostile page must not lose the rest of the report.
+        return None
     return reader
 
 
@@ -304,7 +328,7 @@ class _Budget:
         )
 
 
-def _follow(url: str, budget: _Budget) -> tuple[LinkRedirects, HttpResponse | None, _PageReader | None, str | None]:
+def _follow(url: str, budget: _Budget) -> tuple[LinkRedirects, HttpResponse | None, _PageReader | None, str, bool]:
     """Walk the redirects one at a time, so every hop is seen and checked."""
     hops: list[LinkHop] = []
     current = url
@@ -313,6 +337,7 @@ def _follow(url: str, budget: _Budget) -> tuple[LinkRedirects, HttpResponse | No
     reader: _PageReader | None = None
     failure: str | None = None
     reached_failed = False
+    unreadable = False
     for _ in range(_MAX_HOPS):
         try:
             response = budget.get(current)
@@ -330,11 +355,18 @@ def _follow(url: str, budget: _Budget) -> tuple[LinkRedirects, HttpResponse | No
         reader = None
         next_url: str | None = None
         if response.status in _REDIRECTS and location:
-            next_url = urljoin(current, location)
+            next_url = _join(current, location)
+            if next_url is None:
+                failure = "The link redirects to a malformed address."
+                response = None
+                break
         elif response.status == 200 and _is_html(response):
             reader = _read_page(response)
-            if reader.refresh:
-                next_url = urljoin(current, reader.refresh)
+            if reader is None:
+                unreadable = True
+            elif reader.refresh:
+                # A page's refresh is optional, so a malformed one just isn't followed.
+                next_url = _join(current, reader.refresh)
         if next_url is None:
             break
         if next_url in seen:
@@ -355,28 +387,38 @@ def _follow(url: str, budget: _Budget) -> tuple[LinkRedirects, HttpResponse | No
         response,
         reader,
         current,
+        unreadable,
     )
 
 
-def _page_record(response: HttpResponse | None, reader: _PageReader | None, redirects: LinkRedirects, url: str) -> LinkPage:
+def _page_record(
+    response: HttpResponse | None, reader: _PageReader | None, redirects: LinkRedirects, url: str, unreadable: bool = False
+) -> LinkPage:
     if response is None:
         return LinkPage(status=ModuleStatus.UNAVAILABLE, reason=redirects.reason or "The page could not be read.")
+    if unreadable:
+        return LinkPage(status=ModuleStatus.UNAVAILABLE, reason="The page's content could not be read.", http_status=response.status)
     if response.status != 200:
         return LinkPage(
             status=ModuleStatus.UNAVAILABLE, reason=f"The site answered with error {response.status}.", http_status=response.status
         )
     if reader is None:
-        kind = response.headers.get("content-type", "unknown").split(";")[0][:60]
+        kind = response.headers.get("content-type", "unknown").split(";")[0].strip()
+        kind = "".join(ch for ch in kind if ch.isascii() and ch.isprintable())[:60] or "unknown"
         return LinkPage(
             status=ModuleStatus.NOT_APPLICABLE, reason=f"The link leads to a file of type {kind}, not a web page.", http_status=200
         )
     own_domain = _registered_domain(_host(url))
     posts_to = []
     for action in reader.forms:
-        target = _host(urljoin(url, action)) if action else ""
-        if target and not _is_ip(target) and _registered_domain(target) != own_domain:
-            posts_to.append(target)
-        elif target and _is_ip(target):
+        joined = _join(url, action) if action else None
+        target = _host(joined) if joined else ""
+        if not target:
+            continue
+        if not _VALID_HOST.match(target):
+            # The page wrote this, so a strange value isn't repeated in the report.
+            posts_to.append("an invalid address")
+        elif _is_ip(target) or _registered_domain(target) != own_domain:
             posts_to.append(target)
     words = " ".join(reader.text)
     return LinkPage(
@@ -469,6 +511,8 @@ def _compare_official(brand: str, page: LinkPage, reader: _PageReader | None, bu
     if response.status != 200 or not _is_html(response):
         return record.model_copy(update={"reason": f"The official site, {official}, answered with status {response.status}."})
     theirs = _read_page(response)
+    if theirs is None:
+        return record.model_copy(update={"reason": f"The official site, {official}, could not be read for comparison."})
     their_title = _clean_title(theirs.title)
     return record.model_copy(
         update={
@@ -576,8 +620,8 @@ def investigate_link(
         title_brand = None
     else:
         budget = _Budget(request, clock)
-        redirects, response, reader, current = _follow(url, budget)
-        page = _page_record(response, reader, redirects, current or url)
+        redirects, response, reader, current, unreadable = _follow(url, budget)
+        page = _page_record(response, reader, redirects, current, unreadable)
         final_host = redirects.final_host or ""
         final = find_lookalike(final_host) if final_host and final_host != _host(url) else None
         checked_host = final_host or _host(url)

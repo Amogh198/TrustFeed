@@ -314,3 +314,56 @@ def test_a_word_containing_upi_is_not_a_payment_field():
 @pytest.mark.parametrize(("host", "strength"), [("paypa1-login.example.com", "strong"), ("paypal.example.com", "weak")])
 def test_subdomains_are_checked(host, strength):
     assert find_lookalike(host).strength == strength
+
+
+# Hostile pages. None of these may raise, as that would lose the whole case.
+@pytest.mark.parametrize("location", ["http://[bad", "http://a.example:notaport/"])
+def test_malformed_redirect_is_reported(location):
+    url = "https://a.example/"
+    report = run(url, {url: redirect("", location)})
+    assert report.redirects.status is ModuleStatus.UNAVAILABLE and "malformed" in report.redirects.reason
+
+
+def test_malformed_refresh_and_form_address_do_not_raise():
+    url = "https://a.example/"
+    body = '<meta http-equiv="refresh" content="0; url=http://[bad"><form action="http://[bad"><input type="password"></form>'
+    report = run(url, {url: page("", body)})
+    assert report.page.status is ModuleStatus.COMPLETE and report.page.form_posts_to == []
+
+
+def test_odd_form_address_is_not_repeated():
+    url = "https://a.example/"
+    report = run(url, {url: page("", '<form action="https://evil<b>.example/"><input type="password"></form>')})
+    assert report.page.form_posts_to == ["an invalid address"]
+
+
+@pytest.mark.parametrize("charset", ["nonsense", "base64", "idna"])
+def test_strange_charset_does_not_raise(charset):
+    url = "https://a.example/"
+    response = HttpResponse(url=url, status=200, headers={"content-type": f"text/html; charset={charset}"}, body=b"<title>T</title>")
+    assert run(url, {url: response}).page.status is ModuleStatus.COMPLETE
+
+
+def test_parser_failure_is_unavailable(monkeypatch):
+    from backend.text import links
+
+    def explode(_self, _data):
+        raise ValueError("broken")
+
+    monkeypatch.setattr(links._PageReader, "feed", explode)
+    url = "https://a.example/"
+    report = run(url, {url: page("", "<title>T</title>")})
+    assert report.page.status is ModuleStatus.UNAVAILABLE and report.page.reason
+
+
+def test_only_the_first_part_of_a_huge_page_is_parsed():
+    url = "https://a.example/"
+    body = "<title>T</title>" + "<p>x</p>" * 200_000 + '<input type="password">'
+    assert run(url, {url: page("", body)}).page.asks_for_login is False
+
+
+def test_odd_content_type_is_cleaned():
+    url = "https://a.example/f"
+    response = HttpResponse(url=url, status=200, headers={"content-type": "application/\x07<b>x" + "y" * 200}, body=b"x")
+    reason = run(url, {url: response}).page.reason
+    assert "\x07" not in reason and len(reason) < 120

@@ -446,3 +446,18 @@ def test_link_parts_appear_in_the_explanation(outside):
     assert {"url.lookalike", "url.redirects", "url.domain_age", "url.page", "url.official_site", "url.threat_lists"} <= {
         check["check_id"] for check in checks
     }
+
+
+def test_a_crashed_link_check_keeps_the_address_result(monkeypatch):
+    real = main.investigate_link
+
+    def crash(url, *, offline_reason=None):
+        if offline_reason is None:
+            raise ValueError("broken")
+        return real(url, offline_reason=offline_reason)
+
+    monkeypatch.setattr(main, "investigate_link", crash)
+    monkeypatch.setattr(main, "trace_case", lambda *_a, **_k: {"status": "complete", "score": None, "confidence": None, "evidence": []})
+    body = client.post("/api/cases/analyze", json={"url": "https://paypa1.com/", "search_web": True}).json()
+    assert body["link_analysis"]["lookalike"]["brand"] == "paypal"
+    assert "failed or ran out of time" in body["link_analysis"]["page"]["reason"]

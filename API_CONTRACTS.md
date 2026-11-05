@@ -154,6 +154,12 @@ Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live t
 - Signs appear in `modules.url.evidence` and don't change `modules.url.score`. The figures in `results_file` cover the address check only.
 - The explanation endpoint adds `url.lookalike`, `url.redirects`, `url.domain_age`, `url.page`, `url.official_site` and `url.threat_lists`.
 
+## Cross-modal comparison
+
+`cross_modal` on a case is null without media. It compares the caption with text from the media, read from `media.extracted_text = {"ocr": [...], "speech": [...]}` once the media check provides that. Until then `status` is `not_applicable` with a `reason`. `conflicts` hold `channels`, `kind`, `severity`, `explanation` and optional quotes. It isn't measured and changes no score.
+
+`image_caption` stays `unavailable`: `openai/clip-vit-base-patch32` has no safetensors weights and declares no licence on the Hub, so it isn't downloaded or run.
+
 ## Common response sketch
 
 ```json

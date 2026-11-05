@@ -231,6 +231,35 @@ class LinkAnalysis(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class CrossModalConflict(BaseModel):
+    # Two of caption, ocr and speech.
+    channels: list[str]
+    kind: str
+    # "conflict" means they cannot both stand as written. "note" means they differ but need not be wrong.
+    severity: str
+    explanation: str
+    # From the submission or the media, so show them as plain text.
+    left_quote: str | None = None
+    right_quote: str | None = None
+
+
+class ImageCaptionCheck(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    score: float | None = None
+
+
+class CrossModalAnalysis(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    # conflicts_found, notes_only or none_found, and null when nothing could be compared.
+    assessment: str | None = None
+    channels: list[str] = Field(default_factory=list)
+    conflicts: list[CrossModalConflict] = Field(default_factory=list)
+    image_caption: ImageCaptionCheck
+    limitations: list[str] = Field(default_factory=list)
+
+
 class AnalyzeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=20_000)
     url: HttpUrl | None = None
@@ -257,6 +286,8 @@ class AnalysisResponse(BaseModel):
     scam_analysis: ScamAnalysis | None = None
     # Null when no link was submitted, and for cases saved before this field existed.
     link_analysis: LinkAnalysis | None = None
+    # Null when no media was submitted, and for cases saved before this field existed.
+    cross_modal: CrossModalAnalysis | None = None
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False

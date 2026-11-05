@@ -11,6 +11,7 @@ from backend.api.app.models import (
     ModuleStatus,
     RiskLevel,
 )
+from backend.text.cross_modal import cross_modal_checks
 from backend.text.links import link_checks
 
 _NOT_PROOF = "A score is a signal for review, not proof."
@@ -94,6 +95,8 @@ def build_explanation(
     ]
     if case.link_analysis:
         checks += [ExplanationCheck.model_validate(check) for check in link_checks(case.link_analysis)]
+    if case.cross_modal:
+        checks += [ExplanationCheck.model_validate(check) for check in cross_modal_checks(case.cross_modal)]
     checks += [ExplanationCheck.model_validate(check) for check in [*media_checks, *provenance_checks, *network_checks]]
     return ExplanationResponse(
         case_id=case.case_id,
