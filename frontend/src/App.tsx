@@ -5,6 +5,7 @@ import { useRoute } from './lib/route';
 import Cases from './pages/Cases';
 import Home from './pages/Home';
 import Limits from './pages/Limits';
+import LiveMonitor from './pages/LiveMonitor';
 import Walkthrough from './pages/Walkthrough';
 import Watch from './pages/Watch';
 import ErrorBoundary from './ui/ErrorBoundary';
@@ -13,6 +14,7 @@ const NAV: [string, string, string][] = [
   ['home', '#/', 'Check'],
   ['cases', '#/cases', 'Cases'],
   ['watch', '#/watch', 'Watch'],
+  ['monitor', '#/monitor', 'Live Monitor'],
   ['walkthrough', '#/walkthrough', 'Walkthrough'],
   ['limits', '#/limits', 'What it misses'],
 ];
@@ -68,6 +70,7 @@ export default function App() {
           {route.page === 'home' && <Home />}
           {route.page === 'cases' && <Cases />}
           {route.page === 'watch' && <Watch />}
+          {route.page === 'monitor' && <LiveMonitor />}
           {route.page === 'walkthrough' && <Walkthrough />}
           {route.page === 'limits' && <Limits />}
           {route.page === 'case' && <CaseFile key={route.caseId} caseId={route.caseId} tab={route.tab} />}

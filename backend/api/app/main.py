@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 import os
 import shutil
@@ -17,6 +18,7 @@ from pydantic import HttpUrl
 
 from backend.api.app.explanation import build_countermeasures, build_explanation
 from backend.api.app.fusion import (
+    action_packet as fusion_action_packet,
     combine_risks,
     disagreement_note,
     fused_summary,
@@ -111,7 +113,7 @@ def _upload_error(status_code: int, code: str, message: str) -> JSONResponse:
 # parser spools the whole body to disk, so the size has to be checked before it runs.
 @app.middleware("http")
 async def limit_upload_size(request: Request, call_next):
-    if request.method == "POST" and request.url.path in (MEDIA_UPLOAD_PATH, HEATMAP_PATH):
+    if request.method == "POST" and request.url.path in (MEDIA_UPLOAD_PATH, "/api/cases/media", HEATMAP_PATH):
         length = request.headers.get("content-length", "")
         if not length.isdigit():
             return _upload_error(411, "length_required", "Uploads must declare a Content-Length.")
@@ -481,6 +483,7 @@ def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
 
 
 @app.post(MEDIA_UPLOAD_PATH, response_model=AnalysisResponse)
+@app.post("/api/cases/media", response_model=AnalysisResponse)
 def analyze_media_case(
     file: Annotated[UploadFile, File(description="JPEG, PNG, WebP, MP4, MOV, WebM or AVI.")],
     text: Annotated[str | None, Form(max_length=20_000)] = None,
@@ -702,6 +705,57 @@ def delete_monitor(watch_id: str) -> dict[str, bool]:
     return {"stopped": stop_watch(watch_id)}
 
 
+@app.get("/api/monitor/alerts", response_model=list[dict[str, Any]])
+def get_monitor_alerts() -> list[dict[str, Any]]:
+    demo_path = Path(__file__).resolve().parents[3] / "data" / "demo" / "network_demo.json"
+    if not demo_path.is_file():
+        return []
+    try:
+        data = json.loads(demo_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to read network_demo.json for monitor alerts: %s", exc)
+        return []
+
+    posts = data.get("posts", [])
+    campaigns: dict[str, dict[str, Any]] = {}
+    for post in posts:
+        key = post.get("media_hash") or post.get("url")
+        if not key:
+            continue
+        key_str = str(key)
+        if key_str not in campaigns:
+            campaigns[key_str] = {
+                "campaign_id": key_str,
+                "platforms": set(),
+                "total_posts": 0,
+            }
+        campaigns[key_str]["total_posts"] += 1
+        platform = post.get("platform")
+        if platform:
+            campaigns[key_str]["platforms"].add(str(platform))
+
+    alerts = []
+    for camp in campaigns.values():
+        total = camp["total_posts"]
+        spread = sorted(list(camp["platforms"]))
+        if total >= 25 or len(spread) >= 3:
+            risk = "critical"
+        elif total >= 15:
+            risk = "high"
+        elif total >= 5:
+            risk = "moderate"
+        else:
+            risk = "low"
+        alerts.append({
+            "campaign_id": camp["campaign_id"],
+            "platform_spread": spread,
+            "total_posts": total,
+            "risk_level": risk,
+        })
+    alerts.sort(key=lambda x: x["total_posts"], reverse=True)
+    return alerts
+
+
 @app.get("/api/network/{case_id}")
 def get_network(case_id: str) -> dict[str, list[dict[str, object]]]:
     detail = _network_detail(case_id)
@@ -724,38 +778,4 @@ def get_coverage(case_id: str) -> dict[str, object] | None:
 @app.post("/api/cases/{case_id}/action-packet", response_model=ActionPacketResponse)
 def action_packet(case_id: str, request: ActionPacketRequest) -> ActionPacketResponse:
     case = _find_case(case_id)
-    evidence = [item for module in case.modules.values() for item in module.evidence]
-    sections = [
-        ActionPacketSection(
-            heading="Assessment",
-            items=[case.summary, f"Risk level: {case.overall_risk.value}. This is a triage signal, not a factual verdict."],
-        ),
-        ActionPacketSection(
-            heading="Evidence observed",
-            items=evidence or ["No module produced evidence for this case."],
-        ),
-        ActionPacketSection(
-            heading="Claim status",
-            items=(
-                [f"{claim.text} — {claim.verdict.value}; {claim.rationale}" for claim in case.claims]
-                or ["No text claim was supplied for atomization."]
-            ),
-        ),
-        ActionPacketSection(heading="Uncertainties", items=case.uncertainties or ["No additional uncertainty was recorded."]),
-        ActionPacketSection(heading="Recommended next actions", items=case.recommended_actions),
-        ActionPacketSection(heading="Suggested countermeasures", items=build_countermeasures(case)),
-    ]
-    draft_lines = [
-        f"TrustFeed draft for {request.audience}.",
-        "This draft is assembled by fixed rules from the case record; no generative model or external fact-check was used.",
-    ]
-    for section in sections:
-        draft_lines.append(f"\n{section.heading}:")
-        draft_lines.extend(f"- {item}" for item in section.items)
-    return ActionPacketResponse(
-        case_id=case_id,
-        label="Assembled by fixed rules from this case's evidence; no generative model or external verification was used.",
-        draft="\n".join(draft_lines),
-        evidence_references=evidence,
-        sections=sections,
-    )
+    return fusion_action_packet(case, request.audience)
