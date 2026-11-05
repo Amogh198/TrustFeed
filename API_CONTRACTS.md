@@ -15,16 +15,37 @@ Status: **initial implementation contract**. Any change requires a PR that names
 - `GET /health` -> service status and version.
 - `POST /api/cases/analyze` -> accepts a text claim and/or URL as JSON, plus optional `search_web` (boolean, default `false`); returns one case summary and available module results. `media` and `provenance` are `not_applicable`.
 - `POST /api/cases/analyze-media` -> multipart form with `file` (required; JPEG, PNG, WebP, MP4, MOV, WebM or AVI), plus optional `text`, `url` and `search_web` (boolean, default `false`). Returns the same response shape as `analyze`.
-- `GET /api/cases/{case_id}` -> saved local case result. `demo-001` is always available: a synthetic case with network and source search results only.
+- `GET /api/cases/{case_id}` -> saved local case result. `demo-001` and `demo-story-001` are always available. Both are synthetic, with `is_replay: true` and a `replay_label` the UI must show.
 - `GET /api/cases/{case_id}/provenance` -> the full source search report. See "Source search and public-post trace".
 - `GET /api/cases/{case_id}/timeline` -> `{events: []}`, combining web appearances, matching posts and flagged co-sharing activity.
 - `GET /api/cases` -> local case-history summaries. Optional `risk_level` filters by the triage label; `limit` is 1–100 and defaults to 25.
 - `GET /api/cases/{case_id}/export` -> the complete saved case report as JSON for local export or offline presentation.
 - `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI. Filled for `demo-001`, where every item has `synthetic: true`, which the UI must show. Empty for submitted cases unless a public-post trace ran for them; they never receive the demo network.
 - `GET /api/network/{case_id}/coverage` -> what a trace searched and missed, and the matching posts in time order. `null` when no trace ran for the case.
-- `POST /api/cases/{case_id}/action-packet` -> draft countermeasure text with evidence references and clear AI-generated label.
+- `GET /api/cases/{case_id}/explanation` -> what each check did, found and can't show. See "Explanation".
+- `POST /api/media/heatmap` -> multipart `file` (image). Returns a transparent colour grid showing where covering part of the image moved the model's score. Runs one at a time, and returns `429` with code `busy` otherwise. The file is deleted afterwards and no case is created.
+- `POST /api/monitors`, `GET /api/monitors`, `POST /api/monitors/{id}/poll`, `DELETE /api/monitors/{id}` -> watch public platforms. See "Monitoring".
+- `POST /api/cases/{case_id}/action-packet` -> draft countermeasures with evidence references, assembled by fixed rules from the case. `generated` is `false`, as no generative model is used.
 - `GET /api/replay/scenarios` -> the bundled offline replay scenarios, with their synthetic labels.
 - `POST /api/replay/{scenario_id}/start` -> runs a bundled scenario through the normal text/URL analysis flow and saves a case marked as replay data.
+
+## Explanation
+
+`GET /api/cases/{case_id}/explanation` returns `what_was_submitted` (kinds of content only, never the content), `what_was_detected`, `supports`, `refutes`, `uncertainties`, `checks` and `missing_checks`.
+
+- Each check has `check_id`, `module`, `label`, `status`, `result`, `reasoning`, `benchmark`, `artifacts` and `limitations`.
+- `benchmark` is `null` when unmeasured, and the UI shows "Not measured". Figures are only read from a results file.
+- `missing_checks` lists each module that didn't run, with the reason. Nothing is filled in.
+- A quiet media detector is never listed under `refutes`, as it isn't reassuring.
+
+## Monitoring
+
+`POST /api/monitors` takes `opted_in`, `text`, `urls` and `hashtags`. Refusals use `{"detail": {"code", "message"}}`: `422` without opt-in or anything to watch, or at the limit of 5 watches, and `409` in replay mode.
+
+- **Nothing runs in the background.** A watch sends nothing until `POST .../poll`, which returns a snapshot with `platforms_read`, `new_posts`, `total_matching_posts`, `alerts`, `platforms`, `not_connected` and `module_result`.
+- **Limits:** polls at least 60 seconds apart (`429`), and a watch ends after 24 hours. Watches live in the server's memory.
+- After a poll, `GET /api/network/{watch_id}` and its `/coverage` work with the watch id.
+- This polls public search. It isn't a complete feed of any platform.
 
 ## Claims, history and replay
 
@@ -48,7 +69,7 @@ Other `422` responses, for a missing `file` or an invalid `url`, use the standar
 
 If the file is valid but the model cannot run, the response is `200` with the `media` module `unavailable`, a `null` score and the reason in `limitations`. Metadata and pHash evidence is still returned.
 
-`overall_risk` for an upload comes from the media module's assessment, not its raw score, combined with any text and URL results. Media alone reaches at most `high`. A result is `low` only if every module reached a result; otherwise it is `inconclusive`.
+`overall_risk` for an upload comes from the media module's assessment, not its raw score, combined with any text and URL results. Media alone reaches at most `high`. A quiet detector ("no strong signals") counts as `inconclusive`, not `low`, because the detector flags few fakes at its current settings. A result is `low` only if every module reached a result; otherwise it is `inconclusive`.
 
 ## Source search and public-post trace
 
@@ -57,7 +78,7 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 | Step | Runs when | Sent to |
 |---|---|---|
 | Source search | A valid image is uploaded with `search_web` | The image, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
-| Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms. |
+| Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms: Mastodon, Lemmy, Hacker News and Bluesky. A known short link is also followed to its destination, through the protected HTTP client. |
 
 Both add to the request's time: the source search can take about 100 seconds with all three keys, and the trace up to about 25 seconds. With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
 

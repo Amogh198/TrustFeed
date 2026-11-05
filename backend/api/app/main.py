@@ -1,7 +1,9 @@
+import base64
 import logging
 import os
 import shutil
 import tempfile
+import threading
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -13,7 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import HttpUrl
 
-from backend.api.app.fusion import combine_risks, fused_summary, media_risk
+from backend.api.app.explanation import build_countermeasures, build_explanation
+from backend.api.app.fusion import (
+    combine_risks,
+    disagreement_note,
+    fused_summary,
+    media_risk,
+)
 from backend.api.app.models import (
     ActionPacketRequest,
     ActionPacketResponse,
@@ -22,9 +30,12 @@ from backend.api.app.models import (
     AnalyzeRequest,
     CaseHistoryResponse,
     ClaimRecord,
+    ExplanationResponse,
     HealthResponse,
+    HeatmapResponse,
     ModuleResult,
     ModuleStatus,
+    MonitorStartRequest,
     ReplayScenariosResponse,
     RiskLevel,
     TimelineEvent,
@@ -32,14 +43,25 @@ from backend.api.app.models import (
 )
 from backend.api.app.replay import get_scenario, list_scenarios
 from backend.api.app.store import default_store
-from backend.media import MediaConfig, analyze_media
+from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
+from backend.media.classifier import default_classifier
+from backend.media.errors import MediaInputError
+from backend.media.metadata import read_image
 from backend.media.models import Assessment, MediaAnalysisResult
 from backend.network import (
     DEMO_CASE_ID,
+    DEMO_STORY_CASE_ID,
+    WatchError,
+    build_network_checks,
+    get_demo_story,
     get_network_clusters,
     get_network_coverage,
     get_network_module_result,
     get_network_payload,
+    list_watches,
+    poll_watch,
+    start_watch,
+    stop_watch,
     trace_case,
 )
 from backend.network.story import is_demo_story
@@ -49,12 +71,21 @@ from backend.provenance import (
     investigate_provenance,
 )
 from backend.provenance.models import MatchType, Status
-from backend.text.analysis import analyze_text, analyze_url, fuse_risk, signal_summary
+from backend.text.analysis import (
+    analyze_text,
+    analyze_url,
+    expand_shortener,
+    fuse_risk,
+    signal_summary,
+)
 
 # Never log submitted text, links or file names: they can reveal what a user submitted.
 logger = logging.getLogger(__name__)
 
 MEDIA_UPLOAD_PATH = "/api/cases/analyze-media"
+HEATMAP_PATH = "/api/media/heatmap"
+# A heatmap takes about 65 model runs, so only one runs at a time.
+_heatmap_slot = threading.Lock()
 # Each link costs a search on each platform, and the trace has a 25-second budget.
 MAX_TRACED_PAGE_LINKS = 10
 # The largest accepted file plus room for the other form fields. analyze_media
@@ -80,7 +111,7 @@ def _upload_error(status_code: int, code: str, message: str) -> JSONResponse:
 # parser spools the whole body to disk, so the size has to be checked before it runs.
 @app.middleware("http")
 async def limit_upload_size(request: Request, call_next):
-    if request.method == "POST" and request.url.path == MEDIA_UPLOAD_PATH:
+    if request.method == "POST" and request.url.path in (MEDIA_UPLOAD_PATH, HEATMAP_PATH):
         length = request.headers.get("content-length", "")
         if not length.isdigit():
             return _upload_error(411, "length_required", "Uploads must declare a Content-Length.")
@@ -101,7 +132,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -177,10 +208,16 @@ def _store_case(
     network: ModuleResult | None = None,
 ) -> AnalysisResponse:
     """Build and save a case. ``network`` is given only when the user asked for a trace."""
+    module_levels: dict[str, RiskLevel] = {}
+    if text_result:
+        module_levels["the text check"] = fuse_risk(text_result, None)
+    if url_result:
+        module_levels["the link check"] = fuse_risk(None, url_result)
     if media is None:
         risk = fuse_risk(text_result, url_result)
         summary = signal_summary(risk)
     else:
+        module_levels["the media check"] = media_risk(media)
         levels = [media_risk(media)]
         if text_result or url_result:
             levels.append(fuse_risk(text_result, url_result))
@@ -190,9 +227,17 @@ def _store_case(
     uncertainties = ["No external fact-checking or domain reputation source was queried."]
     if text_result or url_result:
         uncertainties.insert(0, "Text and URL scores are deterministic heuristics, not calibrated probabilities.")
+    disagreement = disagreement_note(module_levels)
+    if disagreement:
+        uncertainties.append(disagreement)
     recommended_actions = ["Verify factual claims with trusted sources before sharing."]
     if media is not None:
         uncertainties.append(media.summary)
+        if media.assessment is Assessment.NO_STRONG_SIGNALS:
+            uncertainties.append(
+                "The media detector found no strong signal, which counts as inconclusive. "
+                "It flags few fakes at its current settings, so this does not show the media is authentic."
+            )
         if media.assessment is Assessment.SIGNALS_PRESENT:
             recommended_actions.append("Have a person review the media before acting on this result.")
     if replay_label:
@@ -240,11 +285,50 @@ def _store_case(
     )
     CASES[case_id] = result
     CASE_STORE.save(result)
+    if media is not None:
+        # The upload is deleted, so its explanation is saved now while the result exists.
+        CASE_STORE.save_detail(case_id, "media_checks", {"checks": media.to_checks()})
     if provenance is not None:
         CASE_STORE.save_detail(case_id, "provenance", provenance.for_case(case_id).model_dump(mode="json"))
     if network_detail is not None:
         CASE_STORE.save_detail(case_id, "network", network_detail)
     return result
+
+
+SYNTHETIC_DEMO_LABEL = "SYNTHETIC DEMO: invented accounts and posts, not evidence of real activity."
+
+
+@lru_cache(maxsize=1)
+def _demo_story_case() -> AnalysisResponse:
+    """Serve the linked demo story as a whole case, using its labelled offline recording."""
+    submission = get_demo_story()["submission"]
+    text_result, claims = analyze_text(submission["text"])
+    url_result = analyze_url(submission["url"])
+    risk = fuse_risk(text_result, url_result)
+    network_module = get_network_module_result(DEMO_STORY_CASE_ID)
+    return AnalysisResponse(
+        case_id=DEMO_STORY_CASE_ID,
+        is_replay=True,
+        replay_label=SYNTHETIC_DEMO_LABEL,
+        overall_risk=risk,
+        summary=(
+            f"Rule-based indicators suggest {risk.value} risk for this invented post. "
+            "The trace below replays invented accounts, and shows how spread would be analyzed."
+        ),
+        modules={
+            "text": text_result,
+            "url": url_result,
+            "media": _not_applicable("The demo story has no media file."),
+            "provenance": _not_applicable("The demo story has no media file, so no source search ran."),
+            "network": ModuleResult.model_validate(network_module),
+        },
+        claims=[ClaimRecord(id=f"claim-{index}", text=claim) for index, claim in enumerate(claims, start=1)],
+        uncertainties=[
+            "All accounts, posts and platforms in this case are invented.",
+            "The earliest post found is outside the flagged group, which shows why earliest found does not mean the source.",
+        ],
+        recommended_actions=["Treat this as a demonstration; it makes no claim about real people or content."],
+    )
 
 
 @lru_cache(maxsize=1)
@@ -258,6 +342,8 @@ def _demo_case() -> AnalysisResponse:
     demo_provenance = get_demo_provenance(DEMO_CASE_ID)
     return AnalysisResponse(
         case_id=DEMO_CASE_ID,
+        is_replay=True,
+        replay_label=SYNTHETIC_DEMO_LABEL,
         overall_risk=risk,
         summary=(
             f"Synthetic demo data shows {risk.value} coordination risk. "
@@ -286,6 +372,8 @@ def _demo_case() -> AnalysisResponse:
 def _find_case(case_id: str) -> AnalysisResponse:
     if case_id == DEMO_CASE_ID:
         return _demo_case()
+    if case_id == DEMO_STORY_CASE_ID:
+        return _demo_story_case()
     case = CASES.get(case_id) or CASE_STORE.get(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found in this server process")
@@ -372,11 +460,13 @@ def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisRe
 def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
     text_result, claims = analyze_text(request.text) if request.text else (None, [])
     url = str(request.url) if request.url else None
-    url_result = analyze_url(url) if url else None
     if not request.search_web:
+        url_result = analyze_url(url) if url else None
         return _store_case(text_result, url_result, claims=claims)
+    destination = expand_shortener(url) if url else None
+    url_result = analyze_url(url, destination) if url else None
     case_id = str(uuid4())
-    network = _trace_spread(case_id, request.text if text_result else None, url)
+    network = _trace_spread(case_id, request.text if text_result else None, destination or url)
     return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network)
 
 
@@ -396,11 +486,13 @@ def analyze_media_case(
         )
     text_result, claims = analyze_text(text) if text and text.strip() else (None, [])
     link = str(url) if url else None
-    url_result = analyze_url(link) if link else None
     if not search_web:
+        url_result = analyze_url(link) if link else None
         return _store_case(text_result, url_result, media, claims, provenance=provenance)
+    destination = expand_shortener(link) if link else None
+    url_result = analyze_url(link, destination) if link else None
     case_id = str(uuid4())
-    network = _trace_spread(case_id, text if text_result else None, link, provenance)
+    network = _trace_spread(case_id, text if text_result else None, destination or link, provenance)
     return _store_case(text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network)
 
 
@@ -451,6 +543,102 @@ def get_timeline(case_id: str) -> TimelineResponse:
     return TimelineResponse(events=_in_time_order([*events, *_network_events(_network_detail(case_id))]))
 
 
+@app.get("/api/cases/{case_id}/explanation", response_model=ExplanationResponse)
+def get_explanation(case_id: str) -> ExplanationResponse:
+    """Explain every check from what was really run. Anything not run is listed as missing."""
+    case = _find_case(case_id)
+    media_detail = CASE_STORE.get_detail(case_id, "media_checks") or {}
+    report = _provenance_report(case_id)
+    provenance_checks = report.to_checks() if report.status is not Status.NOT_APPLICABLE else []
+    detail = _network_detail(case_id)
+    network_checks = (
+        build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"))
+        if detail
+        else []
+    )
+    return build_explanation(case, media_detail.get("checks", []), provenance_checks, network_checks)
+
+
+@app.post(HEATMAP_PATH, response_model=HeatmapResponse)
+def media_heatmap(
+    file: Annotated[UploadFile, File(description="JPEG, PNG or WebP. The file is deleted afterwards.")],
+) -> HeatmapResponse:
+    """Show where covering part of an image moved the model's score. Run only on request."""
+    if not _heatmap_slot.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail={"code": "busy", "message": "A heatmap is already running. Try again shortly."})
+    try:
+        config = MediaConfig.from_env()
+        with tempfile.NamedTemporaryFile(prefix="trustfeed-heatmap-", delete=False) as handle:
+            path = Path(handle.name)
+            shutil.copyfileobj(file.file, handle)
+        try:
+            image, _, _ = read_image(path, config)
+            image.load()
+        except MediaInputError as error:
+            status_code = MEDIA_REJECTION_STATUS.get(error.code, 422)
+            raise HTTPException(status_code=status_code, detail={"code": error.code, "message": error.message}) from error
+        finally:
+            path.unlink(missing_ok=True)
+        result = occlusion_heatmap(image, default_classifier(config), batch_size=config.batch_size)
+        png = render_png(result) if result.changes else None
+        return HeatmapResponse(
+            status=result.status.value,
+            label=result.label,
+            grid_size=result.grid_size,
+            base_score=result.base_score,
+            max_change=result.max_change,
+            notable=result.notable,
+            reasoning=result.reasoning,
+            limitations=result.limitations,
+            png_base64=base64.b64encode(png).decode("ascii") if png else None,
+        )
+    finally:
+        _heatmap_slot.release()
+
+
+def _watch_refused(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(status_code=status_code, detail={"code": code, "message": message})
+
+
+@app.post("/api/monitors")
+def create_monitor(request: MonitorStartRequest) -> dict[str, object]:
+    """Register a watch. It sends nothing until it is polled, and nothing runs in the background."""
+    if os.getenv("PROVENANCE_REPLAY_PATH"):
+        raise _watch_refused(409, "replay_mode", "Replay mode stays offline, so monitoring is off.")
+    watch_id = f"watch-{uuid4()}"
+    try:
+        return start_watch(
+            watch_id,
+            opted_in=request.opted_in,
+            text=request.text,
+            urls=tuple(str(url) for url in request.urls),
+            hashtags=tuple(request.hashtags),
+        )
+    except WatchError as error:
+        raise _watch_refused(422, "watch_refused", str(error)) from error
+
+
+@app.get("/api/monitors")
+def get_monitors() -> dict[str, list[str]]:
+    return {"watches": list_watches()}
+
+
+@app.post("/api/monitors/{watch_id}/poll")
+def poll_monitor(watch_id: str) -> dict[str, Any]:
+    """Poll once. Polls closer together than the limit are refused."""
+    if watch_id not in list_watches():
+        raise _watch_refused(404, "watch_not_found", "No such watch. It may have expired or been stopped.")
+    try:
+        return poll_watch(watch_id)
+    except WatchError as error:
+        raise _watch_refused(429, "polled_too_soon", str(error)) from error
+
+
+@app.delete("/api/monitors/{watch_id}")
+def delete_monitor(watch_id: str) -> dict[str, bool]:
+    return {"stopped": stop_watch(watch_id)}
+
+
 @app.get("/api/network/{case_id}")
 def get_network(case_id: str) -> dict[str, list[dict[str, object]]]:
     detail = _network_detail(case_id)
@@ -492,17 +680,18 @@ def action_packet(case_id: str, request: ActionPacketRequest) -> ActionPacketRes
         ),
         ActionPacketSection(heading="Uncertainties", items=case.uncertainties or ["No additional uncertainty was recorded."]),
         ActionPacketSection(heading="Recommended next actions", items=case.recommended_actions),
+        ActionPacketSection(heading="Suggested countermeasures", items=build_countermeasures(case)),
     ]
     draft_lines = [
         f"TruthTrace AI draft for {request.audience}.",
-        "This template is assembled from the case record; no generative model or external fact-check was used.",
+        "This draft is assembled by fixed rules from the case record; no generative model or external fact-check was used.",
     ]
     for section in sections:
         draft_lines.append(f"\n{section.heading}:")
         draft_lines.extend(f"- {item}" for item in section.items)
     return ActionPacketResponse(
         case_id=case_id,
-        label="Evidence-based template only; no generative model or external verification was used.",
+        label="Assembled by fixed rules from this case's evidence; no generative model or external verification was used.",
         draft="\n".join(draft_lines),
         evidence_references=evidence,
         sections=sections,

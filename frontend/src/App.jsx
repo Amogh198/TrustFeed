@@ -5,13 +5,19 @@ import {
   Sparkles, Upload, XCircle,
 } from 'lucide-react';
 import { api, readableUploadError, safeHttpUrl } from './api.js';
+import { ExplanationPanel, HeatmapPanel } from './CaseExtras.jsx';
+import MonitorPage from './MonitorPage.jsx';
+import NetworkPanel from './NetworkPanel.jsx';
 import './api-dashboard.css';
+import './network.css';
 
 const moduleLabels = { media: 'Media analysis', text: 'Text analysis', url: 'URL analysis', provenance: 'Source search', network: 'Public-post trace' };
 
 function statusLabel(status) { return status?.replaceAll('_', ' ') || 'unavailable'; }
 function score(value) { return value == null ? 'No score' : `${Math.round(value * 100)}%`; }
-function isLowMedia(result) { return result?.modules?.media?.status === 'complete' && result.overall_risk === 'low'; }
+// Under this the detector's band is low or inconclusive, and it flags few fakes at these settings.
+const MEDIA_ELEVATED = 0.75;
+function isQuietMedia(result) { const media = result?.modules?.media; return media?.status === 'complete' && media.score != null && media.score < MEDIA_ELEVATED; }
 
 function Labels({ report }) {
   return <span className="labels">{report?.is_replay && <b className="label replay">Replay</b>}{report?.replay_label && <b className="label replay">{report.replay_label}</b>}</span>;
@@ -28,18 +34,19 @@ function Empty({ title, copy, action }) {
 
 function Loading({ children }) { return <div className="loading"><LoaderCircle className="spin" size={18} />{children}</div>; }
 
-function Nav({ page, setPage, onDemo }) {
+function Nav({ page, setPage, onDemo, onStory }) {
   return <aside className="api-sidebar"><div className="brand"><span className="brand-mark"><Shield size={18} /></span>trustfeed<span>.</span></div><nav>
     <button className={page === 'overview' ? 'active' : ''} onClick={() => setPage('overview')}><Radio size={16} /> Overview</button>
     <button className={page === 'investigate' ? 'active' : ''} onClick={() => setPage('investigate')}><Plus size={16} /> New investigation</button>
     <button className={page === 'history' ? 'active' : ''} onClick={() => setPage('history')}><Clock3 size={16} /> Case history</button>
-  </nav><div className="side-bottom"><button onClick={onDemo}><Sparkles size={15} /> Open demo-001</button><small>Evidence first, certainty earned.</small></div></aside>;
+    <button className={page === 'monitor' ? 'active' : ''} onClick={() => setPage('monitor')}><Globe2 size={16} /> Monitoring</button>
+  </nav><div className="side-bottom"><button onClick={onDemo}><Sparkles size={15} /> Open demo-001</button><button onClick={onStory}><Network size={15} /> Open linked story</button><small>Evidence first, certainty earned.</small></div></aside>;
 }
 
-function Overview({ cases, loading, error, onOpen, onInvestigate, scenarios, scenarioError, onStartReplay }) {
+function Overview({ cases, total, loading, error, onOpen, onInvestigate, scenarios, scenarioError, onStartReplay }) {
   return <><header className="page-title"><div><span className="eyebrow">TRUSTTRACE AI</span><h1>Investigation workspace</h1><p>Review submitted content, supporting evidence, and the limits of each signal.</p></div><button className="button primary" onClick={onInvestigate}><Plus size={15} /> New investigation</button></header>
     <section className="api-banner"><Shield size={18} /><div><strong>Real API mode</strong><span>New submissions are saved through the API. Replay scenarios use recorded, labelled data and remain offline.</span></div></section>
-    <section className="metric-row"><Metric label="Saved cases" value={loading ? '—' : cases.length} /><Metric label="Risk levels" value="Signals" detail="Not factual verdicts" /><Metric label="Source search" value="Opt-in" detail="Off by default" /></section>
+    <section className="metric-row"><Metric label="Saved cases" value={loading ? '—' : total} /><Metric label="Risk levels" value="Signals" detail="Not factual verdicts" /><Metric label="Source search" value="Opt-in" detail="Off by default" /></section>
     <section className="panel table-panel"><div className="panel-title"><div><h2>Recent cases</h2><p>Saved by the local API</p></div></div>{loading ? <Loading>Loading case history…</Loading> : error ? <Empty title="Case history unavailable" copy={error} /> : cases.length ? <CaseTable cases={cases} onOpen={onOpen} /> : <Empty title="No saved cases" copy="Start an investigation or open demo-001 to inspect a report." action={<button className="button secondary" onClick={onInvestigate}>Start an investigation</button>} />}</section>
     <section className="panel replay-library"><div className="panel-title"><div><h2>Offline replay library</h2><p>Recorded scenarios run through the same API without internet access.</p></div></div>{scenarioError ? <p>{scenarioError}</p> : scenarios.length ? <div className="scenario-list">{scenarios.map(scenario => <article key={scenario.id}><div><strong>{scenario.title}</strong><p>{scenario.description}</p><span className="label replay">{scenario.label}</span></div><button className="button secondary" onClick={() => onStartReplay(scenario.id)}>Run replay</button></article>)}</div> : <Loading>Loading replay scenarios…</Loading>}</section></>;
 }
@@ -71,7 +78,7 @@ function Investigate({ onReport }) {
       const result = mode === 'media'
         ? await api.analyzeMedia({ file, text: text.trim(), url: url.trim(), searchWeb })
         : await api.analyze({ text: text.trim(), url: url.trim(), searchWeb });
-      await onReport(result);
+      await onReport(result, mode === 'media' ? file : null);
     } catch (error) { setMessage(mode === 'media' ? readableUploadError(error) : error.message); }
     finally { setWorking(false); }
   }
@@ -81,7 +88,7 @@ function Investigate({ onReport }) {
       {mode === 'media' && <label className="drop-field"><Upload size={20} /><strong>{file ? file.name : 'Choose an image or video'}</strong><span>JPEG, PNG, WebP, MP4, MOV, WebM or AVI</span><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,video/x-msvideo" onChange={event => setFile(event.target.files?.[0] || null)} /></label>}
       <label>Text or claim<textarea value={text} onChange={event => setText(event.target.value)} maxLength="20000" placeholder="Paste a claim, caption, or context…" rows="5" /></label>
       <label>Link <input value={url} onChange={event => setUrl(event.target.value)} type="url" placeholder="https://example.org/post" /></label>
-      <label className="consent"><input type="checkbox" checked={searchWeb} onChange={event => setSearchWeb(event.target.checked)} /><span><strong>Search the public web and platforms</strong><small>Optional. This sends an uploaded image to configured source-search services. It sends text and links to Mastodon, Lemmy, and Hacker News search. Leave unticked to keep the request on this server.</small></span></label>
+      <label className="consent"><input type="checkbox" checked={searchWeb} onChange={event => setSearchWeb(event.target.checked)} /><span><strong>Search the public web and platforms</strong><small>Optional. This sends an uploaded image to configured source-search services. It sends text and links to Mastodon, Lemmy, Hacker News and Bluesky search, and follows short links to their destination. Leave unticked to keep the request on this server.</small></span></label>
       {message && <div className="notice" aria-live="polite">{working && <LoaderCircle className="spin" size={15} />}{message}</div>}
       <button className="button primary" type="submit" disabled={working}>{working ? 'Analysing…' : 'Analyse case'} {!working && <ChevronRight size={15} />}</button>
     </form><aside className="panel expectation"><h2>What to expect</h2><p>Each module reports its own result, evidence, and limitations.</p><ul><li>Scores are signals, never proof.</li><li>Unavailable means the service or data was absent.</li><li>Source search and public-post tracing are separate from authenticity.</li><li>Search can take up to about 2 minutes when you opt in.</li></ul></aside></section>
@@ -89,7 +96,7 @@ function Investigate({ onReport }) {
 }
 
 function ModuleCards({ modules, report }) {
-  return <section className="module-grid">{Object.entries(modules || {}).map(([key, module]) => <article key={key} className={`module-card panel status-${module.status}`}><div><span className="eyebrow">{moduleLabels[key] || key}</span><strong>{statusLabel(module.status)}</strong></div><b>{score(module.score)}</b><p>{module.confidence == null ? 'Confidence not measured' : `Confidence ${score(module.confidence)}`}</p>{module.evidence?.length ? <details><summary>Evidence ({module.evidence.length})</summary><ul>{module.evidence.map((item, index) => <li key={index}>{item}</li>)}</ul></details> : <p>No evidence returned.</p>}{module.limitations?.length ? <details open><summary>Limitations</summary><ul>{module.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></details> : null}{key === 'media' && isLowMedia(report) && <p className="warning">A low media signal does not show that the media is authentic.</p>}</article>)}</section>;
+  return <section className="module-grid">{Object.entries(modules || {}).map(([key, module]) => <article key={key} className={`module-card panel status-${module.status}`}><div><span className="eyebrow">{moduleLabels[key] || key}</span><strong>{statusLabel(module.status)}</strong></div><b>{key === 'network' && module.score != null ? `Review signal ${score(module.score)}` : score(module.score)}</b><p>{module.confidence == null ? 'Confidence not measured' : `Confidence ${score(module.confidence)}`}</p>{module.evidence?.length ? <details><summary>Evidence ({module.evidence.length})</summary><ul>{module.evidence.map((item, index) => <li key={index}>{item}</li>)}</ul></details> : <p>No evidence returned.</p>}{module.limitations?.length ? <details open><summary>Limitations</summary><ul>{module.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul></details> : null}{key === 'media' && isQuietMedia(report) && <p className="warning">A low or inconclusive media signal does not show that the media is authentic. In its benchmark the detector flagged very few fakes.</p>}</article>)}</section>;
 }
 
 function Provenance({ data, loading }) {
@@ -110,15 +117,9 @@ function Timeline({ data, loading }) {
 
 function EventList({ events }) { return <div className="event-list">{events.map((event, index) => <article key={`${event.ref}-${index}`}><time>{event.at ? new Date(event.at).toLocaleString() : 'No date'}</time><div><strong>{event.label}</strong><span>{event.module} · {event.date_source}{event.synthetic ? ' · synthetic' : ''}</span></div></article>)}</div>; }
 
-function NetworkPanel({ graph, coverage, loading }) {
-  if (loading) return <Loading>Loading spread graph and coverage…</Loading>;
-  const platforms = coverage?.platforms || coverage?.coverage || [];
-  return <section className="panel detail-panel"><div className="panel-title"><div><h2>Public-post trace</h2><p>Search coverage and observed relationships</p></div></div>{coverage === null ? <p>No trace ran for this case, so there is no coverage result.</p> : <><div className="coverage-list">{coverage?.synthetic && <span>Synthetic trace</span>}{Array.isArray(platforms) ? platforms.map((item, index) => <span key={item.name || item.platform || index}>{item.label || item.name || item.platform}: {item.status || 'not connected'}{item.reason || item.note ? ` — ${item.reason || item.note}` : ''}</span>) : <pre>{JSON.stringify(platforms, null, 2)}</pre>}{coverage?.not_connected?.map((item, index) => <span key={`missing-${item.platform || index}`}>{item.label || item.platform}: not connected{item.reason ? ` — ${item.reason}` : ''}</span>)}</div><p className="graph-note">Observed similarities or co-sharing do not establish coordination, automation, identity, or intent.</p></>}{graph?.nodes?.length ? <div className="network-list">{graph.nodes.map(node => <article key={node.id}><strong>{node.role_label || node.role || 'Account'}</strong><span>{node.platforms?.join(', ') || 'platform unavailable'} · first observed {node.appears_at || node.first_post_at || 'time unavailable'}{node.synthetic ? ' · synthetic' : ''}</span></article>)}</div> : <p>No graph nodes were returned.</p>}</section>;
-}
-
 function Limitations({ items }) { return <details open className="limitations"><summary>Limitations</summary><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></details>; }
 
-function CaseReport({ report, details, loading, error, onBack, onExport, onActionPacket }) {
+function CaseReport({ report, details, loading, error, upload, onBack, onExport, onActionPacket }) {
   if (!report) return <Empty title="No case selected" copy="Open a case from history or submit new content." action={<button className="button secondary" onClick={onBack}>Back to workspace</button>} />;
   return <><button className="back" onClick={onBack}><ArrowLeft size={15} /> Back to workspace</button><header className="report-head"><div><span className="eyebrow">CASE {report.case_id}</span><h1>Analysis report</h1><p>{report.summary}</p><Labels report={report} /></div><div><button className="button secondary" onClick={onExport}><Download size={15} /> Export JSON</button><button className="button secondary" onClick={onActionPacket}><Sparkles size={15} /> Action packet</button></div></header>
     {report.is_replay && <div className="api-banner"><Radio size={17} /><div><strong>Offline replay data</strong><span>{report.replay_label || 'This report uses a labelled replay fixture.'}</span></div></div>}
@@ -127,6 +128,7 @@ function CaseReport({ report, details, loading, error, onBack, onExport, onActio
     {report.claims?.length ? <section className="panel detail-panel"><h2>Claims</h2>{report.claims.map(claim => <article className="claim" key={claim.id}><strong>{claim.verdict}</strong><p>{claim.text}</p><small>{claim.rationale}</small></article>)}</section> : null}
     {report.uncertainties?.length ? <section className="panel detail-panel"><h2>Uncertainties</h2><Limitations items={report.uncertainties} /></section> : null}
     {error && <div className="notice"><XCircle size={15} /> Some detail requests failed: {error}</div>}
+    <ExplanationPanel data={details.explanation} loading={loading} /><HeatmapPanel file={upload} />
     <Provenance data={details.provenance} loading={loading} /><Timeline data={details.timeline} loading={loading} /><NetworkPanel graph={details.network} coverage={details.coverage} loading={loading} />
     {details.packet && <section className="panel detail-panel"><h2>Action packet</h2><p>{details.packet.label}</p><pre className="packet">{details.packet.draft}</pre></section>}
   </>;
@@ -138,11 +140,11 @@ function History({ cases, loading, error, risk, setRisk, onOpen }) {
 
 export default function App() {
   const [page, setPage] = useState('overview');
-  const [cases, setCases] = useState([]); const [historyLoading, setHistoryLoading] = useState(true); const [historyError, setHistoryError] = useState(''); const [risk, setRisk] = useState('');
+  const [cases, setCases] = useState([]); const [savedTotal, setSavedTotal] = useState(0); const [historyLoading, setHistoryLoading] = useState(true); const [historyError, setHistoryError] = useState(''); const [risk, setRisk] = useState('');
   const [report, setReport] = useState(null); const [details, setDetails] = useState({}); const [detailsLoading, setDetailsLoading] = useState(false); const [detailsError, setDetailsError] = useState('');
-  const [scenarios, setScenarios] = useState([]); const [scenarioError, setScenarioError] = useState('');
+  const [uploads, setUploads] = useState({}); const [scenarios, setScenarios] = useState([]); const [scenarioError, setScenarioError] = useState('');
 
-  async function loadHistory(filter = risk) { setHistoryLoading(true); try { const data = await api.getHistory(filter); setCases(data.cases || []); setHistoryError(''); } catch (error) { setHistoryError(error.message); } finally { setHistoryLoading(false); } }
+  async function loadHistory(filter = risk) { setHistoryLoading(true); try { const data = await api.getHistory(filter); setCases(data.cases || []); if (!filter) setSavedTotal(data.total ?? (data.cases || []).length); setHistoryError(''); } catch (error) { setHistoryError(error.message); } finally { setHistoryLoading(false); } }
   useEffect(() => { loadHistory(''); }, []);
   useEffect(() => { if (page === 'history') loadHistory(risk); }, [risk, page]);
   useEffect(() => { api.getReplayScenarios().then(data => setScenarios(data.scenarios || [])).catch(error => setScenarioError(error.message)); }, []);
@@ -151,18 +153,19 @@ export default function App() {
     setPage('case'); setDetails({}); setDetailsError(''); setDetailsLoading(true);
     try {
       const base = supplied || await api.getCase(caseId); setReport(base);
-      const entries = await Promise.allSettled([api.getProvenance(base.case_id), api.getTimeline(base.case_id), api.getNetwork(base.case_id), api.getCoverage(base.case_id)]);
-      const names = ['provenance', 'timeline', 'network', 'coverage']; const next = {}; const failures = [];
+      const entries = await Promise.allSettled([api.getProvenance(base.case_id), api.getTimeline(base.case_id), api.getNetwork(base.case_id), api.getCoverage(base.case_id), api.getExplanation(base.case_id)]);
+      const names = ['provenance', 'timeline', 'network', 'coverage', 'explanation']; const next = {}; const failures = [];
       entries.forEach((entry, index) => { if (entry.status === 'fulfilled') next[names[index]] = entry.value; else failures.push(entry.reason.message); });
       setDetails(next); setDetailsError(failures.join(' ')); loadHistory('');
     } catch (error) { setDetailsError(error.message); } finally { setDetailsLoading(false); }
   }
-  async function openReport(result) { await loadCase(result.case_id, result); }
+  async function openReport(result, file = null) { if (file) setUploads(current => ({ ...current, [result.case_id]: file })); await loadCase(result.case_id, result); }
   async function openDemo() { await loadCase('demo-001'); }
+  async function openStory() { await loadCase('demo-story-001'); }
   async function startReplay(scenarioId) { try { await openReport(await api.startReplay(scenarioId)); } catch (error) { setScenarioError(error.message); } }
   async function exportCase() { try { const value = await api.getExport(report.case_id); const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${report.case_id}.json`; link.click(); URL.revokeObjectURL(link.href); } catch (error) { setDetailsError(error.message); } }
   async function actionPacket() { try { const packet = await api.actionPacket(report.case_id); setDetails(current => ({ ...current, packet })); } catch (error) { setDetailsError(error.message); } }
 
-  const current = useMemo(() => page === 'overview' ? <Overview cases={cases} loading={historyLoading} error={historyError} onOpen={loadCase} onInvestigate={() => setPage('investigate')} scenarios={scenarios} scenarioError={scenarioError} onStartReplay={startReplay} /> : page === 'investigate' ? <Investigate onReport={openReport} /> : page === 'history' ? <History cases={cases} loading={historyLoading} error={historyError} risk={risk} setRisk={setRisk} onOpen={loadCase} /> : <CaseReport report={report} details={details} loading={detailsLoading} error={detailsError} onBack={() => setPage('overview')} onExport={exportCase} onActionPacket={actionPacket} />, [page, cases, historyLoading, historyError, risk, report, details, detailsLoading, detailsError, scenarios, scenarioError]);
-  return <div className="api-app"><Nav page={page} setPage={setPage} onDemo={openDemo} /><main className="api-main">{current}</main></div>;
+  const current = useMemo(() => page === 'overview' ? <Overview cases={cases} total={savedTotal} loading={historyLoading} error={historyError} onOpen={loadCase} onInvestigate={() => setPage('investigate')} scenarios={scenarios} scenarioError={scenarioError} onStartReplay={startReplay} /> : page === 'investigate' ? <Investigate onReport={openReport} /> : page === 'monitor' ? <MonitorPage /> : page === 'history' ? <History cases={cases} loading={historyLoading} error={historyError} risk={risk} setRisk={setRisk} onOpen={loadCase} /> : <CaseReport report={report} details={details} loading={detailsLoading} error={detailsError} upload={report ? uploads[report.case_id] : null} onBack={() => setPage('overview')} onExport={exportCase} onActionPacket={actionPacket} />, [page, uploads, cases, historyLoading, historyError, risk, report, details, detailsLoading, detailsError, scenarios, scenarioError]);
+  return <div className="api-app"><Nav page={page} setPage={setPage} onDemo={openDemo} onStory={openStory} /><main className="api-main">{current}</main></div>;
 }

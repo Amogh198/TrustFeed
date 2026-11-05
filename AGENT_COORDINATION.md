@@ -13,7 +13,7 @@ Each topic has one home. If two files disagree, this table decides, and the agen
 | Official problem, honesty rules, workflow, integration | This file |
 | Startup steps | `CLAUDE.md` |
 | Work packages and path ownership | `TASK_BOARD.md` |
-| HTTP contract | `API_CONTRACTS.md`, owned by T3. **Until PR #1 merges, T3's branch has the current version.** The copy on `main` still mentions an Issue step and Gemini lane 1; ignore those. |
+| HTTP contract | `API_CONTRACTS.md`, owned by T3. |
 | Git and repository settings | `GITHUB_WORKFLOW.md` |
 | Current progress | `agent-status/<agent>.md` and the branches themselves |
 | Technical background | `truthtrace_ai_master_context_execution_blueprint.md`. Background only: where it differs from the files above, it loses. |
@@ -33,11 +33,11 @@ The blueprint's copy of the description adds "and provides actionable countermea
 
 | Requirement | State | Honest limit |
 |---|---|---|
-| Multi-platform monitoring | Partial, merged in PR #11 | Polls public search on Mastodon, Lemmy and Hacker News. Bluesky, Reddit and YouTube need credentials, and X and private channels aren't covered. It isn't a complete feed of any platform, and it isn't wired into the API yet. |
-| Multi-format content ingestion | Partial, unmerged | Text and URL in PR #1, image and video analysis in PR #5, not connected. Upload isn't built. |
-| AI-based synthetic-media detection | Built, unmerged, PR #5 | One image model. Not yet run with the real model in the shared compatibility check. |
-| Deepfake detection | Partial, unmerged, PR #5 | Image model plus video keyframes. No audio, lip-sync or motion analysis. |
-| Dissemination-network tracing | Demo and real-post tracing merged | Real posts are found by link, text or hashtag on three platforms. An image needs page links from a web source search. Not wired into the API yet. Accuracy on real campaigns is unmeasured. |
+| Multi-platform monitoring | Partial, in the API and dashboard | Polls public search on Mastodon, Lemmy, Hacker News and Bluesky when a user asks. Reddit and YouTube need credentials, and X and private channels aren't covered. It isn't a complete feed, and post images aren't analyzed. |
+| Multi-format content ingestion | Partial | Text, links, images and videos reach the API and dashboard. No audio-only input. |
+| AI-based synthetic-media detection | Built, weak at current settings | One image model. On the test split it flagged 1 of 157 fakes at current bands, with AUC 0.85. See `data/eval`. |
+| Deepfake detection | Partial | Image model plus video keyframes. No audio, lip-sync or motion analysis, and face swaps are unmeasured. |
+| Dissemination-network tracing | Built and in the dashboard | Real posts are found by link, text or hashtag on four platforms. An image needs page links from a source search. Accuracy on real campaigns is unmeasured. |
 
 **Proposed implementation features, not official requirements:** risk fusion, dashboard, propagation timeline, action packets, pHash provenance, text and URL rules, offline replay. They come from the blueprint and can be cut to protect the official requirements.
 
@@ -69,7 +69,7 @@ Assignments come from `TASK_BOARD.md`. Handles come from GitHub collaborators. T
 | Akshay (`Akshaynbhat`), `akshay_claude` | `akshay.md` | T1 media forensics | `backend/media/**` | T3 `ModuleResult` shape | Media `ModuleResult` to T3; evidence JSON for T4 |
 | Bhuvan (`bhuvanbapat`), `bhuvan_claude` | `bhuvan.md` | T2 network and dataset | `backend/network/**`, `data/demo/network_demo*`, `data/demo/README.md` | T3 route wiring | Payload and `ModuleResult` to T3; field list for T4 |
 | Amogh (`Amogh198`), repo admin | `amogh.md` | T3 API, text, fusion, contracts; coordinates T5 | `backend/api/**`, `backend/text/**`, `contracts/**`, `API_CONTRACTS.md` | T1 and T2 functions | HTTP API, fusion, replay, mock responses for T4 |
-| `manasprashant06-ux` (**UNRESOLVED:** T4 inferred as the only remaining collaborator, not confirmed) | `manas.md` | T4 dashboard | `frontend/**` | T3 HTTP responses only | UI, graph and timeline views, replay presentation |
+| Manas (`manasprashant06-ux`) | `manas.md` | T4 dashboard | `frontend/**` | T3 HTTP responses only | UI, graph and timeline views, replay presentation |
 
 T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a working fixture. The coordinator assigns its paths.
 
@@ -81,10 +81,10 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
-| T1 | `main` | PR #5 merged | Adapter with tests; output fits T3's `ModuleResult` | Test on known real and fake samples | None known |
-| T2 | `fix/network-trace-hardening` | PRs #3, #9, #10 and #11 merged; hardening open | Findings fixed, real-post tracing, monitoring, linked demo story | T3 calls `trace_case`; T4 uses `appears_at` | None |
-| T3 | `main` | PR #1 merged; wiring on `feat/wire-media-network-api` | API, heuristics, media upload, demo network route, media fusion | Replay, generated action packet | None known |
-| T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
+| T1 | `main` | Merged | Media adapter, source search, benchmark, explanation checks, heatmap | Band decision, more signals | A real search needs a provider key |
+| T2 | `main` | Merged | Engine, real-post tracing, monitoring, demo story, explanation checks | Reddit or YouTube if keys exist | None |
+| T3 | `main` | Merged | API, rules, fusion, history, replay, explanation, monitor and heatmap routes | Claim checking needs a fact-check key | None |
+| T4 | `main` | Merged | Dashboard on the real API: graph, coverage, explanation, heatmap, monitoring | Browser testing on more devices | None |
 
 ## C. Contracts
 
@@ -104,18 +104,15 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 | Component | Built | Tested alone | Integrated |
 |---|---|---|---|
 | T1 media | Yes | Yes, 87 pass with the model | Yes, through `POST /api/cases/analyze-media` |
-| T2 network | Yes | Yes | `demo-001` through the API. `trace_case`, `Monitor` and `demo-story-001` aren't called by the API yet |
+| T2 network | Yes | Yes | Yes: traces, monitors and demos through the API |
 | T3 API and text | Yes | Yes | Yes |
 | T3 fusion | Text, URL and media | Yes | Yes |
-| T4 dashboard | No | No | No |
-| T5 replay and demo | No | No | No |
+| T4 dashboard | Yes | Yes, through a live browser walk-through | Yes |
+| T5 replay and demo | Yes | Yes | Yes: replay scenarios and both demo cases work offline |
 
-The T1, T2 and T3 rows describe `feat/wire-media-network-api` until that PR merges.
+**Requirements not yet met:** a reliable detector (bands and face swaps), claim checking against outside evidence (needs a key), OCR, audio and lip-sync. See the root README.
 
-**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which T2 has built but the API doesn't call yet. Detector accuracy on known fakes is untested.
-
-**Open compatibility problems:**
-1. The repo has no CI, so required checks can't be enforced.
+**Open compatibility problems:** GitHub CI doesn't start until the workflow fix is pushed, which needs a login with the `workflow` scope.
 
 **T2 findings reproduced on `eca7847`:** all five are fixed and merged in PR #9, with regression tests in `backend/network/tests/test_findings.py`. Nodes gained `appears_at`, which T4 should use for the time slider.
 

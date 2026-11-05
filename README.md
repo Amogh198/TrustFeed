@@ -17,17 +17,15 @@ These are separate questions, and one never answers another. The earliest appear
 
 ## Status
 
-Last updated 2026-11-05. Backend features are on `main`. **The dashboard is on `main` but still uses local sample data and doesn't call the API yet.**
+Last updated 2026-11-05. Backend features are on `main`. The dashboard runs on the real API.
 
 | Area | Works now | Not done or not measured |
 |---|---|---|
-| API | Text, link, image and video input, risk summary, saved history, export, offline replay, template action packets, source search report, timeline, network coverage | Explanation route, generated action packets |
+| API | Text, link, image and video input, risk summary, saved history, export, offline replay, source search report, timeline, network coverage, explanation, heatmap and monitor routes, rule-based action packets | Action packets from a generative model, background jobs |
 | Media | Image model, metadata, keyframes, known-image matching, accuracy benchmark, explanation checks, occlusion heatmap | OCR, audio, lip-sync, video accuracy |
 | Source search | Works with a provider key the user sets up, and only on opt-in. Includes an explanation check. | Coverage not measured. Results depend on what search services have indexed. |
-| Network | Co-sharing detection, risk score, roles, timeline, public-post tracing, explanation checks | Monitoring routes, repost timing |
-| Dashboard | Views on sample data | Connection to the real API |
-
-The explanation checks and the heatmap are Python functions so far. Users won't see them until the explanation route and its dashboard view are built.
+| Network | Co-sharing detection, risk score, roles, timeline, public-post tracing, monitoring, explanation checks | Repost timing, accuracy on real campaigns |
+| Dashboard | Real API: submissions, opt-in, spread graph with time slider, coverage, explanation, heatmap, monitoring, history, export, replay | More device testing |
 
 ### Detector accuracy
 
@@ -48,8 +46,9 @@ The model separates fakes from real images better than these bands show, so the 
 - **The image detector is not reliable at its current settings.** It flagged only 3 of 301 fakes across the whole benchmark, so a low media result doesn't show that media is authentic.
 - **The heatmap shows sensitivity, not proof of editing.** It shows where covering part of an image moved the model's score.
 - **Coordination detection hasn't been measured on real campaigns.** It has only been shown working on synthetic data built to contain a campaign.
-- **Platform coverage is partial.** Public search is read on Mastodon, Lemmy, Hacker News and Bluesky, and none of these is a complete feed. Reddit, YouTube and X aren't connected, and private channels such as WhatsApp can't be traced.
-- **GitHub's automated checks haven't started on any branch yet,** so run the checks locally.
+- **Platform coverage is partial.** Public search is read on Mastodon, Lemmy, Hacker News and Bluesky, and none of these is a complete feed. Mastodon finds links only while they trend. Reddit, YouTube and X aren't connected, and private channels such as WhatsApp can't be traced.
+- **Text rules are weak.** They are fixed phrase lists, and caught only 1 of 8 new scam and rumour examples in a small check. Link rules caught 6 of 6 with no false alarms on 6 real sites. Neither is measured on labelled data.
+- **GitHub's automated checks aren't running yet,** so run the checks locally.
 
 ## Run it
 
@@ -66,7 +65,15 @@ Copy `.env.example` to `.env` first, and never commit `.env`. The image model is
 pip install -r backend/media/requirements-model.txt
 ```
 
-The dashboard is in `frontend/`, which has its own `package.json`.
+Then start the dashboard, which reads the API at `http://localhost:8000`:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`.
 
 **Offline demos need no keys or internet:** `demo-001` and `demo-story-001` are synthetic networks, and `GET /api/replay/scenarios` lists the replay cases.
 

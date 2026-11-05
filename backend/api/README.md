@@ -10,8 +10,10 @@ From the repository root, install the backend dependencies and start the develop
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r backend/api/requirements-dev.txt
-python -m uvicorn backend.api.app.main:app --reload
+python -m uvicorn backend.api.app.main:app --reload --env-file .env
 ```
+
+**Keys in `.env` are read only through `--env-file`.** Nothing else loads that file. Copy `.env.example` to `.env` first, or leave the flag out if you have no keys.
 
 The media model is optional and about 343 MB. Without it, uploads still return metadata evidence, with the `media` module marked `unavailable`. To enable it:
 
@@ -37,6 +39,9 @@ python -m uvicorn backend.api.app.main:app --reload
 - `POST /api/cases/analyze` — JSON body with `text`, `url`, or both, and optional `search_web`. Returns rule-based text/URL indicators.
 - `POST /api/cases/analyze-media` — multipart form with `file`, and optional `text`, `url` and `search_web`. Adds the media module's result. Uploads go to a temporary file that is deleted after analysis.
 - `GET /api/cases` — lists saved local case summaries. Use `?risk_level=high` or `?limit=10` to narrow the results.
+- `GET /api/cases/{case_id}/explanation` — what each check did, found and can't show.
+- `POST /api/media/heatmap` — where covering part of an image moved the model's score. Run on request.
+- `POST /api/monitors`, `GET /api/monitors`, `POST /api/monitors/{id}/poll`, `DELETE /api/monitors/{id}` — watch public platforms, with opt-in and limits.
 - `GET /api/cases/{case_id}` — fetches a saved result. `demo-001` is always available and contains synthetic network and source search results only.
 - `GET /api/cases/{case_id}/export` — returns a saved report as JSON for local export.
 - `GET /api/cases/{case_id}/provenance` — returns the full source search report: pages found, dates and what each date rests on.

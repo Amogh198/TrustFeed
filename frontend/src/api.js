@@ -60,6 +60,17 @@ export const api = {
   getTimeline(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}/timeline`); },
   getNetwork(caseId) { return request(`/api/network/${encodeURIComponent(caseId)}`); },
   getCoverage(caseId) { return request(`/api/network/${encodeURIComponent(caseId)}/coverage`); },
+  getExplanation(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}/explanation`); },
+  heatmap(file) {
+    const body = new FormData();
+    body.append('file', file);
+    return request('/api/media/heatmap', { method: 'POST', body });
+  },
+  startMonitor(watch) {
+    return request('/api/monitors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(watch) });
+  },
+  pollMonitor(watchId) { return request(`/api/monitors/${encodeURIComponent(watchId)}/poll`, { method: 'POST' }); },
+  stopMonitor(watchId) { return request(`/api/monitors/${encodeURIComponent(watchId)}`, { method: 'DELETE' }); },
   getReplayScenarios() { return request('/api/replay/scenarios'); },
   startReplay(scenarioId) { return request(`/api/replay/${encodeURIComponent(scenarioId)}/start`, { method: 'POST' }); },
   actionPacket(caseId, audience = 'reviewers') {

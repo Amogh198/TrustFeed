@@ -103,6 +103,7 @@ def test_action_packet_uses_case_evidence_claims_and_uncertainties():
         "Claim status",
         "Uncertainties",
         "Recommended next actions",
+        "Suggested countermeasures",
     ]
     assert body["evidence_references"]
     assert "reviewers" in body["draft"]
