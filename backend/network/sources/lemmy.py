@@ -53,7 +53,7 @@ class LemmySource:
         outcome = SearchOutcome()
         if query.hashtags:
             outcome.unsupported.append("Lemmy has no hashtags, so hashtags weren't searched here.")
-        searches = [("Url", url) for url in query.urls] + [("Posts", phrase) for phrase in query.phrases]
+        searches = [("Url", url) for url in query.all_urls] + [("Posts", phrase) for phrase in query.phrases]
         for kind, term in searches:
             address = (
                 f"https://{self.instance}/api/v3/search?q={quote(term, safe='')}"

@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Any
 
 from backend.network.analysis import NetworkAnalysis, analyze_network
+from backend.network.checks import build_network_checks
 from backend.network.dataset import load_dataset
 from backend.network.sources import Fetch, live_fetch
 from backend.network.story import DEMO_STORY_CASE_ID, is_demo_story, trace_demo_story
@@ -107,3 +108,12 @@ def get_network_coverage(case_id: str) -> dict[str, Any] | None:
     """Return what was searched, what wasn't and the found posts in order, for a traced case."""
     traced = _traced_case(case_id)
     return copy.deepcopy(traced.coverage) if traced else None
+
+
+def get_network_checks(case_id: str) -> list[dict[str, Any]] | None:
+    """Return explanation checks: what was searched, what was found and what it can't show."""
+    payload = get_network_payload(case_id)
+    module_result = get_network_module_result(case_id)
+    if payload is None or module_result is None:
+        return None
+    return build_network_checks(case_id, payload, get_network_coverage(case_id), module_result)
