@@ -81,8 +81,23 @@ class TimelineResponse(BaseModel):
 
 class ExplanationArtifact(BaseModel):
     kind: str
-    label: str
+    label: str = "Supporting evidence"
     url: str | None = None
+    route: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_artifact(cls, value: Any) -> Any:
+        """Accept artifacts emitted by the media, provenance and network lanes."""
+        if not isinstance(value, dict):
+            return value
+        artifact = dict(value)
+        artifact.setdefault("kind", artifact.get("type", "evidence"))
+        artifact.setdefault("label", {
+            "network_graph": "Network graph",
+            "fingerprints": "Media fingerprints",
+        }.get(artifact["kind"], "Supporting evidence"))
+        return artifact
 
 
 class ExplanationCheck(BaseModel):

@@ -74,7 +74,7 @@ To use source search keys, copy `.env.example` to `.env`, and never commit `.env
 python -m uvicorn backend.api.app.main:app
 ```
 
-Then start the dashboard, which reads the API at `http://localhost:8000`:
+Then start the dashboard. In local development, Vite proxies `/api/*` and `/health` to `http://127.0.0.1:8000`, so the browser calls the frontend's own origin and avoids hostname and CORS mismatches:
 
 ```bash
 cd frontend
@@ -83,6 +83,8 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. It needs Node 18 or later. For the demo script, open **Walkthrough** in the top bar.
+
+To run the API on another host or port, set `TRUSTFEED_API_TARGET` before starting Vite. For a separately hosted frontend build, set `VITE_API_BASE_URL` to the API origin (for example, `https://api.example.org`) and allow the frontend origin in the API's `CORS_ORIGINS`.
 
 **Offline demos need no keys or internet:** `demo-001` and `demo-story-001` are synthetic networks, and `GET /api/replay/scenarios` lists the replay cases. The dashboard bundles its fonts, so it also runs with no internet once installed.
 

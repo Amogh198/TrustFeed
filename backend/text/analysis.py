@@ -173,14 +173,22 @@ def _url_signals(url: str) -> tuple[list[str], float]:
     return [wording for wording, _ in signals], sum(weight for _, weight in signals)
 
 
-def analyze_url(url: str, expanded_to: str | None = None, *, follow_tried: bool = False) -> ModuleResult:
+def analyze_url(
+    url: str,
+    expanded_to: str | None = None,
+    *,
+    follow_tried: bool = False,
+    expanded_url: str | None = None,
+    expansion_limit: str | None = None,
+) -> ModuleResult:
     """Score a link. ``expanded_to`` is its destination, when an opted-in request followed it."""
+    expanded_to = expanded_to or expanded_url
     evidence, score = _url_signals(url)
     limitation = "Static URL heuristics only; no domain reputation source was checked."
     if expanded_to:
         final_evidence, final_score = _url_signals(expanded_to)
         host = urlsplit(expanded_to).hostname or "an unknown host"
-        evidence = [*evidence, f"The short link leads to {host}", *(f"Destination: {item}" for item in final_evidence)]
+        evidence = [*evidence, f"The short link resolved to {host}", *(f"Destination: {item}" for item in final_evidence)]
         score += final_score
     elif urlsplit(url).hostname in SHORTENER_HOSTS:
         evidence.append(
@@ -193,7 +201,7 @@ def analyze_url(url: str, expanded_to: str | None = None, *, follow_tried: bool 
         score=round(min(_MAX_RULE_SCORE, score), 2),
         confidence=None,
         evidence=evidence,
-        limitations=[limitation],
+        limitations=[limitation, *([expansion_limit] if expansion_limit else [])],
     )
 
 

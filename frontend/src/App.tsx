@@ -60,7 +60,7 @@ export default function App() {
       </header>
       {online === false && (
         <div className="offline no-print" role="alert">
-          <strong>The API isn't answering at {API_BASE_URL}.</strong> From the repository root, run <code>python -m uvicorn backend.api.app.main:app</code>. This page reconnects by itself.
+          <strong>The API isn't answering{API_BASE_URL ? ` at ${API_BASE_URL}` : ' on this host'}.</strong> From the repository root, run <code>python -m uvicorn backend.api.app.main:app</code>. This page reconnects by itself.
         </div>
       )}
       <main id="main">

@@ -2,7 +2,9 @@
 
 /** @typedef {import('./types').AnalysisResponse} AnalysisResponse */
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+// Use the frontend origin by default. Vite proxies API requests locally, and a
+// deployed frontend can route the same paths or set VITE_API_BASE_URL.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 180_000;
 
 export class ApiError extends Error {
