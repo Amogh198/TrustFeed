@@ -17,6 +17,7 @@ from backend.network.dataset import Post
 SIGNALS = ("url", "media", "text")
 
 _URL_PATTERN = re.compile(r"https?://\S+")
+_TRACKING_PARAMETERS = frozenset({"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref_src"})
 
 
 def _normalize_character(character: str) -> str:
@@ -37,7 +38,7 @@ def normalize_text(text: str) -> str:
 
 
 def normalize_url(url: str) -> str | None:
-    """Make one link compare equal regardless of tracking parameters or fragments.
+    """Make one link compare equal whatever its tracking, fragment, scheme or ``www.``.
 
     Returns None for text that isn't a usable link, which then gives no signal.
     """
@@ -50,11 +51,10 @@ def normalize_url(url: str) -> str | None:
     query = sorted(
         (key, value)
         for key, value in parse_qsl(parts.query, keep_blank_values=True)
-        if not key.lower().startswith("utm_")
+        if not key.lower().startswith("utm_") and key.lower() not in _TRACKING_PARAMETERS
     )
-    return urlunsplit(
-        (parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), urlencode(query), "")
-    )
+    host = parts.netloc.lower().removeprefix("www.")
+    return urlunsplit(("https", host, parts.path.rstrip("/"), urlencode(query), ""))
 
 
 def post_signals(post: Post, config: CoordinationConfig) -> Iterator[tuple[str, str]]:

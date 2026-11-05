@@ -28,6 +28,35 @@ get_network_clusters("demo-001")       # per-cluster scores, for an evidence vie
 
 Every function returns `None` for any other case id. **Don't give user-submitted cases the demo network**, because it would present invented spread as a finding about their content. Keep `network` as `unavailable` for them.
 
+### Real public posts
+
+```python
+from backend.network import trace_case, get_network_coverage
+
+trace_case(case_id, text=..., url=..., urls=page_links, hashtags=(...))  # returns ModuleResult fields
+get_network_coverage(case_id)  # what was searched and missed, and the found posts in order
+```
+
+After `trace_case`, `get_network_payload`, `get_network_module_result` and `get_network_clusters` work for that case, so the existing `GET /api/network/{case_id}` route serves it without changes. It reads live platforms and can take up to about 25 seconds. **Pass `urls`, the page links found by a web source search, to trace an image:** platforms can't be searched by an image alone, so without text, links or hashtags the result is `unavailable`.
+
+| Platform, checked without a login on 2026-11-05 | State | What can be searched |
+|---|---|---|
+| Mastodon (`mastodon.social`) | Connected | Hashtags only. Text search returns nothing and the link timeline returns 404 |
+| Lemmy (`lemmy.world` and instances it federates with) | Connected | Links and text |
+| Hacker News (Algolia API) | Connected | Links, and text in stories and comments |
+| Bluesky | Not connected | Post search returns 403 and 401 without a login |
+| Reddit | Not connected | Search returns 403 without registered API credentials |
+| YouTube | Not connected | The Data API returns 403 without a key |
+| X | Not connected | Not tried: no paid API access |
+| WhatsApp and other private channels | Can't be traced | No public API can see them |
+
+- **Only real matches count.** Search results are candidates. A post is kept only if it carries the searched link, hashtag or phrase.
+- **Repetition comes from account histories.** Searching for one item can only find one shared item, and one item is never treated as coordination. So the other recent public posts of up to 20 accounts that posted within the window are read as well.
+- **Account identity stays per platform.** The same name on two platforms is two accounts.
+- **Failures are reported.** Each platform has a `status` of `searched`, `partial`, `failed` or `not_searchable`, with notes. If none can be searched the result is `unavailable`. If nothing matches the result is `Inconclusive`, never clean.
+- **Offline runs.** `RecordingFetch` saves a run and `ReplayFetch` plays it back, by passing `fetch=`. Recordings hold real people's public posts, so keep them out of Git.
+- **Tests never use the network.** Only a manual run has read the live platforms, so a platform changing its API would not show up in tests.
+
 To analyze other data, use `analyze_network(parse_dataset(raw))`. `parse_dataset` raises `ValueError` for any malformed record.
 
 ### Payload fields
@@ -47,7 +76,7 @@ To analyze other data, use `analyze_network(parse_dataset(raw))`. `parse_dataset
 ## How detection works
 
 1. **Co-shares.** Two accounts co-share when they post the same item within **120 seconds** (inclusive, from the blueprint). The delay is measured between the two posts. An item is matched on any of:
-   - **URL**, ignoring tracking parameters and fragments. Text that isn't a usable link gives no signal.
+   - **URL**, ignoring tracking parameters, fragments, `www.` and http versus https. Text that isn't a usable link gives no signal.
    - **Media hash**, exact match
    - **Text**, after removing case, punctuation and links, if at least 20 characters remain. Letters, numbers and combining marks are kept, so Indic vowels still count.
 2. **Repetition.** A pair counts only after co-sharing **at least 2 distinct items**. One co-share happens by chance whenever many people react to the same event. Signals on one post are one item. Different posts matched by different signals are different items, and so are different links.
@@ -77,9 +106,11 @@ Risk bands: under 0.35 `low`, under 0.55 `moderate`, under 0.75 `high`, otherwis
 
 ## Limitations
 
+- **Coverage is partial.** Only three platforms are read, public search doesn't return every post, and the histories read are recent and capped. Lemmy shows what one server has federated.
+- **Reposts are left out.** Mastodon reposts are dropped, so account relationships are still limited to mentions.
 - **Demo results prove little.** The engine recovers the planted cluster in data built to contain one. That shows it works as designed, not how accurate it would be on real data.
 - **No claims about people.** Co-sharing does not establish intent, common control, automation or attribution. Newsrooms and fan communities can look similar.
-- **Evidence coverage.** Similarity alone is never treated as coordination: a pair must co-share repeatedly within the time window. The engine uses timestamps, shared URLs, media hashes, normalized text and mentions. It has no repost data, and mentions are its only account relationship.
+- **Evidence coverage.** Similarity alone is never treated as coordination: a pair must co-share repeatedly within the time window. The engine uses timestamps, shared URLs, media hashes, normalized text and mentions. It has no repost data, and mentions are its only account relationship. Real posts currently give no media hashes, so images are compared only through shared links.
 - **Origin is limited to the dataset.** The true source may have posted elsewhere or earlier.
 - **Evasion is easy.** Paraphrases, re-encoded media and delays over 120 seconds are all missed. Perceptual matching from T1 could address the media case after integration.
 - **Single-threaded and in-memory.** Suitable for demo-sized data. Very large bursts within the window get slow, since every pair is compared.

@@ -68,11 +68,16 @@ def _build_nodes(
         if post.platform:
             platforms[post.account_id].add(post.platform)
 
+    in_campaign = {
+        post.id
+        for cluster in clusters
+        if cluster.flagged
+        for post in campaign_posts(dataset.posts, cluster, config)
+    }
     first_campaign_post: dict[str, str] = {}
-    for cluster in clusters:
-        if cluster.flagged:
-            for post in campaign_posts(dataset.posts, cluster, config):
-                first_campaign_post.setdefault(post.account_id, format_timestamp(post.created_at))
+    for post in dataset.posts:  # In time order, so the first one seen is the earliest.
+        if post.on_topic or post.id in in_campaign:
+            first_campaign_post.setdefault(post.account_id, format_timestamp(post.created_at))
 
     # A node must be on the slider by the time any of its edges is. This also places
     # targets, which are mentioned but may never post. UTC ISO strings sort by time.

@@ -27,6 +27,8 @@ class Post:
     media_hash: str | None = None
     mentions: tuple[str, ...] = ()
     platform: str | None = None
+    # True when this post was collected because it carries the content being traced.
+    on_topic: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,7 @@ def _parse_post(record: dict[str, Any]) -> Post:
         media_hash=_optional_text(record, "media_hash", "Post"),
         mentions=tuple(mentions),
         platform=_optional_text(record, "platform", "Post"),
+        on_topic=record.get("on_topic") is True,
     )
 
 
