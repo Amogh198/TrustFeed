@@ -226,6 +226,8 @@ class LinkAnalysis(BaseModel):
     page: LinkPage
     official: LinkOfficialComparison
     threat_lists: LinkThreatLists
+    # True when the user allowed live checks but some could not finish, which is not a clean result.
+    live_failed: bool = False
     signs: list[LinkSign] = Field(default_factory=list)
     results_file: str
     limitations: list[str] = Field(default_factory=list)

@@ -638,7 +638,9 @@ def investigate_link(
                 status=ModuleStatus.NOT_APPLICABLE, reason="The link doesn't seem to imitate a name on our list, so nothing was compared."
             )
     signs = _collect_signs(url, requested, final, redirects, domain, page, official, title_brand)
+    failed = offline_reason is None and ModuleStatus.UNAVAILABLE in (redirects.status, domain.status, page.status)
     return LinkAnalysis(
+        live_failed=failed,
         assessment=_assess(signs),
         requested_host=_host(url),
         lookalike=final if final is not None and final.brand else requested,

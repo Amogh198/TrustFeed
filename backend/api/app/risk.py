@@ -101,6 +101,15 @@ def _link(analysis: LinkAnalysis | None, weights: Mapping[str, float]) -> RiskCo
     strength = analysis.lookalike.strength
     score = _STRONG if strength == "strong" else _WEAK if strength == "weak" else 0.0
     evidence = [item.why for item in analysis.signs if item.sign.startswith("lookalike_")]
+    if analysis.live_failed:
+        # The user asked for the live checks, so an address alone can't read as a clean result.
+        failed = [
+            label
+            for label, part in (("redirects", analysis.redirects), ("domain age", analysis.domain), ("page", analysis.page))
+            if part.status is ModuleStatus.UNAVAILABLE
+        ]
+        note = f"Could not finish: {', '.join(failed)}. Only the address was scored."
+        return RiskComponent(status=ModuleStatus.COMPLETE, counted=True, blocks_low=True, score=score, evidence=evidence, note=note, **base)
     return RiskComponent(status=ModuleStatus.COMPLETE, counted=True, score=score, evidence=evidence, **base)
 
 

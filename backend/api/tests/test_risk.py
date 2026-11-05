@@ -93,3 +93,25 @@ def test_weights_are_configurable_and_bad_values_are_ignored(monkeypatch):
     body = client.post("/api/cases/analyze", json={"url": "https://paypa1.com/a"}).json()
     # With the score at zero, the unscored link rule still stops it reading Low.
     assert body["unified_risk"]["score"] == 0 and body["overall_risk"] == "inconclusive" and components(body)["link"]["weight"] == 0
+
+
+def test_a_live_check_that_failed_cannot_read_as_low(monkeypatch):
+    from backend.api.app import main
+
+    real = main.investigate_link
+
+    def crash(url, *, offline_reason=None):
+        if offline_reason is None:
+            raise ValueError("broken")
+        return real(url, offline_reason=offline_reason)
+
+    monkeypatch.setattr(main, "investigate_link", crash)
+    monkeypatch.setattr(main, "trace_case", lambda *_a, **_k: {"status": "complete", "score": None, "confidence": None, "evidence": []})
+    body = client.post("/api/cases/analyze", json={"url": "https://example.org/", "search_web": True}).json()
+    assert body["overall_risk"] == "inconclusive"
+    assert "Could not finish" in components(body)["link"]["note"]
+
+
+def test_an_offline_check_by_choice_can_read_low():
+    body = client.post("/api/cases/analyze", json={"url": "https://example.org/"}).json()
+    assert body["overall_risk"] == "low" and not body["link_analysis"]["live_failed"]

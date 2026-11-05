@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.app.main import CASE_STORE, CASES, app
-from backend.api.app.report import render_pdf
+from backend.api.app.report import _pdf_text, render_pdf
 
 client = TestClient(app)
 SCAM = "Pay a registration fee of Rs 500 to get this work from home job. Send your OTP now to claim your prize."
@@ -55,7 +55,6 @@ def test_pdf_download_is_a_valid_looking_pdf():
     assert body[start:start + 4] == b"xref"
     entries = body[start:].split(b"\n")[3:]
     assert body[int(entries[0][:10]):].startswith(b"1 0 obj")
-    assert b"\\(brackets\\)" in body
 
 
 def test_long_report_flows_onto_more_pages():
@@ -101,3 +100,10 @@ def test_overview_counts_and_keeps_replays_apart():
 def test_overview_with_nothing_saved_is_empty_not_invented():
     overview = client.get("/api/overview").json()
     assert overview["investigations"] == 0 and overview["recent_high_risk"] == []
+
+
+def test_pdf_text_is_escaped_and_never_breaks_the_file():
+    assert _pdf_text("a (b) c\x07") == r"a \(b\) c "
+    backslash = chr(92)
+    assert _pdf_text(f"back{backslash}slash") == f"back{backslash * 2}slash"
+    assert set(_pdf_text("हिन्दी")) == {"?"}

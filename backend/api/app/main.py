@@ -202,9 +202,11 @@ def _check_link(url: str | None, search_web: bool, text: str | None = None) -> L
     worker = threading.Thread(target=work, daemon=True, name="link-check")
     worker.start()
     worker.join(LINK_CHECK_LIMIT_SECONDS)
-    return box.get("report") or investigate_link(
-        url, offline_reason="The link check failed or ran out of time, so only the address was checked."
-    )
+    if "report" in box:
+        return box["report"]
+    report = investigate_link(url, offline_reason="The link check failed or ran out of time, so only the address was checked.")
+    report.live_failed = True
+    return report
 
 
 def _traceable_links(provenance: ProvenanceReport | None) -> tuple[str, ...]:
