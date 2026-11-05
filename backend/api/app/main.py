@@ -34,6 +34,7 @@ from backend.api.app.models import (
     ExplanationResponse,
     HealthResponse,
     HeatmapResponse,
+    LinkAnalysis,
     ModuleResult,
     ModuleStatus,
     MonitorStartRequest,
@@ -44,6 +45,7 @@ from backend.api.app.models import (
 )
 from backend.api.app.replay import get_scenario, list_scenarios
 from backend.api.app.scam_records import build_scam_analysis
+from backend.text.links import investigate_link
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
@@ -171,6 +173,17 @@ def _follow_short_link(url: str | None) -> str | None:
     return expand_shortener(url) if url and not _replay_mode() else None
 
 
+def _check_link(url: str | None, search_web: bool, text: str | None = None) -> LinkAnalysis | None:
+    """Look into a link. Opening it or asking a registry about it needs the user's consent."""
+    if not url:
+        return None
+    if not search_web:
+        return investigate_link(url, offline_reason="Not checked, because outside requests were not allowed.")
+    if _replay_mode() or is_demo_story(text, url):
+        return investigate_link(url, offline_reason="Replay stays offline, so this was not checked.")
+    return investigate_link(url)
+
+
 def _traceable_links(provenance: ProvenanceReport | None) -> tuple[str, ...]:
     """Pick pages holding this image. A merely similar picture would trace something else."""
     if provenance is None:
@@ -220,6 +233,7 @@ def _store_case(
     case_id: str | None = None,
     provenance: ProvenanceReport | None = None,
     network: ModuleResult | None = None,
+    link_analysis: LinkAnalysis | None = None,
 ) -> AnalysisResponse:
     """Build and save a case. ``network`` is given only when the user asked for a trace."""
     module_levels: dict[str, RiskLevel] = {}
@@ -298,6 +312,14 @@ def _store_case(
             for item in claim_analysis.inconsistencies
         )
 
+    if link_analysis and url_result:
+        # Shown as evidence, but not scored: the unified risk step decides what counts.
+        url_result.evidence.extend(f"Link warning sign: {item.why}" for item in link_analysis.signs)
+    if link_analysis and link_analysis.assessment == WARNING_SIGNS:
+        recommended_actions.append(
+            "Do not open this link or enter any details. Go to the organization's official site directly instead."
+        )
+
     result = AnalysisResponse(
         case_id=case_id,
         overall_risk=risk,
@@ -323,6 +345,7 @@ def _store_case(
         claims=claim_records,
         claim_analysis=claim_analysis,
         scam_analysis=scam_analysis,
+        link_analysis=link_analysis,
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
         is_replay=replay_label is not None,
@@ -507,12 +530,13 @@ def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
     url = str(request.url) if request.url else None
     if not request.search_web:
         url_result = analyze_url(url) if url else None
-        return _store_case(text_result, url_result, claims=claims)
+        return _store_case(text_result, url_result, claims=claims, link_analysis=_check_link(url, False))
     destination = _follow_short_link(url)
     url_result = analyze_url(url, destination, follow_tried=not _replay_mode()) if url else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, request.text if text_result else None, destination or url)
-    return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network)
+    link_analysis = _check_link(url, True, request.text if text_result else None)
+    return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network, link_analysis=link_analysis)
 
 
 @app.post(MEDIA_UPLOAD_PATH, response_model=AnalysisResponse)
@@ -533,12 +557,17 @@ def analyze_media_case(
     link = str(url) if url else None
     if not search_web:
         url_result = analyze_url(link) if link else None
-        return _store_case(text_result, url_result, media, claims, provenance=provenance)
+        return _store_case(
+            text_result, url_result, media, claims, provenance=provenance, link_analysis=_check_link(link, False)
+        )
     destination = _follow_short_link(link)
     url_result = analyze_url(link, destination, follow_tried=not _replay_mode()) if link else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, text if text_result else None, destination or link, provenance)
-    return _store_case(text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network)
+    link_analysis = _check_link(link, True, text if text_result else None)
+    return _store_case(
+        text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network, link_analysis=link_analysis
+    )
 
 
 @app.get("/api/cases", response_model=CaseHistoryResponse)
@@ -561,8 +590,10 @@ def start_replay(scenario_id: str) -> AnalysisResponse:
     if scenario is None:
         raise HTTPException(status_code=404, detail="Replay scenario not found")
     text_result, claims = analyze_text(scenario.text)
-    url_result = analyze_url(str(scenario.url)) if scenario.url else None
-    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label)
+    link = str(scenario.url) if scenario.url else None
+    url_result = analyze_url(link) if link else None
+    link_analysis = investigate_link(link, offline_reason="Replay stays offline, so this was not checked.") if link else None
+    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label, link_analysis=link_analysis)
 
 
 @app.get("/api/cases/{case_id}/export", response_model=AnalysisResponse)

@@ -91,6 +91,15 @@ def outside(monkeypatch):
         calls["trace"].append({"case_id": case_id, "text": text, "url": url, "urls": urls})
         return results["trace"]()
 
+    real_link = main.investigate_link
+
+    def check_link(url, *, offline_reason=None):
+        # Consent reaches this function as "no offline reason". The check itself stays offline here.
+        if offline_reason is None:
+            calls.setdefault("link", []).append(url)
+        return real_link(url, offline_reason=offline_reason or "Recorded test.")
+
+    monkeypatch.setattr(main, "investigate_link", check_link)
     monkeypatch.setattr(main, "investigate_provenance", investigate)
     monkeypatch.setattr(main, "trace_case", trace)
     return calls, results

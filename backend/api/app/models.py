@@ -146,10 +146,95 @@ class ScamAnalysis(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class LinkHop(BaseModel):
+    # Without its query, which can hold private tokens.
+    url: str
+    host: str
+    status: int
+
+
+class LinkRedirects(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    hops: list[LinkHop] = Field(default_factory=list)
+    final_url: str | None = None
+    final_host: str | None = None
+
+
+class LinkDomainAge(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    domain: str | None = None
+    registered_on: str | None = None
+    age_days: int | None = None
+    source: str | None = None
+
+
+class LinkPage(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    http_status: int | None = None
+    # Written by the page, so show it as plain text.
+    title: str | None = None
+    asks_for_login: bool = False
+    asks_for_payment: bool = False
+    asks_for_code: bool = False
+    form_posts_to: list[str] = Field(default_factory=list)
+
+
+class LinkLookalike(BaseModel):
+    status: ModuleStatus
+    host: str = ""
+    # Set when the host really belongs to a listed brand.
+    owned_by: str | None = None
+    brand: str | None = None
+    strength: str | None = None
+    how: str | None = None
+    official_domains: list[str] = Field(default_factory=list)
+
+
+class LinkOfficialComparison(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    brand: str | None = None
+    official_domain: str | None = None
+    official_title: str | None = None
+    # Share of words in common, from 0 to 1. Uncalibrated.
+    title_similarity: float | None = None
+    text_similarity: float | None = None
+
+
+class LinkThreatLists(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+
+
+class LinkSign(BaseModel):
+    sign: str
+    # "strong" or "weak". One weak sign alone is not treated as a warning.
+    strength: str
+    why: str
+
+
+class LinkAnalysis(BaseModel):
+    # warning_signs_found, weak_signs_only or none_found. None of these means safe, or proven.
+    assessment: str
+    requested_host: str
+    lookalike: LinkLookalike
+    redirects: LinkRedirects
+    domain: LinkDomainAge
+    page: LinkPage
+    official: LinkOfficialComparison
+    threat_lists: LinkThreatLists
+    signs: list[LinkSign] = Field(default_factory=list)
+    results_file: str
+    limitations: list[str] = Field(default_factory=list)
+
+
 class AnalyzeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=20_000)
     url: HttpUrl | None = None
-    # Sends the text and link to public platforms' search services, so it is off by default.
+    # Sends the text and link to outside services and opens the link, so it is off by default.
     search_web: bool = False
 
     @model_validator(mode="after")
@@ -170,6 +255,8 @@ class AnalysisResponse(BaseModel):
     claim_analysis: ClaimAnalysis | None = None
     # Null when no text was submitted, and for cases saved before this field existed.
     scam_analysis: ScamAnalysis | None = None
+    # Null when no link was submitted, and for cases saved before this field existed.
+    link_analysis: LinkAnalysis | None = None
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False
