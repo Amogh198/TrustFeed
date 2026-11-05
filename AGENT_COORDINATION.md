@@ -101,7 +101,7 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 ### Every session
 
-`CLAUDE.md` lists the mandatory steps. `python tools/agent_sync.py` prints the board. Read a teammate's full record only if your work depends on it.
+`CLAUDE.md` lists the mandatory steps. A session-start hook in `.claude/settings.json` adds the board to your context, and `python tools/agent_sync.py` refreshes it. Read a teammate's full record only if your work depends on it.
 
 An agent's own memory doesn't reach other agents. If something matters to another lane, it goes in GitHub.
 

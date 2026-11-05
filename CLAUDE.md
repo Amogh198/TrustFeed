@@ -10,7 +10,7 @@ Build TruthTrace AI for LAKSHYA 2026: a hackathon MVP that ingests sample text a
 
 1. Read `AGENT_COORDINATION.md`: problem, architecture, ownership and rules.
 2. Read your own `agent-status/<you>.md`. If you don't know which lane you are, match your `gh` login against the table in `AGENT_COORDINATION.md`. Set `PROTOCOL: adopted <date>` when you first follow this.
-3. Run `python tools/agent_sync.py` to see the agent board. Open another agent's full record only if your work depends on it: `python tools/agent_sync.py show <agent>`.
+3. Read the agent board, which a session-start hook adds to your context. If it isn't there, run `python tools/agent_sync.py`. Open another agent's full record only if your work depends on it: `python tools/agent_sync.py show <agent>`.
 
 **Before implementing a feature:**
 
