@@ -1,0 +1,2361 @@
+{
+  "schema": "forensics-eval-1",
+  "generated_at": "2026-11-05T20:17:37.668020Z",
+  "notice": "Measured on the listed images and these simulated splices only. A test's score is a signal, not proof. An unusual reading can come from ordinary editing, and a normal reading doesn't show that an image is genuine.",
+  "sources": [
+    {
+      "name": "Wikimedia Commons",
+      "licence": "Per-file open licences (CC0, public domain, CC BY, CC BY-SA), checked before download and listed in a manifest kept beside the images",
+      "url": "https://commons.wikimedia.org/"
+    }
+  ],
+  "settings": {
+    "seed": 0,
+    "target_real_flagged": 0.05,
+    "useful_auc": 0.6,
+    "re_saved_at": {
+      "longest_side": 1024,
+      "jpeg_quality": 90
+    },
+    "patch_area_share": 0.0625,
+    "max_pixels_examined": 8000000
+  },
+  "dataset": {
+    "images": 600,
+    "by_split": {
+      "calibration": 315,
+      "test": 285
+    },
+    "test_split_by_group_and_format": {
+      "ai_generated": {
+        "JPEG": 23,
+        "PNG": 43,
+        "WEBP": 2
+      },
+      "edited": {
+        "JPEG": 65,
+        "PNG": 4
+      },
+      "general": {
+        "JPEG": 77
+      },
+      "people": {
+        "JPEG": 57,
+        "PNG": 14
+      }
+    },
+    "largest_megapixels": 3.3,
+    "real_jpegs_spliced": 134
+  },
+  "limits_chosen_on_calibration": {
+    "ela": 0.0161,
+    "noise_unevenness": 11.2819,
+    "noise_level": -0.3034,
+    "compression_ghost": 19.6314,
+    "compression_grid": 0.2689,
+    "frequency_detail": 3.7096,
+    "frequency_peaks": 6.4906
+  },
+  "verdicts": {
+    "ela": {
+      "separates_from_real_whichever_way_measured": [
+        "ai_generated"
+      ],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": false
+    },
+    "noise_unevenness": {
+      "separates_from_real_whichever_way_measured": [],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": true
+    },
+    "noise_level": {
+      "separates_from_real_whichever_way_measured": [],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": true
+    },
+    "compression_ghost": {
+      "separates_from_real_whichever_way_measured": [],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": true
+    },
+    "compression_grid": {
+      "separates_from_real_whichever_way_measured": [
+        "ai_generated",
+        "edited"
+      ],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": false
+    },
+    "frequency_detail": {
+      "separates_from_real_whichever_way_measured": [
+        "ai_generated",
+        "edited"
+      ],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": false
+    },
+    "frequency_peaks": {
+      "separates_from_real_whichever_way_measured": [],
+      "separates_spliced_from_unspliced": [],
+      "adds_nothing": true
+    }
+  },
+  "test_split": {
+    "ela": {
+      "files_as_they_are": null,
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6405,
+            "ci95": [
+              0.5052,
+              0.7755
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 5,
+              "total": 23,
+              "value": 0.2174,
+              "ci95": [
+                0.0966,
+                0.419
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.4823,
+            "ci95": [
+              0.4011,
+              0.5637
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 10,
+              "total": 65,
+              "value": 0.1538,
+              "ci95": [
+                0.0858,
+                0.2606
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 9,
+          "total": 134,
+          "value": 0.0672,
+          "ci95": [
+            0.0357,
+            0.1227
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6839,
+            "ci95": [
+              0.598,
+              0.76
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 39,
+              "total": 68,
+              "value": 0.5735,
+              "ci95": [
+                0.4552,
+                0.684
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5456,
+            "ci95": [
+              0.464,
+              0.624
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 24,
+              "total": 69,
+              "value": 0.3478,
+              "ci95": [
+                0.2462,
+                0.4655
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 38,
+          "total": 148,
+          "value": 0.2568,
+          "ci95": [
+            0.1932,
+            0.3327
+          ]
+        }
+      }
+    },
+    "noise_unevenness": {
+      "files_as_they_are": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.5491,
+            "ci95": [
+              0.4679,
+              0.6344
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 9,
+              "total": 68,
+              "value": 0.1324,
+              "ci95": [
+                0.0712,
+                0.2328
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5347,
+            "ci95": [
+              0.4617,
+              0.6104
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 3,
+              "total": 69,
+              "value": 0.0435,
+              "ci95": [
+                0.0149,
+                0.1202
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 17,
+          "total": 148,
+          "value": 0.1149,
+          "ci95": [
+            0.073,
+            0.1763
+          ]
+        }
+      },
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.5662,
+            "ci95": [
+              0.4481,
+              0.6847
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 2,
+              "total": 23,
+              "value": 0.087,
+              "ci95": [
+                0.0242,
+                0.268
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5573,
+            "ci95": [
+              0.4793,
+              0.6374
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 3,
+              "total": 65,
+              "value": 0.0462,
+              "ci95": [
+                0.0158,
+                0.1271
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 15,
+          "total": 134,
+          "value": 0.1119,
+          "ci95": [
+            0.069,
+            0.1765
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.5563,
+            "ci95": [
+              0.4801,
+              0.6399
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 10,
+              "total": 68,
+              "value": 0.1471,
+              "ci95": [
+                0.0819,
+                0.25
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5255,
+            "ci95": [
+              0.4501,
+              0.5987
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 2,
+              "total": 69,
+              "value": 0.029,
+              "ci95": [
+                0.008,
+                0.0997
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 14,
+          "total": 148,
+          "value": 0.0946,
+          "ci95": [
+            0.0572,
+            0.1525
+          ]
+        }
+      }
+    },
+    "noise_level": {
+      "files_as_they_are": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6719,
+            "ci95": [
+              0.5983,
+              0.7451
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 22,
+              "total": 68,
+              "value": 0.3235,
+              "ci95": [
+                0.2244,
+                0.4416
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5045,
+            "ci95": [
+              0.4255,
+              0.582
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 4,
+              "total": 69,
+              "value": 0.058,
+              "ci95": [
+                0.0228,
+                0.1398
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 14,
+          "total": 148,
+          "value": 0.0946,
+          "ci95": [
+            0.0572,
+            0.1525
+          ]
+        }
+      },
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6115,
+            "ci95": [
+              0.4954,
+              0.7163
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 3,
+              "total": 23,
+              "value": 0.1304,
+              "ci95": [
+                0.0454,
+                0.3213
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5141,
+            "ci95": [
+              0.4319,
+              0.5899
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 4,
+              "total": 65,
+              "value": 0.0615,
+              "ci95": [
+                0.0242,
+                0.1478
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 12,
+          "total": 134,
+          "value": 0.0896,
+          "ci95": [
+            0.052,
+            0.15
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6576,
+            "ci95": [
+              0.5805,
+              0.7336
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 18,
+              "total": 68,
+              "value": 0.2647,
+              "ci95": [
+                0.1745,
+                0.3801
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.4796,
+            "ci95": [
+              0.4041,
+              0.556
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 3,
+              "total": 69,
+              "value": 0.0435,
+              "ci95": [
+                0.0149,
+                0.1202
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 12,
+          "total": 148,
+          "value": 0.0811,
+          "ci95": [
+            0.047,
+            0.1364
+          ]
+        }
+      }
+    },
+    "compression_ghost": {
+      "files_as_they_are": null,
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.3994,
+            "ci95": [
+              0.2741,
+              0.5368
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 0,
+              "total": 23,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.1431
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5125,
+            "ci95": [
+              0.4367,
+              0.5897
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 1,
+              "total": 65,
+              "value": 0.0154,
+              "ci95": [
+                0.0027,
+                0.0821
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.3815,
+            "ci95": [
+              0.3,
+              0.4693
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 4,
+              "total": 68,
+              "value": 0.0588,
+              "ci95": [
+                0.0231,
+                0.1417
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.5302,
+            "ci95": [
+              0.4453,
+              0.6091
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 1,
+              "total": 69,
+              "value": 0.0145,
+              "ci95": [
+                0.0026,
+                0.0776
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 2,
+          "total": 148,
+          "value": 0.0135,
+          "ci95": [
+            0.0037,
+            0.0479
+          ]
+        }
+      }
+    },
+    "compression_grid": {
+      "files_as_they_are": null,
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6632,
+            "ci95": [
+              0.5623,
+              0.7548
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 1,
+              "total": 23,
+              "value": 0.0435,
+              "ci95": [
+                0.0077,
+                0.2099
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.6313,
+            "ci95": [
+              0.5455,
+              0.7108
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 5,
+              "total": 65,
+              "value": 0.0769,
+              "ci95": [
+                0.0333,
+                0.1678
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 8,
+          "total": 134,
+          "value": 0.0597,
+          "ci95": [
+            0.0306,
+            0.1134
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6621,
+            "ci95": [
+              0.5853,
+              0.7315
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 7,
+              "total": 68,
+              "value": 0.1029,
+              "ci95": [
+                0.0508,
+                0.1976
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.6384,
+            "ci95": [
+              0.5639,
+              0.7123
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 6,
+              "total": 69,
+              "value": 0.087,
+              "ci95": [
+                0.0405,
+                0.177
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 6,
+          "total": 148,
+          "value": 0.0405,
+          "ci95": [
+            0.0187,
+            0.0856
+          ]
+        }
+      }
+    },
+    "frequency_detail": {
+      "files_as_they_are": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6623,
+            "ci95": [
+              0.5871,
+              0.7393
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 4,
+              "total": 68,
+              "value": 0.0588,
+              "ci95": [
+                0.0231,
+                0.1417
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.6569,
+            "ci95": [
+              0.5845,
+              0.724
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 5,
+              "total": 69,
+              "value": 0.0725,
+              "ci95": [
+                0.0313,
+                0.1587
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 4,
+          "total": 148,
+          "value": 0.027,
+          "ci95": [
+            0.0106,
+            0.0674
+          ]
+        }
+      },
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6648,
+            "ci95": [
+              0.536,
+              0.7797
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 0,
+              "total": 23,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.1431
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.6913,
+            "ci95": [
+              0.6167,
+              0.758
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 3,
+              "total": 65,
+              "value": 0.0462,
+              "ci95": [
+                0.0158,
+                0.1271
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.6675,
+            "ci95": [
+              0.5961,
+              0.7447
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 2,
+              "total": 68,
+              "value": 0.0294,
+              "ci95": [
+                0.0081,
+                0.101
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.6556,
+            "ci95": [
+              0.5794,
+              0.7236
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 4,
+              "total": 69,
+              "value": 0.058,
+              "ci95": [
+                0.0228,
+                0.1398
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 4,
+          "total": 148,
+          "value": 0.027,
+          "ci95": [
+            0.0106,
+            0.0674
+          ]
+        }
+      }
+    },
+    "frequency_peaks": {
+      "files_as_they_are": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.5575,
+            "ci95": [
+              0.4757,
+              0.6339
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 1,
+              "total": 68,
+              "value": 0.0147,
+              "ci95": [
+                0.0026,
+                0.0787
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.4711,
+            "ci95": [
+              0.3909,
+              0.5503
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 0,
+              "total": 69,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0527
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 7,
+          "total": 148,
+          "value": 0.0473,
+          "ci95": [
+            0.0231,
+            0.0944
+          ]
+        }
+      },
+      "jpeg_files_only": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.4844,
+            "ci95": [
+              0.3617,
+              0.6058
+            ],
+            "n": {
+              "fake": 23,
+              "real": 134
+            },
+            "flagged": {
+              "count": 0,
+              "total": 23,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.1431
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.4574,
+            "ci95": [
+              0.3753,
+              0.5444
+            ],
+            "n": {
+              "fake": 65,
+              "real": 134
+            },
+            "flagged": {
+              "count": 0,
+              "total": 65,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0558
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        }
+      },
+      "all_re_saved_the_same_way": {
+        "groups": {
+          "ai_generated": {
+            "auc": 0.5393,
+            "ci95": [
+              0.4578,
+              0.6162
+            ],
+            "n": {
+              "fake": 68,
+              "real": 148
+            },
+            "flagged": {
+              "count": 0,
+              "total": 68,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0535
+              ]
+            }
+          },
+          "edited": {
+            "auc": 0.445,
+            "ci95": [
+              0.3661,
+              0.5293
+            ],
+            "n": {
+              "fake": 69,
+              "real": 148
+            },
+            "flagged": {
+              "count": 0,
+              "total": 69,
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0527
+              ]
+            }
+          }
+        },
+        "real_flagged": {
+          "count": 7,
+          "total": 148,
+          "value": 0.0473,
+          "ci95": [
+            0.0231,
+            0.0944
+          ]
+        }
+      }
+    }
+  },
+  "splices_on_test_split": {
+    "patch_saved_at_low_quality": {
+      "ela": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5686,
+          "ci95": [
+            0.4963,
+            0.6395
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 46,
+          "total": 134,
+          "value": 0.3433,
+          "ci95": [
+            0.2683,
+            0.427
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 34,
+          "total": 134,
+          "value": 0.2537,
+          "ci95": [
+            0.1876,
+            0.3336
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        }
+      },
+      "noise_unevenness": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.4984,
+          "ci95": [
+            0.4322,
+            0.5666
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 12,
+          "total": 134,
+          "value": 0.0896,
+          "ci95": [
+            0.052,
+            0.15
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 9,
+          "total": 134,
+          "value": 0.0672,
+          "ci95": [
+            0.0357,
+            0.1227
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        }
+      },
+      "noise_level": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5063,
+          "ci95": [
+            0.4344,
+            0.5762
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 6,
+          "total": 134,
+          "value": 0.0448,
+          "ci95": [
+            0.0207,
+            0.0942
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "compression_ghost": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5146,
+          "ci95": [
+            0.4409,
+            0.5808
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 3,
+          "total": 134,
+          "value": 0.0224,
+          "ci95": [
+            0.0076,
+            0.0638
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 19,
+          "total": 134,
+          "value": 0.1418,
+          "ci95": [
+            0.0927,
+            0.2109
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        }
+      },
+      "compression_grid": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5952,
+          "ci95": [
+            0.528,
+            0.6613
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_detail": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5152,
+          "ci95": [
+            0.4462,
+            0.5844
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_peaks": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5307,
+          "ci95": [
+            0.4633,
+            0.6029
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      }
+    },
+    "patch_upscaled": {
+      "ela": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5728,
+          "ci95": [
+            0.5037,
+            0.6397
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 44,
+          "total": 134,
+          "value": 0.3284,
+          "ci95": [
+            0.2546,
+            0.4117
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 34,
+          "total": 134,
+          "value": 0.2537,
+          "ci95": [
+            0.1876,
+            0.3336
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 1,
+          "total": 134,
+          "value": 0.0075,
+          "ci95": [
+            0.0013,
+            0.0411
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        }
+      },
+      "noise_unevenness": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5072,
+          "ci95": [
+            0.4426,
+            0.5756
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 3,
+          "total": 134,
+          "value": 0.0224,
+          "ci95": [
+            0.0076,
+            0.0638
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        }
+      },
+      "noise_level": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5253,
+          "ci95": [
+            0.454,
+            0.5943
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "compression_ghost": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5035,
+          "ci95": [
+            0.4284,
+            0.5708
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 31,
+          "total": 134,
+          "value": 0.2313,
+          "ci95": [
+            0.168,
+            0.3096
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        }
+      },
+      "compression_grid": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5908,
+          "ci95": [
+            0.5254,
+            0.6589
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_detail": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.525,
+          "ci95": [
+            0.4545,
+            0.5947
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_peaks": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.537,
+          "ci95": [
+            0.4706,
+            0.6083
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      }
+    },
+    "patch_with_added_noise": {
+      "ela": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5629,
+          "ci95": [
+            0.4916,
+            0.6349
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 46,
+          "total": 134,
+          "value": 0.3433,
+          "ci95": [
+            0.2683,
+            0.427
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 34,
+          "total": 134,
+          "value": 0.2537,
+          "ci95": [
+            0.1876,
+            0.3336
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        }
+      },
+      "noise_unevenness": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.4933,
+          "ci95": [
+            0.4254,
+            0.5628
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 13,
+          "total": 134,
+          "value": 0.097,
+          "ci95": [
+            0.0576,
+            0.1589
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 16,
+          "total": 134,
+          "value": 0.1194,
+          "ci95": [
+            0.0748,
+            0.1852
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        }
+      },
+      "noise_level": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.4851,
+          "ci95": [
+            0.411,
+            0.5562
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 6,
+          "total": 134,
+          "value": 0.0448,
+          "ci95": [
+            0.0207,
+            0.0942
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "compression_ghost": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5001,
+          "ci95": [
+            0.4244,
+            0.5672
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 1,
+          "total": 134,
+          "value": 0.0075,
+          "ci95": [
+            0.0013,
+            0.0411
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 10,
+          "total": 134,
+          "value": 0.0746,
+          "ci95": [
+            0.041,
+            0.1319
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        }
+      },
+      "compression_grid": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5632,
+          "ci95": [
+            0.4985,
+            0.6318
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 3,
+          "total": 134,
+          "value": 0.0224,
+          "ci95": [
+            0.0076,
+            0.0638
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 4,
+          "total": 134,
+          "value": 0.0299,
+          "ci95": [
+            0.0117,
+            0.0742
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_detail": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.4915,
+          "ci95": [
+            0.4236,
+            0.5588
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_peaks": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5099,
+          "ci95": [
+            0.4407,
+            0.5819
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 6,
+          "total": 134,
+          "value": 0.0448,
+          "ci95": [
+            0.0207,
+            0.0942
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 7,
+          "total": 134,
+          "value": 0.0522,
+          "ci95": [
+            0.0255,
+            0.1039
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      }
+    },
+    "patch_saved_at_low_quality_then_all_re_saved_at_60": {
+      "ela": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5279,
+          "ci95": [
+            0.4612,
+            0.5977
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 45,
+          "total": 134,
+          "value": 0.3358,
+          "ci95": [
+            0.2614,
+            0.4194
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 39,
+          "total": 134,
+          "value": 0.291,
+          "ci95": [
+            0.2208,
+            0.3729
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 1,
+          "total": 134,
+          "value": 0.0075,
+          "ci95": [
+            0.0013,
+            0.0411
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        }
+      },
+      "noise_unevenness": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5062,
+          "ci95": [
+            0.4356,
+            0.5735
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 11,
+          "total": 134,
+          "value": 0.0821,
+          "ci95": [
+            0.0465,
+            0.141
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 12,
+          "total": 134,
+          "value": 0.0896,
+          "ci95": [
+            0.052,
+            0.15
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 1,
+          "total": 134,
+          "value": 0.0075,
+          "ci95": [
+            0.0013,
+            0.0411
+          ]
+        }
+      },
+      "noise_level": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5033,
+          "ci95": [
+            0.4345,
+            0.5742
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 31,
+          "total": 134,
+          "value": 0.2313,
+          "ci95": [
+            0.168,
+            0.3096
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 32,
+          "total": 134,
+          "value": 0.2388,
+          "ci95": [
+            0.1745,
+            0.3176
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "compression_ghost": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5099,
+          "ci95": [
+            0.4377,
+            0.5838
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        },
+        "region_found_on_patch": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        },
+        "region_at_same_place_without_the_patch": {
+          "count": 2,
+          "total": 134,
+          "value": 0.0149,
+          "ci95": [
+            0.0041,
+            0.0528
+          ]
+        }
+      },
+      "compression_grid": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5003,
+          "ci95": [
+            0.4405,
+            0.572
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 42,
+          "total": 134,
+          "value": 0.3134,
+          "ci95": [
+            0.241,
+            0.3962
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 42,
+          "total": 134,
+          "value": 0.3134,
+          "ci95": [
+            0.241,
+            0.3962
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_detail": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5045,
+          "ci95": [
+            0.4364,
+            0.5723
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 1,
+          "total": 134,
+          "value": 0.0075,
+          "ci95": [
+            0.0013,
+            0.0411
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      },
+      "frequency_peaks": {
+        "against_same_image_without_the_patch": {
+          "auc": 0.5309,
+          "ci95": [
+            0.4638,
+            0.6034
+          ],
+          "n": {
+            "fake": 134,
+            "real": 134
+          }
+        },
+        "flagged": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "flagged_without_the_patch": {
+          "count": 0,
+          "total": 134,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0279
+          ]
+        },
+        "region_found_on_patch": null,
+        "region_at_same_place_without_the_patch": null
+      }
+    }
+  },
+  "beside_the_detector_in_use": {
+    "fakes_on_test_split": 137,
+    "fakes_detector_did_not_flag": 134,
+    "real_images_detector_flagged": 3,
+    "by_test": {
+      "ela": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 14,
+          "total": 86,
+          "value": 0.1628,
+          "ci95": [
+            0.0995,
+            0.2549
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 9,
+          "total": 134,
+          "value": 0.0672,
+          "ci95": [
+            0.0357,
+            0.1227
+          ]
+        }
+      },
+      "noise_unevenness": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 12,
+          "total": 134,
+          "value": 0.0896,
+          "ci95": [
+            0.052,
+            0.15
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 17,
+          "total": 148,
+          "value": 0.1149,
+          "ci95": [
+            0.073,
+            0.1763
+          ]
+        }
+      },
+      "noise_level": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 26,
+          "total": 134,
+          "value": 0.194,
+          "ci95": [
+            0.136,
+            0.2691
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 14,
+          "total": 148,
+          "value": 0.0946,
+          "ci95": [
+            0.0572,
+            0.1525
+          ]
+        }
+      },
+      "compression_ghost": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 1,
+          "total": 86,
+          "value": 0.0116,
+          "ci95": [
+            0.0021,
+            0.063
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 5,
+          "total": 134,
+          "value": 0.0373,
+          "ci95": [
+            0.016,
+            0.0844
+          ]
+        }
+      },
+      "compression_grid": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 6,
+          "total": 86,
+          "value": 0.0698,
+          "ci95": [
+            0.0324,
+            0.144
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 8,
+          "total": 134,
+          "value": 0.0597,
+          "ci95": [
+            0.0306,
+            0.1134
+          ]
+        }
+      },
+      "frequency_detail": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 9,
+          "total": 134,
+          "value": 0.0672,
+          "ci95": [
+            0.0357,
+            0.1227
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 4,
+          "total": 148,
+          "value": 0.027,
+          "ci95": [
+            0.0106,
+            0.0674
+          ]
+        }
+      },
+      "frequency_peaks": {
+        "fakes_detector_missed_that_this_flags": {
+          "count": 1,
+          "total": 134,
+          "value": 0.0075,
+          "ci95": [
+            0.0013,
+            0.0411
+          ]
+        },
+        "real_images_this_flags": {
+          "count": 7,
+          "total": 148,
+          "value": 0.0473,
+          "ci95": [
+            0.0231,
+            0.0944
+          ]
+        }
+      }
+    }
+  },
+  "seconds_per_image_all_tests": {
+    "median": 0.209,
+    "slowest": 0.679
+  },
+  "limitations": [
+    "Splices were simulated with rectangular patches, without the blending a careful editor would use. Real edits are likely to be harder to find.",
+    "Whole-image figures describe this collection. Commons images were often resized or re-saved before upload, and the 'edited' group holds many kinds of edit, most of which may not be local.",
+    "Images larger than 3.3 megapixels, and images re-saved by real social media platforms, were not measured.",
+    "Limits were set on real images from this collection, so false alarms elsewhere may be higher.",
+    "Labels are as stated by whoever ran this measurement. The tool does not check them."
+  ]
+}

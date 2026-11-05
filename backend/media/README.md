@@ -44,7 +44,7 @@ python -m backend.media analyze sample.jpg --index media_index.json
 
 ### Explanations
 
-`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes`, `media.fingerprint` and `media.c2pa`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
+`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes`, `media.fingerprint`, `media.c2pa`, `media.forensics`, `media.faces` and `media.ocr`, plus `media.speech`, `media.audio_synthetic` and `media.frames` for video: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
 
 - **`benchmark`** holds test-split figures from `data/eval/commons_licensed_2026-11-05.json`, and adds `auc` and counts by band. It is `null` unless that file measured this model and revision at these bands, and it is always `null` for video.
 - **Plain statement:** the classifier check's limitations say how few fakes the current bands flag, and whether the detector barely beats guessing.
@@ -167,6 +167,93 @@ To measure again:
 python -m backend.media.eval.content_credentials --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
 ```
 
+### Pixel forensics
+
+Every image analysis adds a `media.forensics` check with seven tests, built with OpenCV and NumPy. It takes about 0.2 seconds, and stops after `forensics_time_limit_s`. **It never changes the score or assessment.** An unusual reading doesn't show an image is fake, and a marked region doesn't show an area was edited.
+
+Measured on 285 test images, with limits set on 315 others. Figures are in `data/eval/forensics_2026-11-06.json`. AUC is how well a test separates a group from real images, and 0.50 is guessing.
+
+| Test | Regions | AI-generated, JPEG files | Edited, JPEG files | AI-generated, all re-saved | Edited, all re-saved | Result |
+|---|---|---|---|---|---|---|
+| `frequency_detail` | No | 0.66 | 0.69 | 0.67 | 0.66 | Separates both groups |
+| `compression_grid` | No | 0.66 | 0.63 | 0.66 | 0.64 | Separates both groups |
+| `ela` | Yes | 0.64 | 0.48 | 0.68 | 0.55 | Separates AI-generated only |
+| `noise_level` | No | 0.61 | 0.51 | 0.66 | 0.48 | **Adds nothing** by the rule below, though only 23 AI-generated JPEGs were tested |
+| `noise_unevenness` | Yes | 0.57 | 0.56 | 0.56 | 0.53 | **Adds nothing** |
+| `frequency_peaks` | No | 0.48 | 0.46 | 0.54 | 0.45 | **Adds nothing** |
+| `compression_ghost` | Yes | 0.40 | 0.51 | 0.38 | 0.53 | **Adds nothing** |
+
+A test counts as separating a group only if its AUC reaches 0.60, with a 95% interval above 0.50, on JPEG files and also after re-saving everything the same way.
+
+- **Why two ways.** On the test split, 45 of 68 AI-generated files aren't JPEGs, against 14 of 148 real ones. A test reading compression could look good by spotting the file type. `ela`, `compression_ghost` and `compression_grid` run on JPEG files only, and report `unavailable` on others.
+- **No test finds splices.** Rectangular patches pasted into 134 real JPEGs didn't reach the bar on any test, in any of the four kinds of splice. Marked regions lined up with the patch at best 31 of 134 times (`compression_ghost` on an upscaled patch, against 4 of 134 without the patch), and that counts regions whether or not the test read as unusual. The check only shows regions when it does, and that test read as unusual on 4 of those 134.
+- **At their limits, the useful tests catch little.** `frequency_detail` read as unusual on 0 of 23 AI-generated JPEGs, `compression_grid` on 1 of 23 and `ela` on 5 of 23, against 0, 8 and 9 of 134 real JPEGs.
+- **Limits don't survive re-saving.** Limits aim to flag 5% of real images. After re-saving, `ela` flagged 38 of 148 real images. After a re-save at quality 60, `compression_grid` flagged 42 of 134.
+- **Beside the detector in use.** It didn't flag 134 of 137 fakes on this split. Of those, `noise_level` flagged 26 of 134, against 14 of 148 real images, and `ela` 14 of 86, against 9 of 134 real JPEGs. These are single readings that could be combined with the detector, which hasn't been tried.
+- **Tests measured as adding nothing** are still reported, and say so, but add no evidence line.
+- **Not run on video.** The check reports `not_applicable`. Images above 8 megapixels are examined in the middle only, and nothing above 3.3 megapixels was measured.
+- **A very large score isn't a stronger signal.** `noise_unevenness` can read in the thousands when most of an image has no measurable noise.
+
+```bash
+python -m backend.media.eval.forensics --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url" --detector-cache DIR
+```
+
+### Face regions
+
+Every analysis adds a `media.faces` check. OpenCV's bundled Haar cascade finds faces, with no download, and the detector scores each face region. With `run_panel=True`, every downloaded panel detector scores it too.
+
+- **It never identifies anyone.** The result holds a box, a time for video and scores, and nothing that describes who a person is.
+- **Accuracy on face swaps is unmeasured,** because no properly labelled face swap set was available. The check says so. Don't read a face score as a face swap result.
+- **Small faces:** a crop under 128 px on a side stays inconclusive, whatever its score.
+- **Limits:** up to 8 faces, within 30 seconds. On video, only keyframes are searched.
+- **Missed faces:** a Haar cascade misses turned and partly hidden faces, so "no faces found" doesn't mean there are none.
+
+### On-screen text
+
+Every analysis adds a `media.ocr` check, which reads text with [Tesseract](https://github.com/tesseract-ocr/tesseract) through `pytesseract`. For video it reads keyframes, and keeps repeated text once, with when it was first and last seen.
+
+**Tesseract is a separate program and isn't installed by `pip`.** Without it the check reports `unavailable` with the reason, and everything else carries on. After installing it, put it on `PATH` or set `MEDIA_TESSERACT_CMD`. EasyOCR wasn't used, because its weights are pickle files, not safetensors.
+
+- **Not yet run on real files.** Tesseract isn't installed on the machine this was built on, so the tests use a stand-in reader. Reading accuracy is unmeasured.
+- Lines under 40% confidence are dropped, and up to 200 lines are kept, within 30 seconds.
+- **Text read from a file is untrusted.** It is cleaned and cut in length, never logged, and never followed as instructions. Show it as plain text.
+
+### Video: speech, synthetic speech and frames
+
+These checks can take minutes on CPU, so they run on request. Otherwise each reports `unavailable` and says how to ask for it.
+
+```python
+result = analyze_media("clip.mp4", run_heavy=True)
+result.extracted_text  # {"ocr": [...], "speech": [...]}, for claim checking
+```
+
+```bash
+python -m backend.media download-audio
+```
+
+```bash
+python -m backend.media analyze clip.mp4 --heavy
+```
+
+`download-audio` fetches about 1.7 GB, pinned to one commit each, in safetensors only: `openai/whisper-small` (967 MB) and the two speech detectors (378 MB each). Setting `MEDIA_RUN_HEAVY_CHECKS=true` turns these checks on for every video. Audio is read with PyAV, with no separate `ffmpeg` needed. The file's audio is cut at 10 minutes and the report says so.
+
+| Check | What it does | Time limit |
+|---|---|---|
+| `media.speech` | Speech to text with `openai/whisper-small`, with times. | 300 seconds |
+| `media.audio_synthetic` | Scores up to 6 windows of audio with `MelodyMachine/Deepfake-audio-detection-V2` and `motheecreator/Deepfake-audio-detection`, each reported separately. | 120 seconds |
+| `media.frames` | Scores one frame per second, up to 120 frames spread over the video. Reports suspicious sections, the largest changes between frames, and a video-level result, the mean of the strongest third of frames. | 120 seconds |
+
+- **Accuracy is unmeasured for all of them.** No labelled video or audio set has been tested, and each check says so. Scores from the two speech detectors are single readings, not results.
+- **A suspicious section** is a run of frames at or above the detector's elevated band, allowing one quiet frame in between. It uses the detector in use, which barely beats guessing on images, as "Results from 2026-11-05" shows.
+- **Silent audio isn't sent to the models.** Whisper can invent words from silence, and a detector's score on silence would mean nothing. A video without audio reports that it has none.
+- **Speech text is untrusted.** Whisper can mishear, and text from a file is never followed as instructions. It is cleaned and not logged.
+- **Overall result:** none of these change the score or assessment, which still come from the keyframes.
+- **Stuck checks:** a check past its limit reports `unavailable`. A model call can't be cancelled, so it carries on in the background until it finishes.
+
+### Lip-sync: not available
+
+There is no lip-sync check, and `media.frames` says so in its limitations. A search of Hugging Face on 2026-11-06 found three candidates, and none is usable: `lithiumice/syncnet` lists no licence, `nawta/syncnet` lists its licence as "other", and `braindecode/SyncNet` is BSD-3 but appears to be an EEG model. None of the three offers safetensors weights.
+
 ### Detector panel
 
 ```python
@@ -227,7 +314,8 @@ The full result adds:
 - `assessment`: `signals_present`, `no_strong_signals` or `inconclusive`
 - `failure_code`: `not_found`, `empty_file`, `unsupported_type`, `too_large`, `corrupt_media`, `unreadable` or `dependency_missing`
 - `sha256` and `size_bytes`
-- `checks`: `metadata`, `classifier`, `phash`, `keyframes`, `fingerprint` and `content_credentials`, each with its own status, plus `detector_panel` when requested
+- `checks`: `metadata`, `classifier`, `phash`, `keyframes`, `fingerprint`, `content_credentials`, `forensics`, `faces` and `ocr`, each with its own status, plus `detector_panel` when requested, and `speech`, `audio_synthetic` and `frames` for video
+- `extracted_text`: `{"ocr": [...], "speech": [...]}`. Each `ocr` line has `text`, `confidence`, `timestamp_s` and `last_seen_s`, and each `speech` line has `text`, `start_s` and `end_s`. A time is `null` for an image, or when it isn't known. Both lists are empty when nothing was read, and the matching check says why
 
 ### How results are decided
 
@@ -247,6 +335,9 @@ The full result adds:
 | `MEDIA_PHASH_INDEX` | Not set | Path to the JSON reference index. |
 | `MEDIA_CASE_FINGERPRINTS` | Not set | Path to the JSON store of earlier cases' hashes. |
 | `MEDIA_C2PA_TRUST_LIST` | Not set | Path to a PEM file of certificate authorities to trust for Content Credentials. |
+| `MEDIA_TESSERACT_CMD` | Not set | Path to the Tesseract program, if it isn't on `PATH`. |
+| `MEDIA_OCR_LANGUAGES` | `eng` | Tesseract languages, such as `eng+hin`. Each must be installed with Tesseract. |
+| `MEDIA_RUN_HEAVY_CHECKS` | `false` | Runs speech, synthetic speech and frame checks on every video. |
 
 ## Tests
 
@@ -313,7 +404,7 @@ The set has 600 images from Wikimedia Commons, with a licence listed for each fi
 
 What these figures can't show:
 
-- **Face swaps, video and images re-saved by social media platforms are unmeasured.**
+- **Face swaps, video, audio and images re-saved by social media platforms are unmeasured.**
 - **Labels come from human-curated Commons categories,** so some can be wrong, and edited images may be only lightly edited.
 - **Results on this set don't predict results on other kinds of image,** and no score proves that an image is authentic or false.
 - **The file on disk pins Nonescape, not its publisher.** It has no published hash, so the pin records the file as downloaded on 2026-11-05.
@@ -326,7 +417,7 @@ Full results are in `data/eval/commons_licensed_2026-11-05.json`. The manifest o
 
 - The classifier flags very few fakes at its current bands and barely beats guessing on a mixed set, as "Results from 2026-11-05" shows, so a `low` result is not reassuring. On Windows stock wallpapers it scored between 0.20 and 0.73, so mid-range scores should not be read as a signal.
 - Input limits: images up to 25 MB and 50 megapixels, videos up to 200 MB. Older QuickTime files without an `ftyp` header are rejected as unsupported.
-- Video analysis looks at keyframes only, up to 16 from the first 10 minutes. It does not check audio, lip sync or motion between frames.
+- The video score comes from keyframes only, up to 16 from the first 10 minutes. Audio and frame by frame checks run on request and don't change it. Lip sync isn't checked.
 - Video metadata covers stream properties only, not container tags.
 - pHash can only match references already in the index, and a non-match says nothing about originality.
 - GPS coordinates are never returned, only whether GPS data exists.

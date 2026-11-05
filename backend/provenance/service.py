@@ -23,6 +23,7 @@ from backend.media.errors import HashIndexUnavailable, MediaInputError
 from backend.media.metadata import inspect_input, read_image
 from backend.media.models import MediaType
 from backend.media.phash import JsonHashIndex, compute_phash, hamming_distance
+from backend.provenance.cache import ResultsCache
 from backend.provenance.classify import classify_platform, clean_text, clean_url, dedupe_key, domain_of
 from backend.provenance.config import ProvenanceConfig
 from backend.provenance.dates import PageDate, PageFacts, parse_date, read_page_facts
@@ -62,6 +63,40 @@ _CRAWL_EVIDENCE = (
 _MATCH_RANK = {MatchType.EXACT: 0, MatchType.PARTIAL: 1, MatchType.SIMILAR: 2}
 
 
+class _SitePacing:
+    """Spaces out requests to each site, so checking results never hammers one of them."""
+
+    def __init__(self, config: ProvenanceConfig) -> None:
+        self._config = config
+        self._lock = threading.Lock()
+        self._next_at: dict[str, float] = {}
+        self._delays: dict[str, float] = {}
+
+    def set_delay(self, host: str, seconds: float) -> None:
+        with self._lock:
+            self._delays[host] = min(max(seconds, self._config.site_delay_s), self._config.max_site_delay_s)
+
+    def wait(self, url: str, deadline: float | None) -> None:
+        host = urlsplit(url).netloc
+        with self._lock:
+            now = time.monotonic()
+            start = max(now, self._next_at.get(host, now))
+            self._next_at[host] = start + self._delays.get(host, self._config.site_delay_s)
+        pause = start - now
+        if pause <= 0:
+            return
+        if deadline is not None and start > deadline:
+            raise HttpFailed("timeout")
+        time.sleep(pause)
+
+    def wrap(self, http: RequestFunction) -> RequestFunction:
+        def paced(url: str, **options):
+            self.wait(url, options.get("deadline"))
+            return http(url, **options)
+
+        return paced
+
+
 @dataclass
 class _CheckResult:
     facts: PageFacts = field(default_factory=PageFacts)
@@ -72,10 +107,13 @@ class _CheckResult:
 class _Robots:
     """Answers robots.txt rules, fetching each site's file once per search."""
 
-    def __init__(self, http: RequestFunction, config: ProvenanceConfig, deadline: float) -> None:
+    def __init__(
+        self, http: RequestFunction, config: ProvenanceConfig, deadline: float, pacing: _SitePacing | None = None
+    ) -> None:
         self._http = http
         self._config = config
         self._deadline = deadline
+        self._pacing = pacing
         self._lock = threading.Lock()
         self._host_locks: dict[str, threading.Lock] = {}
         self._rules: dict[str, RobotFileParser | None] = {}
@@ -111,6 +149,9 @@ class _Robots:
         if response.status != 200:
             return None  # An unreachable robots.txt is treated as "keep out".
         rules.parse(response.body.decode("utf-8", "replace").splitlines())
+        delay = rules.crawl_delay(self._config.user_agent)
+        if delay and self._pacing is not None:
+            self._pacing.set_delay(urlsplit(origin).netloc, float(delay))
         return rules
 
 
@@ -325,11 +366,24 @@ def _earliest(appearances: Sequence[Appearance], config: ProvenanceConfig) -> Ea
 
 
 def _run_providers(
-    providers: Sequence[Provider], upload: Upload, http: RequestFunction, config: ProvenanceConfig
+    providers: Sequence[Provider],
+    upload: Upload,
+    http: RequestFunction,
+    config: ProvenanceConfig,
+    media_sha256: str | None = None,
 ) -> tuple[list[ProviderRun], list[Candidate]]:
     runs: list[ProviderRun] = []
     found: list[Candidate] = []
+    cache = ResultsCache(config.cache_dir, config.cache_days) if config.cache_dir and media_sha256 else None
     for provider in providers:
+        cache_key = getattr(provider, "cache_key", provider.name)
+        saved = cache.get(media_sha256, cache_key) if cache else None
+        if saved is not None:
+            candidates, saved_at = saved
+            note = f"{provider.name}: saved results from {saved_at:%Y-%m-%d} were reused, so no search was spent."
+            runs.append(ProviderRun(name=provider.name, status=Status.COMPLETE, result_count=len(candidates), limitation=note))
+            found.extend(candidates)
+            continue
         try:
             candidates = provider.search(upload, http, config)
         except ProviderFailure as exc:
@@ -344,8 +398,19 @@ def _run_providers(
                 )
             )
         else:
-            runs.append(ProviderRun(name=provider.name, status=Status.COMPLETE, result_count=len(candidates)))
+            notes = getattr(provider, "notes", [])
+            runs.append(
+                ProviderRun(
+                    name=provider.name,
+                    status=Status.COMPLETE,
+                    result_count=len(candidates),
+                    limitation=" ".join(notes) or None,
+                )
+            )
             found.extend(candidates)
+            # A partial answer isn't saved, so the next search can complete it.
+            if cache and not notes:
+                cache.put(media_sha256, cache_key, candidates)
     return runs, found
 
 
@@ -358,7 +423,9 @@ def _check_all(
     if not candidates:
         return [], []
     deadline = time.monotonic() + config.check_budget_s
-    robots = _Robots(http, config, deadline)
+    pacing = _SitePacing(config)
+    http = pacing.wrap(http)
+    robots = _Robots(http, config, deadline, pacing)
     pool = ThreadPoolExecutor(max_workers=config.check_workers)
     futures = {
         pool.submit(_check_candidate, candidate, upload_phash, http, robots, config, deadline): candidate
@@ -449,7 +516,7 @@ def _investigate(
             limitations.append("No web search provider has a key configured, so no web search was run.")
         else:
             searched_at = datetime.now(timezone.utc)
-            provider_runs, candidates = _run_providers(active, Upload(image), http, config)
+            provider_runs, candidates = _run_providers(active, Upload(image), http, config, info.sha256)
             runs.extend(provider_runs)
             merged = _merge(candidates, config.max_candidates)
             if len(candidates) > len(merged) and len(merged) == config.max_candidates:
@@ -473,6 +540,7 @@ def _investigate(
     if status is Status.COMPLETE and not appearances:
         limitations.append(NOTHING_FOUND)
     limitations.extend(run.limitation for run in provider_failures(runs))
+    limitations.extend(run.limitation for run in runs if run.status is Status.COMPLETE and run.limitation)
 
     report = ProvenanceReport(
         status=status,

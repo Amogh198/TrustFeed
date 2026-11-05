@@ -43,11 +43,13 @@ def found_report(**fields):
 
 
 def test_found_pages_are_counted_and_keep_the_earliest_caveat():
-    [check] = found_report().to_checks()
+    check, similar = found_report().to_checks()
     assert check["check_id"] == "provenance.search"
     assert check["module"] == "provenance"
     assert check["status"] == "complete"
-    assert check["result"] == "2 pages found, 1 exact, 1 with a usable date"
+    # The similar picture is counted in its own check, not here.
+    assert check["result"] == "1 pages found, 1 exact, 1 with a usable date"
+    assert similar["result"] == "1 similar picture found"
     assert EARLIEST_CAVEAT in check["reasoning"]
     assert check["limitations"] == ["Search covers only part of the web."]
     json.dumps(check)
@@ -68,13 +70,13 @@ def test_finding_nothing_is_not_called_evidence():
     report = ProvenanceReport(
         status=Status.COMPLETE, providers=[ProviderRun(name="fake_provider", status=Status.COMPLETE)]
     )
-    [check] = report.to_checks()
+    check, _similar = report.to_checks()
     assert check["result"] == "No matching pages found"
     assert "does not show the image is new or unused" in check["reasoning"]
 
 
 def test_unavailable_search_says_nothing_was_learned():
-    [check] = ProvenanceReport(status=Status.UNAVAILABLE, limitations=["no key"]).to_checks()
+    check, _similar = ProvenanceReport(status=Status.UNAVAILABLE, limitations=["no key"]).to_checks()
     assert check["status"] == "unavailable"
     assert check["result"] == "No search result"
     assert "says nothing about where the image appeared" in check["reasoning"]

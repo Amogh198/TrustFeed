@@ -60,7 +60,30 @@ The local list from `MEDIA_PHASH_INDEX` also runs, and never uses the network.
 
 Only SerpApi has been run for real, on 2026-11-05, through the upload route with two openly licensed images. An AI-generated image found no pages. A historic postcard found 25 pages, 17 of them exact matches, with 8 usable dates, in 30 seconds. Google Vision and TinEye have only been tested against fakes.
 
-SerpApi's free plan allows 250 searches a month. Each uploaded image with `search_web` uses one.
+SerpApi's free plan allows 250 searches a month. Each uploaded image with `search_web` now uses two: one for exact matches and one for visual matches. Set `SERPAPI_VISUAL_MATCHES=false` to use one.
+
+### Similar pictures
+
+SerpApi's visual matches are reported as `match_type: "similar"`, in their own `provenance.similar` check. They are pictures that look alike, not copies, and can show an unrelated picture. They aren't counted in `provenance.search`, can't become "earliest found" unless the hash shows the same image, and never change any detector score. No search result does.
+
+The visual matches haven't been run against the live service, to save credits. The tests use mocked responses in the documented format. If the visual search fails, exact matches are kept, and the report says so.
+
+### Credit check
+
+Before sending anything, SerpApi's free [Account API](https://serpapi.com/account-api) is asked how many searches are left. A check costs no search. If too few are left, or the count can't be confirmed, the image isn't sent, nothing is spent, and the provider reports `unavailable`. Only the count is read. The response also holds the key and account email, so it is never logged, stored or returned.
+
+### Results cache
+
+Results are saved by the file's SHA-256 and provider, so searching the same file again spends nothing, and the report says saved results from which date were reused.
+
+- **Where:** `PROVENANCE_CACHE_DIR`, by default `.cache/trustfeed/provenance` in the home folder. Results stay for 30 days.
+- **What:** only the found links, titles and dates. File names are hashed, so neither the image nor its SHA-256 appears, and no key is stored.
+- **Not saved:** failed searches and partial answers.
+- **Keep it private.** The results show what someone searched for. Saved results are cleaned again when read, because they count as untrusted too.
+
+### Per-site delays
+
+Page and image requests to one site are at least 1 second apart. A site's `Crawl-delay` in `robots.txt` can raise that to at most 10 seconds. A wait that would pass the time limit gives up instead of sleeping.
 
 TinEye is called over REST directly. The official `pytineye` 3.0.0 client pins `urllib3==1.26.6`, `certifi==2021.5.30` and `future==0.18.2`, which are too old to install beside the API's dependencies.
 
@@ -112,7 +135,7 @@ This refuses to save anything unless a live search completed. Check the recordin
 
 ## Explanation check
 
-`report.to_checks()` returns one `provenance.search` entry in the draft `/explanation` check shape. Its `benchmark` is always `null`, because search coverage has not been measured. It keeps the synthetic and replay labels and the "earliest found" caveat.
+`report.to_checks()` returns a `provenance.search` entry and a `provenance.similar` entry, in the draft `/explanation` check shape. Their `benchmark` is always `null`, because search coverage has not been measured. They keep the synthetic and replay labels and the "earliest found" caveat.
 
 ## Limits
 

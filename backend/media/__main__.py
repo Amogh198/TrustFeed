@@ -34,6 +34,7 @@ def _parser() -> argparse.ArgumentParser:
     analyze.add_argument("--panel", action="store_true", help="also run every detector on the panel (slow on CPU)")
     analyze.add_argument("--cases", type=Path, help="earlier cases' fingerprints (JSON). Holds hashes, never images.")
     analyze.add_argument("--remember", metavar="CASE_ID", help="keep this media's hashes in --cases under this case ID")
+    analyze.add_argument("--heavy", action="store_true", help="also run a video's speech and frame by frame checks")
 
     add = commands.add_parser("index-add", help="add an image to a pHash reference index")
     add.add_argument("file", type=Path)
@@ -48,6 +49,7 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("download-model", help="download the classifier's safetensors weights")
     commands.add_parser("download-panel", help="download every panel detector's safetensors weights (about 2.3 GB)")
+    commands.add_parser("download-audio", help="download the speech and synthetic speech models (about 1.7 GB)")
     return parser
 
 
@@ -76,7 +78,7 @@ def _analyze(args: argparse.Namespace, config: MediaConfig) -> int:
         config = replace(config, phash_index_path=args.index)
     if args.cases:
         config = replace(config, case_fingerprints_path=args.cases)
-    result = analyze_media(args.file, config=config, run_panel=args.panel)
+    result = analyze_media(args.file, config=config, run_panel=args.panel, run_heavy=args.heavy or None)
     if args.remember and not result.failure_code:
         remember_fingerprints(result, args.remember, args.cases)
     output = result.to_module_result() if args.module_only else result.model_dump(mode="json")
@@ -130,11 +132,25 @@ def _download_panel(config: MediaConfig) -> int:
     return 0
 
 
+def _download_audio() -> int:
+    from backend.media.audio import download_audio_models
+
+    try:
+        locations = download_audio_models()
+    except Exception as exc:
+        print(f"error: model download failed ({type(exc).__name__})", file=sys.stderr)
+        return 1
+    print(f"{len(locations)} models ready")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     config = MediaConfig.from_env()
     if args.command == "download-panel":
         return _download_panel(config)
+    if args.command == "download-audio":
+        return _download_audio()
     if args.command == "analyze":
         return _analyze(args, config)
     if args.command == "index-add":

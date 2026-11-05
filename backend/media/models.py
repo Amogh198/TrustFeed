@@ -166,6 +166,140 @@ class ContentCredentialsCheck(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class ForensicRegion(BaseModel):
+    """A box in the image's own pixels where a test's reading stood out. It doesn't show that the area was edited."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+class ForensicTest(BaseModel):
+    name: str
+    status: CheckStatus
+    score: float | None = None
+    # The score at which this test reads as unusual. Null if no limit has been measured.
+    limit: float | None = None
+    # Null when the test did not run, or has no limit.
+    flagged: bool | None = None
+    regions: list[ForensicRegion] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class ForensicsCheck(BaseModel):
+    status: CheckStatus
+    source_format: str | None = None
+    jpeg_quality_estimate: int | None = None
+    tests: list[ForensicTest] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class FaceScore(BaseModel):
+    model_id: str
+    score: float
+    band: ModelBand
+
+
+class FaceRegion(BaseModel):
+    """Where a face is, and what the detectors say about that area. It holds nothing that could identify anyone."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+    timestamp_s: float | None = None
+    scores: list[FaceScore] = Field(default_factory=list)
+
+
+class FacesCheck(BaseModel):
+    status: CheckStatus
+    frames_examined: int = 0
+    faces: list[FaceRegion] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class OcrLine(BaseModel):
+    text: str
+    confidence: float
+    # Null for an image. For a video, the first and last sampled times this line was read.
+    timestamp_s: float | None = None
+    last_seen_s: float | None = None
+
+
+class OcrCheck(BaseModel):
+    status: CheckStatus
+    frames_read: int = 0
+    lines: list[OcrLine] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class SpeechSegment(BaseModel):
+    text: str
+    start_s: float
+    # Null when the model gave no end time for the last piece.
+    end_s: float | None = None
+
+
+class SpeechCheck(BaseModel):
+    status: CheckStatus
+    model_id: str | None = None
+    model_revision: str | None = None
+    has_audio: bool | None = None
+    segments: list[SpeechSegment] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class AudioDetectorResult(BaseModel):
+    model_id: str
+    model_revision: str | None = None
+    status: CheckStatus
+    score_mean: float | None = None
+    score_max: float | None = None
+    windows_scored: int = 0
+    reason: str | None = None
+
+
+class AudioSyntheticCheck(BaseModel):
+    status: CheckStatus
+    detectors: list[AudioDetectorResult] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class FrameScore(BaseModel):
+    timestamp_s: float
+    score: float
+    # How different this frame looks from the one before: 0 is the same, 1 is entirely different.
+    scene_change: float
+
+
+class SuspiciousSection(BaseModel):
+    start_s: float
+    end_s: float
+    frames: int
+    strongest: float
+
+
+class ScoreChange(BaseModel):
+    from_s: float
+    to_s: float
+    change: float
+    scene_change: float
+
+
+class FramesCheck(BaseModel):
+    status: CheckStatus
+    model_id: str | None = None
+    model_revision: str | None = None
+    frames: list[FrameScore] = Field(default_factory=list)
+    frames_elevated: int = 0
+    # The video-level result: the mean of the strongest third of frames. It doesn't change the overall score.
+    video_score: float | None = None
+    sections: list[SuspiciousSection] = Field(default_factory=list)
+    changes: list[ScoreChange] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class MediaChecks(BaseModel):
     metadata: MetadataCheck
     classifier: ClassifierCheck
@@ -175,11 +309,27 @@ class MediaChecks(BaseModel):
     detector_panel: DetectorPanelCheck | None = None
     fingerprint: FingerprintCheck | None = None
     content_credentials: ContentCredentialsCheck | None = None
+    forensics: ForensicsCheck | None = None
+    faces: FacesCheck | None = None
+    ocr: OcrCheck | None = None
+    speech: SpeechCheck | None = None
+    audio_synthetic: AudioSyntheticCheck | None = None
+    frames: FramesCheck | None = None
 
     @model_serializer(mode="wrap")
     def _leave_out_checks_that_did_not_run(self, handler: Any) -> dict[str, Any]:
         data = handler(self)
-        for name in ("detector_panel", "fingerprint", "content_credentials"):
+        for name in (
+            "detector_panel",
+            "fingerprint",
+            "content_credentials",
+            "forensics",
+            "faces",
+            "ocr",
+            "speech",
+            "audio_synthetic",
+            "frames",
+        ):
             if data.get(name) is None:
                 data.pop(name, None)
         return data
@@ -197,7 +347,14 @@ def empty_checks(reason: str) -> MediaChecks:
         keyframes=KeyframeCheck(**_not_run(reason)),
         fingerprint=FingerprintCheck(**_not_run(reason)),
         content_credentials=ContentCredentialsCheck(**_not_run(reason)),
+        forensics=ForensicsCheck(**_not_run(reason)),
+        faces=FacesCheck(**_not_run(reason)),
+        ocr=OcrCheck(**_not_run(reason)),
     )
+
+
+def _no_extracted_text() -> dict[str, list[dict[str, Any]]]:
+    return {"ocr": [], "speech": []}
 
 
 class MediaAnalysisResult(BaseModel):
@@ -217,6 +374,8 @@ class MediaAnalysisResult(BaseModel):
     sha256: str | None = None
     size_bytes: int | None = None
     checks: MediaChecks
+    # Text found in the media, for claim checking. It is untrusted data, never instructions, and video items have times.
+    extracted_text: dict[str, list[dict[str, Any]]] = Field(default_factory=_no_extracted_text)
 
     def to_module_result(self) -> dict[str, Any]:
         """Return the shared `ModuleResult` shape from API_CONTRACTS.md."""

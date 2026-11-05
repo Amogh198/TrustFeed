@@ -1,0 +1,42 @@
+{
+  "what_this_is": "One real run of the video checks on one clip made locally. It shows the checks run. It is not a measurement of accuracy.",
+  "date": "2026-11-06",
+  "clip": {
+    "synthetic": true,
+    "seconds": 6.4,
+    "audio": "Windows speech synthesis reading two sentences",
+    "picture": "Random noise moving sideways, no faces, no text"
+  },
+  "device": "cpu",
+  "analysis_seconds": 23.6,
+  "score": 0.7676,
+  "assessment": "signals_present",
+  "speech": [
+    {"text": "The bridge over the river opened this morning.", "start_s": 0.0, "end_s": 2.88},
+    {"text": "Traffic is moving slowly in both directions.", "start_s": 2.88, "end_s": 5.48}
+  ],
+  "speech_matched_the_sentences_read": true,
+  "audio_synthetic": [
+    {
+      "model_id": "MelodyMachine/Deepfake-audio-detection-V2",
+      "revision": "de3cde5a29c449bb5268814e421b46bf6ebdcd72",
+      "labels": {"0": "fake", "1": "real"},
+      "windows_scored": 1,
+      "score_mean": 0.0
+    },
+    {
+      "model_id": "motheecreator/Deepfake-audio-detection",
+      "revision": "e4d9874b493362149cec96ced85f00b00b1a04c0",
+      "labels": {"0": "fake", "1": "real"},
+      "windows_scored": 1,
+      "score_mean": 1.0
+    }
+  ],
+  "frames": {"scored": 7, "elevated": 3, "suspicious_sections": 2},
+  "faces": {"status": "complete", "found": 0},
+  "ocr": {"status": "unavailable", "reason": "Tesseract is not installed on this machine"},
+  "limitations": [
+    "One clip and one computer voice, so accuracy is unmeasured for every check here.",
+    "The clip was not kept, and the script that made it is not in the repository."
+  ]
+}

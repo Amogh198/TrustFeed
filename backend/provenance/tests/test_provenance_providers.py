@@ -218,6 +218,8 @@ def serp_http(search_payload, upload_payload=None):
 
     class Router(FakeHttp):
         def __call__(self, url, **options):
+            if url.startswith(SerpApiLens.account_url):
+                return ok(url, {"total_searches_left": 200})
             if url.startswith(SerpApiLens.search_url + "?"):
                 self.calls.append({"url": url, **options})
                 return ok(url, search_payload)
