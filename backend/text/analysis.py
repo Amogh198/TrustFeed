@@ -98,9 +98,11 @@ def analyze_url(url: str, expanded_url: str | None = None, expansion_limit: str 
         evidence.append("Short URL destination was not expanded")
 
     score = min(1.0, 0.2 * len(evidence))
-    limitations = ["Static URL heuristics only; no domain reputation or destination fetch was performed."]
+    limitations = ["Static URL heuristics only; no domain reputation service was queried."]
     if expanded_url and expanded_url != url:
         limitations.append("The short URL was followed only after opt-in; no reputation service was queried.")
+    else:
+        limitations.append("No destination fetch was performed.")
     if expansion_limit:
         limitations.append(expansion_limit)
     return ModuleResult(
