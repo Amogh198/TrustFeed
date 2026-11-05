@@ -12,11 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from backend.media.config import MediaConfig
+from backend.media.fingerprint import EXACT_COPY, MATCH_LIMITS, MATCHES_NEEDED
 from backend.media.models import (
     CheckStatus,
     ClassifierCheck,
     DetectorPanelCheck,
     DetectorResult,
+    FingerprintCheck,
+    FingerprintMatch,
     KeyframeCheck,
     MediaAnalysisResult,
     MediaType,
@@ -33,6 +36,13 @@ BENCHMARK_APPLIES_TO = (
 BENCHMARK_GAPS = "The benchmark did not measure face swaps, video, or images re-saved by social media."
 # Below this AUC, fake and real images are barely separated, and the result should say so.
 NEAR_GUESSING_AUC = 0.6
+FINGERPRINT_RESULTS_PATH = BENCHMARK_PATH.with_name("fingerprints_2026-11-05.json")
+FINGERPRINT_RULE = "any_two_structural"
+FINGERPRINT_MEANING = (
+    "A fingerprint is not a signature. A match shows that images look alike or that files are identical, not who made "
+    "the media, where it first appeared or whether a claim about it is true. A recorded date is only the earliest one "
+    "on that list."
+)
 METADATA_UNTRUSTED = "Metadata comes from the file, so it can be missing, removed or false."
 PHASH_MEANING = "A perceptual match shows visual similarity to a reference, not who made the media or if a claim is true."
 
@@ -235,6 +245,99 @@ def _keyframes(check: KeyframeCheck) -> dict[str, Any]:
     return _check("media.keyframes", label, check.status, result, reasoning, check.limitations)
 
 
+def load_fingerprint_figures(path: Path = FINGERPRINT_RESULTS_PATH) -> dict[str, dict[str, Any]] | None:
+    """Return the test-split figures for the match rule in use, or None if they can't be read or don't apply."""
+    raw = _read_results(path)
+    if raw is None:
+        return None
+    try:
+        document = json.loads(raw)
+        rule = document["test_split"][FINGERPRINT_RULE]
+        if rule["limits"] != MATCH_LIMITS or rule["needed"] != MATCHES_NEEDED:
+            return None
+        return rule
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _fingerprint_figures_sentence() -> str:
+    rule = load_fingerprint_figures()
+    if rule is None:
+        return "How well this match rule works has not been measured."
+    copies = rule["copies_matched"]
+
+    def share(name: str) -> str:
+        return f"{copies[name]['count']} of {copies[name]['total']}"
+
+    wrong = rule["false_match_rate"]
+    return (
+        f"When measured on simulated changes, the rule found {share('recompressed_low_quality')} recompressed copies, "
+        f"{share('cropped_5_percent_each_side')} cropped copies, {share('caption_bar_added')} captioned copies and "
+        f"{share('mirrored')} mirrored copies, and {wrong['count']} of {wrong['total']} unrelated pairs matched."
+    )
+
+
+def _describe_target(match: FingerprintMatch) -> str:
+    if match.found_in == "reference":
+        return f"reference {match.label!r}"
+    return f"earlier case {match.case_id!r}"
+
+
+def _match_artifact(match: FingerprintMatch) -> dict[str, str]:
+    artifact = {"kind": "fingerprint_match", "match": match.kind, "found_in": match.found_in}
+    for name in ("label", "case_id", "first_seen", "source"):
+        value = getattr(match, name)
+        if value:
+            artifact[name] = str(value)
+    if match.distances:
+        artifact["distances"] = ", ".join(f"{kind} {value}" for kind, value in match.distances.items())
+    if match.timestamp_s is not None:
+        artifact["timestamp_s"] = f"{match.timestamp_s:.1f}"
+    return artifact
+
+
+def _fingerprint(check: FingerprintCheck) -> dict[str, Any]:
+    label = "Image fingerprints"
+    if check.status is not CheckStatus.COMPLETE:
+        return _check(
+            "media.fingerprint", label, check.status, "No fingerprints", "The fingerprints were not made.", check.limitations
+        )
+    artifacts = [_match_artifact(match) for match in check.matches]
+    if check.hashes or check.sha256:
+        artifacts.insert(0, {"kind": "fingerprints", **({"sha256": check.sha256} if check.sha256 else {}), **check.hashes})
+    exact = [match for match in check.matches if match.kind == EXACT_COPY]
+    visual = [match for match in check.matches if match.kind != EXACT_COPY]
+    if not check.compared:
+        result = "Made, not compared"
+        reasoning = "Fingerprints were made, but there was nothing to compare them with, so this found nothing either way."
+    elif check.matches:
+        parts = []
+        if exact:
+            parts.append(f"{len(exact)} exact {'copy' if len(exact) == 1 else 'copies'}")
+        if visual:
+            parts.append(f"{len(visual)} likely same {'image' if len(visual) == 1 else 'images'}")
+        result = ", ".join(parts)
+        reasoning = "Matched " + "; ".join(_describe_target(match) for match in check.matches) + "."
+        if exact:
+            reasoning += " An exact copy means the file is byte-for-byte the same."
+        if visual:
+            reasoning += " A likely match means at least two kinds of fingerprint agree, so the picture may have been changed."
+    else:
+        result = f"No match in {check.references_checked} references and {check.earlier_cases_checked} earlier cases"
+        reasoning = "Nothing compared looks like this media. It doesn't show the media is new, only that these lists don't hold it."
+    if check.frames_hashed > 1:
+        reasoning += f" {check.frames_hashed} video keyframes were compared one at a time."
+    return _check(
+        "media.fingerprint",
+        label,
+        check.status,
+        result,
+        f"{reasoning} {_fingerprint_figures_sentence()}",
+        [*check.limitations, FINGERPRINT_MEANING],
+        artifacts=artifacts,
+    )
+
+
 def load_comparison(path: Path = BENCHMARK_PATH) -> tuple[dict[str, dict[str, Any]], float | None]:
     """Return each model's measured comparison by "id@revision", and the baseline's test AUC."""
     raw = _read_results(path)
@@ -326,6 +429,8 @@ def build_checks(
         _phash(result.checks.phash),
         _keyframes(result.checks.keyframes),
     ]
+    if result.checks.fingerprint is not None:
+        checks.append(_fingerprint(result.checks.fingerprint))
     if result.checks.detector_panel is not None:
         checks.append(_detector_panel(result.checks.detector_panel, result.media_type))
     return checks

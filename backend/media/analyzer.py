@@ -21,6 +21,7 @@ from backend.media.models import (
     ClassifierCheck,
     DetectorPanelCheck,
     DetectorResult,
+    FingerprintCheck,
     FrameEvidence,
     HashMatch,
     KeyframeCheck,
@@ -31,6 +32,13 @@ from backend.media.models import (
     ModelBand,
     PHashCheck,
     empty_checks,
+)
+from backend.media.fingerprint import (
+    EXACT_COPY,
+    CaseFingerprintStore,
+    QueryFrame,
+    compute_fingerprints,
+    find_matches,
 )
 from backend.media.panel import PANEL_MODELS, build_classifier
 from backend.media.phash import HashIndex, JsonHashIndex, compute_phash
@@ -189,6 +197,86 @@ def _detector_panel(
     )
 
 
+def _resolve_cases(config: MediaConfig, supplied: CaseFingerprintStore | None) -> tuple[list, str | None]:
+    if supplied is not None:
+        return supplied.entries, None
+    if config.case_fingerprints_path is None:
+        return [], "No earlier-case fingerprints are configured, so earlier cases were not compared."
+    try:
+        store = CaseFingerprintStore.load(config.case_fingerprints_path)
+    except HashIndexUnavailable as exc:
+        return [], f"{exc} Earlier cases were not compared."
+    if store.skipped:
+        return store.entries, f"{store.skipped} malformed earlier-case entries were ignored."
+    return store.entries, None
+
+
+def _safe_fingerprints(image) -> dict[str, str]:
+    try:
+        return compute_fingerprints(image)
+    except Exception as exc:
+        logger.warning("Media fingerprint failed: %s", type(exc).__name__)
+        return {}
+
+
+def _fingerprint_check(
+    sha256: str | None,
+    frames: Sequence[QueryFrame],
+    whole_image: dict[str, str],
+    index: HashIndex | None,
+    cases: CaseFingerprintStore | None,
+    config: MediaConfig,
+) -> FingerprintCheck:
+    """Compare only hashes, so nothing from the upload needs to be stored to do this."""
+    limitations = []
+    hashed = [frame for frame in frames if frame.hashes]
+    if frames and not hashed:
+        limitations.append("Image fingerprints could not be computed; check that imagehash is installed.")
+    if not sha256 and not hashed:
+        return FingerprintCheck(status=CheckStatus.UNAVAILABLE, limitations=limitations)
+    # Other index types only offer a pHash lookup, which the separate pHash check already reports.
+    references = list(getattr(index, "entries", []))
+    only_phash = sum(1 for entry in references if not (entry.dhash or entry.whash))
+    if only_phash:
+        limitations.append(
+            f"{only_phash} references have only a pHash, so they can't be matched here. "
+            "Add them again to compare them fully."
+        )
+    earlier, note = _resolve_cases(config, cases)
+    if note:
+        limitations.append(note)
+    if not references:
+        limitations.append("No reference list was available, so no references were compared.")
+    return FingerprintCheck(
+        status=CheckStatus.COMPLETE,
+        sha256=sha256,
+        hashes=whole_image,
+        frames_hashed=len(hashed),
+        compared=bool(references or earlier),
+        references_checked=len(references),
+        earlier_cases_checked=len(earlier),
+        matches=find_matches(sha256, hashed, references, earlier),
+        limitations=limitations,
+    )
+
+
+def _fingerprint_evidence(check: FingerprintCheck | None) -> list[str]:
+    if check is None:
+        return []
+    lines = []
+    for match in check.matches:
+        target = f"reference {match.label!r}" if match.found_in == "reference" else f"earlier case {match.case_id!r}"
+        line = (
+            f"Same file as {target}" if match.kind == EXACT_COPY else f"Fingerprints look like the same image as {target}"
+        )
+        if match.first_seen:
+            line += f", recorded {match.first_seen}"
+        if match.timestamp_s is not None:
+            line += f", at {match.timestamp_s:.1f}s"
+        lines.append(line + ".")
+    return lines
+
+
 def _lookup(index: HashIndex, phash: str, config: MediaConfig) -> list[HashMatch] | None:
     try:
         return index.lookup(phash, config.phash_max_distance)
@@ -332,11 +420,13 @@ def _finish(
     extra_limitations: Sequence[str],
     config: MediaConfig,
     panel: DetectorPanelCheck | None = None,
+    fingerprint: FingerprintCheck | None = None,
 ) -> MediaAnalysisResult:
     evidence = [
         *_classifier_evidence(classifier, keyframes.frames, config),
         *_phash_evidence(phash),
         *metadata.indicators,
+        *_fingerprint_evidence(fingerprint),
     ]
     limitations = [*extra_limitations]
     if classifier.band is ModelBand.LOW and (phash.matches or metadata.generator_hint):
@@ -360,7 +450,12 @@ def _finish(
         sha256=info.sha256,
         size_bytes=info.size_bytes,
         checks=MediaChecks(
-            metadata=metadata, classifier=classifier, phash=phash, keyframes=keyframes, detector_panel=panel
+            metadata=metadata,
+            classifier=classifier,
+            phash=phash,
+            keyframes=keyframes,
+            detector_panel=panel,
+            fingerprint=fingerprint,
         ),
     )
 
@@ -379,7 +474,7 @@ def _rejected(error: MediaInputError, info: InputInfo | None = None) -> MediaAna
     )
 
 
-def _analyze_image(path, info, classifier, index, note, config, panel_factory=None) -> MediaAnalysisResult:
+def _analyze_image(path, info, classifier, index, note, config, panel_factory=None, cases=None) -> MediaAnalysisResult:
     try:
         image, metadata, limitations = read_image(path, config)
     except ImportError:
@@ -388,6 +483,8 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
         return _rejected(exc, info)
 
     check = _apply_size_limit(_classifier_check(classifier, _predict(classifier, [image]), config), image, config)
+    hashes = _safe_fingerprints(image)
+    fingerprint = _fingerprint_check(info.sha256, [QueryFrame(None, hashes)], hashes, index, cases, config)
     return _finish(
         info,
         metadata,
@@ -397,10 +494,11 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
         limitations,
         config,
         _detector_panel([image], check, config, panel_factory, is_image=True) if panel_factory else None,
+        fingerprint,
     )
 
 
-def _analyze_video(path, info, classifier, index, note, config, panel_factory=None) -> MediaAnalysisResult:
+def _analyze_video(path, info, classifier, index, note, config, panel_factory=None, cases=None) -> MediaAnalysisResult:
     try:
         video, frames, limitations = extract_keyframes(path, config)
     except ImportError:
@@ -411,6 +509,7 @@ def _analyze_video(path, info, classifier, index, note, config, panel_factory=No
     scores = _predict(classifier, [frame.image for frame in frames])
     phash, hashes = _video_phash(frames, index, note, config)
     frame_scores: Sequence[float | None] = scores if isinstance(scores, list) else [None] * len(frames)
+    frame_hashes = [_safe_fingerprints(frame.image) for frame in frames]
     keyframes = KeyframeCheck(
         status=CheckStatus.COMPLETE,
         strategy=STRATEGY,
@@ -421,8 +520,11 @@ def _analyze_video(path, info, classifier, index, note, config, panel_factory=No
                 scene_change_score=frame.scene_change_score,
                 phash=frame_hash,
                 model_score=round(score, 4) if score is not None else None,
+                fingerprints=frame_fingerprints,
             )
-            for frame, frame_hash, score in zip(frames, hashes, frame_scores, strict=True)
+            for frame, frame_hash, score, frame_fingerprints in zip(
+                frames, hashes, frame_scores, frame_hashes, strict=True
+            )
         ],
         limitations=limitations,
     )
@@ -440,7 +542,9 @@ def _analyze_video(path, info, classifier, index, note, config, panel_factory=No
     panel = None
     if panel_factory:
         panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False)
-    return _finish(info, metadata, check, phash, keyframes, [], config, panel)
+    queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
+    fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
+    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint)
 
 
 def analyze_media(
@@ -451,6 +555,7 @@ def analyze_media(
     config: MediaConfig | None = None,
     run_panel: bool = False,
     panel_factory: ClassifierFactory = build_classifier,
+    case_store: CaseFingerprintStore | None = None,
 ) -> MediaAnalysisResult:
     """Analyze one image or video.
 
@@ -470,4 +575,4 @@ def analyze_media(
     classifier = classifier or default_classifier(config)
     index, note = _resolve_index(config, hash_index)
     analyze = _analyze_image if info.media_type is MediaType.IMAGE else _analyze_video
-    return analyze(path, info, classifier, index, note, config, panel_factory if run_panel else None)
+    return analyze(path, info, classifier, index, note, config, panel_factory if run_panel else None, case_store)

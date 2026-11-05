@@ -1,0 +1,699 @@
+{
+  "schema": "fingerprint-eval-1",
+  "generated_at": "2026-11-05T18:46:20.114110Z",
+  "notice": "Measured on the listed images and these simulated changes only. A match shows visual similarity, not who made an image, where it first appeared or whether a claim about it is true.",
+  "sources": [
+    {
+      "name": "Wikimedia Commons",
+      "licence": "Per-file open licences (CC0, public domain, CC BY, CC BY-SA), checked before download and listed in a manifest kept beside the images",
+      "url": "https://commons.wikimedia.org/"
+    }
+  ],
+  "settings": {
+    "seed": 0,
+    "target_false_match_rate": 0.001
+  },
+  "dataset": {
+    "images": 600,
+    "by_split": {
+      "calibration": 315,
+      "test": 285
+    },
+    "unrelated_pairs": {
+      "calibration": 49455,
+      "test": 40470
+    }
+  },
+  "limits_chosen_on_calibration": {
+    "phash": 17,
+    "dhash": 16,
+    "whash": 7,
+    "colorhash": null
+  },
+  "test_split": {
+    "phash_alone": {
+      "limits": {
+        "phash": 17
+      },
+      "needed": 1,
+      "false_match_rate": {
+        "count": 22,
+        "total": 40470,
+        "value": 0.0005,
+        "ci95": [
+          0.0004,
+          0.0008
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "resized_to_half": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 265,
+          "total": 285,
+          "value": 0.9298,
+          "ci95": [
+            0.8941,
+            0.9541
+          ]
+        },
+        "caption_bar_added": {
+          "count": 255,
+          "total": 285,
+          "value": 0.8947,
+          "ci95": [
+            0.8537,
+            0.9253
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "mirrored": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        }
+      }
+    },
+    "dhash_alone": {
+      "limits": {
+        "dhash": 16
+      },
+      "needed": 1,
+      "false_match_rate": {
+        "count": 34,
+        "total": 40470,
+        "value": 0.0008,
+        "ci95": [
+          0.0006,
+          0.0012
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "resized_to_half": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 276,
+          "total": 285,
+          "value": 0.9684,
+          "ci95": [
+            0.9411,
+            0.9833
+          ]
+        },
+        "caption_bar_added": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "mirrored": {
+          "count": 46,
+          "total": 285,
+          "value": 0.1614,
+          "ci95": [
+            0.1232,
+            0.2086
+          ]
+        }
+      }
+    },
+    "whash_alone": {
+      "limits": {
+        "whash": 7
+      },
+      "needed": 1,
+      "false_match_rate": {
+        "count": 51,
+        "total": 40470,
+        "value": 0.0013,
+        "ci95": [
+          0.001,
+          0.0017
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 283,
+          "total": 285,
+          "value": 0.993,
+          "ci95": [
+            0.9748,
+            0.9981
+          ]
+        },
+        "resized_to_half": {
+          "count": 284,
+          "total": 285,
+          "value": 0.9965,
+          "ci95": [
+            0.9804,
+            0.9994
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 164,
+          "total": 285,
+          "value": 0.5754,
+          "ci95": [
+            0.5174,
+            0.6314
+          ]
+        },
+        "caption_bar_added": {
+          "count": 150,
+          "total": 285,
+          "value": 0.5263,
+          "ci95": [
+            0.4684,
+            0.5835
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 279,
+          "total": 285,
+          "value": 0.9789,
+          "ci95": [
+            0.9548,
+            0.9903
+          ]
+        },
+        "mirrored": {
+          "count": 20,
+          "total": 285,
+          "value": 0.0702,
+          "ci95": [
+            0.0459,
+            0.1059
+          ]
+        }
+      }
+    },
+    "colorhash_alone": {
+      "limits": {
+        "colorhash": null
+      },
+      "needed": 1,
+      "false_match_rate": {
+        "count": 0,
+        "total": 40470,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0001
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        },
+        "resized_to_half": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        },
+        "caption_bar_added": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        },
+        "mirrored": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        }
+      }
+    },
+    "existing_phash_limit": {
+      "limits": {
+        "phash": 5
+      },
+      "needed": 1,
+      "false_match_rate": {
+        "count": 0,
+        "total": 40470,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0001
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 283,
+          "total": 285,
+          "value": 0.993,
+          "ci95": [
+            0.9748,
+            0.9981
+          ]
+        },
+        "resized_to_half": {
+          "count": 283,
+          "total": 285,
+          "value": 0.993,
+          "ci95": [
+            0.9748,
+            0.9981
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 13,
+          "total": 285,
+          "value": 0.0456,
+          "ci95": [
+            0.0268,
+            0.0765
+          ]
+        },
+        "caption_bar_added": {
+          "count": 14,
+          "total": 285,
+          "value": 0.0491,
+          "ci95": [
+            0.0295,
+            0.0808
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 269,
+          "total": 285,
+          "value": 0.9439,
+          "ci95": [
+            0.9108,
+            0.9652
+          ]
+        },
+        "mirrored": {
+          "count": 0,
+          "total": 285,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0133
+          ]
+        }
+      }
+    },
+    "any_two_structural": {
+      "limits": {
+        "phash": 17,
+        "dhash": 16,
+        "whash": 7
+      },
+      "needed": 2,
+      "false_match_rate": {
+        "count": 2,
+        "total": 40470,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0002
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "resized_to_half": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 266,
+          "total": 285,
+          "value": 0.9333,
+          "ci95": [
+            0.8982,
+            0.9569
+          ]
+        },
+        "caption_bar_added": {
+          "count": 264,
+          "total": 285,
+          "value": 0.9263,
+          "ci95": [
+            0.89,
+            0.9513
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "mirrored": {
+          "count": 11,
+          "total": 285,
+          "value": 0.0386,
+          "ci95": [
+            0.0217,
+            0.0678
+          ]
+        }
+      }
+    },
+    "any_one_structural": {
+      "limits": {
+        "phash": 17,
+        "dhash": 16,
+        "whash": 7
+      },
+      "needed": 1,
+      "false_match_rate": {
+        "count": 105,
+        "total": 40470,
+        "value": 0.0026,
+        "ci95": [
+          0.0021,
+          0.0031
+        ]
+      },
+      "copies_matched": {
+        "recompressed_low_quality": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "resized_to_half": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "cropped_5_percent_each_side": {
+          "count": 284,
+          "total": 285,
+          "value": 0.9965,
+          "ci95": [
+            0.9804,
+            0.9994
+          ]
+        },
+        "caption_bar_added": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "brightened_20_percent": {
+          "count": 285,
+          "total": 285,
+          "value": 1.0,
+          "ci95": [
+            0.9867,
+            1.0
+          ]
+        },
+        "mirrored": {
+          "count": 55,
+          "total": 285,
+          "value": 0.193,
+          "ci95": [
+            0.1514,
+            0.2428
+          ]
+        }
+      }
+    }
+  },
+  "distances_on_test_split": {
+    "phash": {
+      "unrelated_pairs": {
+        "p50": 32,
+        "p90": 36,
+        "p99": 42
+      },
+      "copies": {
+        "recompressed_low_quality": {
+          "p50": 0,
+          "p90": 2,
+          "p99": 4
+        },
+        "resized_to_half": {
+          "p50": 0,
+          "p90": 0,
+          "p99": 2
+        },
+        "cropped_5_percent_each_side": {
+          "p50": 10,
+          "p90": 16,
+          "p99": 22
+        },
+        "caption_bar_added": {
+          "p50": 10,
+          "p90": 18,
+          "p99": 22
+        },
+        "brightened_20_percent": {
+          "p50": 2,
+          "p90": 4,
+          "p99": 8
+        },
+        "mirrored": {
+          "p50": 32,
+          "p90": 34,
+          "p99": 36
+        }
+      }
+    },
+    "dhash": {
+      "unrelated_pairs": {
+        "p50": 32,
+        "p90": 38,
+        "p99": 43
+      },
+      "copies": {
+        "recompressed_low_quality": {
+          "p50": 0,
+          "p90": 2,
+          "p99": 3
+        },
+        "resized_to_half": {
+          "p50": 0,
+          "p90": 1,
+          "p99": 3
+        },
+        "cropped_5_percent_each_side": {
+          "p50": 10,
+          "p90": 15,
+          "p99": 20
+        },
+        "caption_bar_added": {
+          "p50": 3,
+          "p90": 6,
+          "p99": 8
+        },
+        "brightened_20_percent": {
+          "p50": 1,
+          "p90": 4,
+          "p99": 9
+        },
+        "mirrored": {
+          "p50": 27,
+          "p90": 38,
+          "p99": 48
+        }
+      }
+    },
+    "whash": {
+      "unrelated_pairs": {
+        "p50": 32,
+        "p90": 42,
+        "p99": 50
+      },
+      "copies": {
+        "recompressed_low_quality": {
+          "p50": 0,
+          "p90": 0,
+          "p99": 7
+        },
+        "resized_to_half": {
+          "p50": 0,
+          "p90": 0,
+          "p99": 4
+        },
+        "cropped_5_percent_each_side": {
+          "p50": 6,
+          "p90": 12,
+          "p99": 22
+        },
+        "caption_bar_added": {
+          "p50": 6,
+          "p90": 16,
+          "p99": 16
+        },
+        "brightened_20_percent": {
+          "p50": 0,
+          "p90": 2,
+          "p99": 10
+        },
+        "mirrored": {
+          "p50": 20,
+          "p90": 36,
+          "p99": 48
+        }
+      }
+    },
+    "colorhash": {
+      "unrelated_pairs": {
+        "p50": 7,
+        "p90": 10,
+        "p99": 12
+      },
+      "copies": {
+        "recompressed_low_quality": {
+          "p50": 0,
+          "p90": 3,
+          "p99": 5
+        },
+        "resized_to_half": {
+          "p50": 0,
+          "p90": 2,
+          "p99": 4
+        },
+        "cropped_5_percent_each_side": {
+          "p50": 0,
+          "p90": 2,
+          "p99": 5
+        },
+        "caption_bar_added": {
+          "p50": 1,
+          "p90": 3,
+          "p99": 6
+        },
+        "brightened_20_percent": {
+          "p50": 0,
+          "p90": 2,
+          "p99": 6
+        },
+        "mirrored": {
+          "p50": 0,
+          "p90": 0,
+          "p99": 0
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Changes were simulated in memory, not collected from real social media platforms.",
+    "Some 'unrelated' pairs may really be related, such as photos from one series, which would raise the false match rate.",
+    "Labels are as stated by whoever ran this benchmark. The tool does not check them."
+  ]
+}

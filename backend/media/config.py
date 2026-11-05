@@ -23,6 +23,8 @@ class MediaConfig:
 
     phash_index_path: Path | None = None
     phash_max_distance: int = 5
+    # Hashes of earlier cases, never the uploads. Not set means no comparison with earlier cases.
+    case_fingerprints_path: Path | None = None
 
     max_image_bytes: int = 25 * _MB
     max_video_bytes: int = 200 * _MB
@@ -52,6 +54,7 @@ class MediaConfig:
         revision = os.environ.get("MEDIA_MODEL_REVISION", "").strip()
         index = os.environ.get("MEDIA_PHASH_INDEX", "").strip()
         allow = os.environ.get("MEDIA_ALLOW_MODEL_DOWNLOAD", "").strip().casefold()
+        cases = os.environ.get("MEDIA_CASE_FINGERPRINTS", "").strip()
         return cls(
             model_id=model_id or DEFAULT_MODEL_ID,
             # The pinned revision only applies to the default model.
@@ -59,4 +62,5 @@ class MediaConfig:
             allow_model_download=allow in _TRUTHY,
             device=os.environ.get("MEDIA_DEVICE", "").strip() or "auto",
             phash_index_path=Path(index) if index else None,
+            case_fingerprints_path=Path(cases) if cases else None,
         )
