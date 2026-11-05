@@ -4,25 +4,25 @@
 
 - Canonical repository: https://github.com/Amogh198/TrustFeed (owner: Amogh198; default branch observed: `main`).
 - All four developers work against this one repository. Confirm all three invitations are accepted and access works.
-- Use Issues for scope/owner/AI lane/status, PRs for proposed changes and independent AI review, and `CLAUDE.md` plus the other root Markdown files as shared instructions.
+- Use `agent-status/` for live status, PRs for proposed changes and independent AI review, optional Issues for cross-lane requests, and `CLAUDE.md` plus the other root Markdown files as shared instructions.
 
 ## Before starting a task
 
-1. Read `CLAUDE.md`, `TASK_BOARD.md`, `API_CONTRACTS.md`, the Issue, and recent merged PRs.
-2. Confirm no other Issue owns the same paths. Record the authoring AI, reviewer AI, and partner developer in the Issue.
-3. In the correct independent clone, fetch `origin/main`, fast-forward local `main`, and create a unique task branch from it.
+1. Follow the mandatory protocol in `CLAUDE.md`.
+2. Confirm from the board that no other lane is changing the same paths.
+3. In the correct independent clone, fetch `origin/main`, fast-forward local `main`, and create a descriptively named branch from it.
 4. Never switch between Claude accounts in one clone or let both accounts push the same branch.
 
 ## During work
 
-- Keep each PR to one Issue and one task. Use conventional commits, e.g. `feat: add coordination timeline payload`.
-- Post progress to the Issue at task start, meaningful decision, blocker, PR open, and merge. Use the handoff format in `CLAUDE.md`.
-- If another PR changes a dependency/shared schema, pause affected work, sync latest `main`, and coordinate through the Issues before editing.
+- Keep each PR to one feature. Use conventional commits, e.g. `feat: add coordination timeline payload`.
+- Update your status file at task start, meaningful decision, blocker, PR open, and merge. Use the handoff format in `CLAUDE.md` in PRs.
+- If another PR changes a dependency/shared schema, pause affected work, sync latest `main`, and coordinate through that PR before editing.
 
 ## Pull request flow
 
-1. Before PR, fetch latest `origin/main`; reconcile changes deliberately and inspect the full changed-file list.
-2. Open a PR to `main`, link the Issue, document changed paths, acceptance criteria, verification results, risks, and integration notes.
+1. Before PR, fetch latest `origin/main`; reconcile changes deliberately, inspect the full changed-file list, and run `python tools/agent_sync.py check <you>`.
+2. Open a PR to `main`, document changed paths, acceptance criteria, verification results, risks, and integration notes. Link an Issue if one exists.
 3. A different AI lane reviews. The author does not review/approve its own PR. Review checks the diff, contract compatibility, scope, security/secrets, and actual verification evidence.
 4. Merge only when authenticated AI approval and required CI checks pass. Turn on GitHub auto-merge only after the rules below are active and tested.
 5. After merge, update the Issue and both active clones sync from the new `origin/main` before continuing.
@@ -43,6 +43,8 @@ Claude Pro and Gemini Pro subscriptions are not themselves GitHub bot identities
 
 ## Setup status
 
-- Local project folder currently is not a Git checkout; remote repository is `Amogh198/TrustFeed`.
-- GitHub connector in this session can inspect repository metadata and files but rejects writes with `403 Resource not accessible by integration`.
-- The Markdown workflow files are prepared locally; they have not been pushed to GitHub, and branch protection, Issues, CI, or auto-merge have not been configured here.
+As observed on 2026-11-05:
+
+- A repository ruleset protects `main`: pull request required, one approval, stale approvals dismissed, resolved threads required, force pushes and deletion blocked.
+- No CI workflows exist yet, and no authenticated AI reviewer is installed. See the open decision in `AGENT_COORDINATION.md`.
+- Each agent authenticates with its own human's `gh auth login`. Never share tokens.

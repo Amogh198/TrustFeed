@@ -1,6 +1,6 @@
 # Task Board — TruthTrace AI
 
-This is the initial work split. **GitHub Issues are the live status board.** Create one Issue per task package, assign the human/AI pair, list exact allowed paths and acceptance criteria, and link its PR. Agents update the Issue at milestones; the integration coordinator alone updates this summary table when packages change. This avoids simultaneous edits and Markdown merge conflicts.
+This is the work split, and it is enough to determine responsibilities; Issues are optional. **Live status is in `agent-status/`**, shown by `python tools/agent_sync.py`. The integration coordinator alone updates this summary table when packages change. This avoids simultaneous edits and Markdown merge conflicts.
 
 ## Difficulty-based ownership
 
@@ -10,9 +10,9 @@ This is the initial work split. **GitHub Issues are the live status board.** Cre
 | T2 | Hard | Synthetic social dataset, time-window co-sharing, graph/community scoring, patient-zero/role tags, timeline JSON | `bhuvan_claude` (Claude B) | M2 / graph lead | `backend/network/**`, `data/demo/**` | `akshay_claude` |
 | T3 | Medium/Hard | FastAPI app, text/claim and URL rules, unified response/fusion, demo fixtures and replay endpoint; publish shared API contract first | Gemini lane 1 | M3 / backend & integration coordinator | `backend/api/**`, `backend/text/**`, `contracts/**` | Gemini lane 2; consult A/B for their payload contracts |
 | T4 | Medium | React dashboard, upload/text workflow, evidence panel, graph/timeline rendering, replay-mode presentation | Gemini lane 2 | M4 / UI lead | `frontend/**` | Gemini lane 1 |
-| T5 | Medium | End-to-end wiring, offline replay, demo script/data, bug fixes | Assigned by issue; coordinator sequences it after T1–T4 | M3 coordinates | only explicitly assigned paths | non-author AI lane |
+| T5 | Medium | End-to-end wiring, offline replay, demo script/data, bug fixes | Assigned by the coordinator, who sequences it after T1–T4 | M3 coordinates | only explicitly assigned paths | non-author AI lane |
 
-M1–M4 and the Claude/Gemini labels are role placeholders. Record actual GitHub handles and who operates each account in the kickoff Issue. `akshay_claude` and `bhuvan_claude` are account labels, not GitHub usernames.
+M1–M4 and the Claude/Gemini labels are role placeholders. Actual GitHub handles are recorded in `AGENT_COORDINATION.md`. `akshay_claude` and `bhuvan_claude` are account labels, not GitHub usernames.
 
 ## Order and dependencies
 
@@ -30,4 +30,4 @@ M1–M4 and the Claude/Gemini labels are role placeholders. Record actual GitHub
 
 ## Status vocabulary
 
-Use only: `Ready`, `Doing`, `In Review`, `Blocked`, `Done`. The Issue is canonical; this file is an ownership/dependency map, not a live activity feed.
+Use only: `Ready`, `Doing`, `In Review`, `Blocked`, `Done`. Each agent's status file is canonical; this file is an ownership/dependency map, not a live activity feed.
