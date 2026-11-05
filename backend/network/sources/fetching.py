@@ -12,7 +12,7 @@ from backend.network.sources.base import Fetch, FetchError
 _TIMEOUT_SECONDS = 10
 _MAX_RESPONSE_BYTES = 5_000_000
 # A generic client name, with nothing that identifies a user.
-_HEADERS = {"User-Agent": "TruthTrace-AI/0.1", "Accept": "application/json"}
+_HEADERS = {"User-Agent": "TrustFeed/0.1", "Accept": "application/json"}
 
 
 def live_fetch(url: str) -> Any:

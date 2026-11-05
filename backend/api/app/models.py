@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
@@ -225,6 +226,57 @@ class CaseSummary(BaseModel):
 class CaseHistoryResponse(BaseModel):
     cases: list[CaseSummary]
     total: int
+
+
+class ExplanationCheck(BaseModel):
+    check_id: str
+    module: str
+    label: str
+    status: str | None = None
+    result: str
+    reasoning: str | list[str]
+    # Null means not measured. A figure is only ever read from a results file.
+    benchmark: dict[str, Any] | None = None
+    artifacts: list[dict[str, str]] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MissingCheck(BaseModel):
+    module: str
+    status: str
+    reason: str
+
+
+class ExplanationResponse(BaseModel):
+    case_id: str
+    what_was_submitted: list[str]
+    what_was_detected: list[str]
+    supports: list[str]
+    refutes: list[str]
+    uncertainties: list[str]
+    checks: list[ExplanationCheck]
+    missing_checks: list[MissingCheck]
+
+
+class MonitorStartRequest(BaseModel):
+    # Polling sends these terms to outside services, so it must be asked for explicitly.
+    opted_in: bool
+    text: str | None = Field(default=None, max_length=2_000)
+    urls: list[HttpUrl] = Field(default_factory=list, max_length=5)
+    hashtags: list[str] = Field(default_factory=list, max_length=5)
+
+
+class HeatmapResponse(BaseModel):
+    status: str
+    label: str
+    grid_size: int
+    base_score: float | None = None
+    max_change: float | None = None
+    notable: bool = False
+    reasoning: str
+    limitations: list[str] = Field(default_factory=list)
+    # A transparent colour grid with none of the image's pixels, to lay over its preview.
+    png_base64: str | None = None
 
 
 class ReplayScenario(BaseModel):

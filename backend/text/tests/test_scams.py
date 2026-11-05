@@ -60,6 +60,25 @@ def test_the_same_words_in_a_warning_or_ordinary_post_are_not_signs(text):
     assert find_signs(text).assessment == NONE_FOUND
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "This is not a scam, send your OTP now.",
+        "Scammers are everywhere. Reply with the OTP we sent you.",
+        "Do not delay, send your password today.",
+        "Enter your password in settings and send it to us.",
+        "किसी को मत बताना, अपना पिन भेजें।",
+        "नहीं तो खाता बंद होगा, अपना ओटीपी भेजें।",
+    ],
+)
+def test_a_scammer_cannot_switch_off_the_rules_with_a_few_words(text):
+    assert find_signs(text).assessment == WARNING_SIGNS
+
+
+def test_real_hindi_warning_is_still_not_a_sign():
+    assert find_signs("अपना ओटीपी किसी को न भेजें।").assessment == NONE_FOUND
+
+
 def test_one_weak_sign_alone_is_not_a_warning():
     report = find_signs("Our new hiring process has no interview.")
     assert report.assessment == WEAK_ONLY

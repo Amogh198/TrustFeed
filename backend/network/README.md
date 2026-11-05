@@ -101,7 +101,7 @@ A watch with a hashtag and a link reads all four connected platforms. A watch wi
 
 **This is repeated polling of public search, not a complete feed.** The command line waits at least 60 seconds between polls. `--state` keeps results between runs. That file holds real people's public posts, so keep it under `backend/network/recordings/`, which Git ignores.
 
-For the API, `start_watch`, `poll_watch`, `stop_watch` and `list_watches` add limits. Starting needs `opted_in=True` and sends nothing, and **nothing runs in the background**: a watch polls only when `poll_watch` is called. At most 5 watches run at once, polls are at least 60 seconds apart, and a watch ends after 24 hours. Refusals raise `WatchError`. No route calls these yet.
+For the API, `start_watch`, `poll_watch`, `stop_watch` and `list_watches` add limits. Starting needs `opted_in=True` and sends nothing, and **nothing runs in the background**: a watch polls only when `poll_watch` is called. At most 5 watches run at once, polls are at least 60 seconds apart, and a watch ends after 24 hours. Refusals raise `WatchError`. The API serves these at `/api/monitors`.
 
 ### Linked demo story
 

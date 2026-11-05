@@ -1,42 +1,55 @@
-# TrustFeed frontend design context
+# TrustFeed dashboard design
 
-## Product character
+## Character
 
-TrustFeed is an evidence desk for reviewing risky claims. Its visual signature is a quiet field-notebook workspace: warm off-white surfaces, forest-green action states, restrained amber for caution, and monospace metadata. It should feel calm and inspectable, never like a verdict engine.
+A forensic blacklight desk. Evidence fluoresces under the lamp, and anything not known stays dark and dashed. The honesty rules in `AGENT_COORDINATION.md` are the visual language, so a reader can tell what kind of information they're looking at before reading it.
 
-## Canonical runtime tokens
+## The memorable thing
 
-The CSS custom properties in `src/styles.css` are the implementation source of truth. Keep new UI mapped to these tokens rather than introducing near-duplicate literals.
+The spread replay. Accounts light up as they join, against a time bar where sharp pink spikes show flagged groups and a flat trickle shows other posts. It opens the home page and fills the Spread tab, and it always runs on real API data. Keep everything around it quiet.
 
-| Intent | Runtime token | Use |
+## Tokens
+
+The custom properties at the top of `src/styles.css` are the source of truth. Don't add near-duplicate colours.
+
+| Token | Value | Use |
 | --- | --- | --- |
-| Primary text | `--ink` | headings and important labels |
-| Secondary text | `--muted` | supporting copy and metadata |
-| Rules | `--line` | panel and section separators |
-| Surface | `--panel` | cards and tables |
-| Primary action | `--green` / `--green-dark` | CTAs and selected navigation |
-| Soft positive state | `--green-soft` | replay and local-context surfaces |
-| Metadata | `--mono` | case IDs, timestamps, status labels |
-| Headings | `--heading` | hierarchy and case titles |
+| `--ink`, `--ink-2`, `--ink-3` | `#17123a`, `#1f1949`, `#2b2460` | Page, raised surface, hover and empty tracks |
+| `--paper`, `--soft` | `#f3f0ff`, `#c0b9e6` | Main and secondary text |
+| `--uv` | `#eef25a` | Primary action, selected tab, marked words, synthetic tape, focus ring |
+| `--flag` | `#ff4f8b` | Flagged group, concerns |
+| `--cyan` | `#6fe7ff` | Observed evidence, links, mentioned accounts |
+| `--low` to `--inconclusive` | see the file | The five risk levels |
 
-## Evidence language
+**Type:** Big Shoulders Display for headings and the verdict word, Atkinson Hyperlegible Next for reading, and Atkinson Hyperlegible Mono only for hashes, case ids and account handles. All three are bundled through `@fontsource-variable`, so the demo needs no internet.
 
-Every report must distinguish three kinds of information in both language and colour:
+## Visual rules
 
-- Observed evidence: a specific record in the supplied data.
-- Heuristic estimate: an analytical indicator, never a factual conclusion.
-- Unknown or unavailable: a capability, source, or fact that was not present.
+| Meaning | How it looks | Where |
+| --- | --- | --- |
+| Observed | Solid cyan square and bullets | Evidence, pages found, posts |
+| Estimate | Yellow hatching | Every score meter |
+| Not known | Dashed outline with nothing inside | `No score`, checks not run, undated events, platforms not connected |
+| Synthetic or replay | Yellow and indigo hazard tape | Top of the case, spread stage, source search, action packet, home graph |
+| Risk | Verdict word, huge | Inconclusive is outlined, never filled, because it isn't a finding |
+| Account role | Colour and shape | Earliest found has a ring and mentioned accounts are diamonds, so role doesn't rest on colour alone |
 
-Risk is an invitation to review. Origin candidates, network roles, and model-like summaries are leads, not attribution, identity verification, or proof of intent.
+A real `0.00` draws an empty solid track and a null draws a dashed one. They must never look the same.
 
-## Layout and interaction
+## Layout
 
-- Desktop uses a stable left workspace rail and a readable, bounded content column.
-- Case reports progress from assessment to provenance, evidence, dissemination, and next action.
-- Small screens collapse the rail into a menu and stack report panels without hiding caveats.
-- All controls need visible keyboard focus; graph nodes support Enter and Space.
-- Motion is brief and removed when the user requests reduced motion.
+- A sticky top bar, then full-width bands. Reports aren't split into identical cards.
+- A case reads top to bottom: tape, verdict, one strip with a column per separate question, then tabs.
+- Spread is full width and sized so the graph, controls and time bar fit on one screen when presenting.
+- Below 1000 px, columns stack. Below 680 px, the top bar wraps and nothing scrolls sideways except wide tables.
+
+## Motion
+
+Only the home replay starts by itself, and it plays once. Everything else answers an action: a flash when an account joins, a scan line while an image is checked. Reduced motion jumps the replay to its end and removes the flashes and scan line.
 
 ## Do not drift
 
-Do not add a generic dashboard aesthetic, gradients as decoration, or a new font dependency. Do not make a disabled integration look live. Preserve the replay notice and use explicit unavailable states when data or services are absent.
+- No gradients as decoration, shadows under cards, or new fonts.
+- Don't make a disabled integration look live.
+- Don't call the earliest account the source, or a review signal proof.
+- Don't load images from `image_url` in results. They're untrusted, and fetching them would tell the host who is looking.

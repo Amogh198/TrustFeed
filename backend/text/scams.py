@@ -28,11 +28,15 @@ _DISCUSSES_SCAM = re.compile(
 )
 # "Never share", "do not pay", "real employers do not ask". The requested action is denied.
 _DENIED = re.compile(
-    r"\b(?:never|do not|don't|dont|will not|won't|not|no one|nobody|without|avoid|no)\b[^.!?,;]{0,40}$",
+    r"\b(?:never|do not|don't|dont|does not|doesn't|will not|won't|no one|nobody|avoid)\b[^.!?,;]{0,20}$",
     _FLAGS,
 )
 # Telling someone how to use their own account is not asking them to hand it over.
 _OWN_ACCOUNT_HELP = re.compile(r"\b(?:when you (?:sign|log) in|your own account|in settings)\b", _FLAGS)
+# Sending a detail to somebody is not using your own account, whatever else the sentence says.
+_TO_SOMEONE = re.compile(r"\b(?:send|share|tell|give|reply)\b[^.!?]{0,40}\b(?:us|me|to)\b|\bsend\b", _FLAGS)
+# "This is not a scam" is what a scammer says, so it is not talk about scams.
+_DENIES_BEING_SCAM = re.compile(r"\b(?:not|no|isn't|never)\s+(?:a\s+)?(?:scam|fraud|fake)\w*", _FLAGS)
 _MONEY = r"(?:(?:rs\.?|inr|₹|\$|usd)\s?\d[\d,.]*|\d[\d,.]*\s?(?:rupees|rs\b|lakhs?|crores?|dollars)|\b\d[\d,]{2,})"
 _PAY = r"(?:pay|send|deposit|transfer|wire|give)"
 _FEE_WORD = (
@@ -56,7 +60,8 @@ _CREDENTIAL_REQUEST = re.compile(
     _FLAGS,
 )
 _HINDI_CREDENTIAL = re.compile(r"(?:ओटीपी|पिन|पासवर्ड|बैंक खाता|कार्ड नंबर)[^।]{0,40}(?:भेजें|बताएं|बताइए|दें|दीजिए)")
-_HINDI_DENIED = re.compile(r"(?:कभी|किसी को)[^।]{0,30}(?:न|नहीं)|(?:न|नहीं)\s+(?:बताएं|दें|भेजें)")
+# Whole words only, because न also appears inside many other words.
+_HINDI_DENIED = re.compile(r"(?<![\u0900-\u097f])(?:न|नहीं|मत)\s+(?:\S+\s+){0,1}(?:बताएं|बताइए|दें|दीजिए|भेजें)")
 _THREAT = re.compile(
     r"\b(?:account|net ?banking|card|sim|connection|kyc|pan|number|service|profile)\b[^.!?]{0,50}?"
     r"\b(?:block\w*|suspend\w*|freez\w*|frozen|deactivat\w*|disconnect\w*|clos\w*|delet\w*|expired?|not linked|compromised)\b",
@@ -299,7 +304,16 @@ class ScamRuleReport:
 
 
 def _is_denied(sentence: str, start: int) -> bool:
-    return bool(_DENIED.search(sentence[:start]) or _OWN_ACCOUNT_HELP.search(sentence))
+    return bool(_DENIED.search(sentence[:start]))
+
+
+def _helps_own_account(sentence: str) -> bool:
+    return bool(_OWN_ACCOUNT_HELP.search(sentence) and not _TO_SOMEONE.search(sentence))
+
+
+def _discusses_scams(sentence: str) -> bool:
+    """Checked one sentence at a time, so a keyword elsewhere cannot switch off the rules."""
+    return bool(_DISCUSSES_SCAM.search(sentence) and not _DENIES_BEING_SCAM.search(sentence))
 
 
 def _matches(rule: _Rule, sentence: str, post: str) -> re.Match[str] | None:
@@ -310,6 +324,8 @@ def _matches(rule: _Rule, sentence: str, post: str) -> re.Match[str] | None:
             match
             for match in rule.pattern.finditer(sentence)
             if not (rule.category in _DENIABLE_CATEGORIES and _is_denied(sentence, match.start()))
+            and not (rule.sign == "credential_request" and _helps_own_account(sentence))
+            and not (rule.sign == "credential_request_hindi" and _HINDI_DENIED.search(sentence))
         ),
         None,
     )
@@ -317,12 +333,10 @@ def _matches(rule: _Rule, sentence: str, post: str) -> re.Match[str] | None:
 
 def find_signs(text: str) -> ScamRuleReport:
     post = text.strip()
-    # A post that warns about scams or reports one is talking about them, in every sentence.
-    discussing = bool(_DISCUSSES_SCAM.search(post))
     signs: list[ScamSign] = []
     seen: set[str] = set()
     for sentence in _SENTENCE.split(post):
-        if discussing or _HINDI_DENIED.search(sentence):
+        if _discusses_scams(sentence):
             continue
         for rule in _RULES:
             if rule.sign in seen:

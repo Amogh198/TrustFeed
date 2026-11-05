@@ -30,6 +30,7 @@ TEST_SUITES = {
     "T1 media": "backend/media/tests",
     "T2 network": "backend/network/tests",
     "T3 API": "backend/api/tests",
+    "T1 source search": "backend/provenance/tests",
     "Coordination tools": "tools",
 }
 TEST_TIMEOUT_SECONDS = 300
@@ -37,6 +38,7 @@ TEST_TIMEOUT_SECONDS = 300
 _MERGE_IDENTITY = ("-c", "user.name=compat-check", "-c", "user.email=compat-check@example.invalid")
 
 _CONTRACT_PROBE = r'''
+import re
 import tempfile
 from pathlib import Path
 
@@ -106,9 +108,16 @@ def t1_wired_into_t3():
 
 
 def t4_uses_t3():
-    if not Path("frontend").is_dir():
-        raise ModuleNotFoundError(name="frontend/ on any branch")
-    return "OPEN"
+    client_file = Path("frontend/src/api.js")
+    if not client_file.is_file():
+        raise ModuleNotFoundError(name="frontend/src/api.js on any branch")
+    from backend.api.app.main import app
+    served = {re.sub(r"[{][^}]*[}]", "{}", route.path) for route in app.routes}
+    called = re.findall(r"[(][`']([^`']*/(?:api/|health)[^`']*)[`']", client_file.read_text(encoding="utf-8"))
+    called = {re.sub(r"[?].*", "", re.sub(r"[$][{].*?[}]", "{}", path)).rstrip("{}") or path for path in called}
+    missing = [path for path in called if not any(route.startswith(path) for route in served)]
+    assert called, "no API calls were found in frontend/src/api.js"
+    assert not missing, f"the frontend calls routes the API does not serve: {missing}"
 
 
 check("T1 output accepted by T3 ModuleResult", t1_output_matches_t3)
@@ -116,7 +125,7 @@ check("T2 output accepted by T3 ModuleResult and network route type", t2_output_
 check("T3 responses match API_CONTRACTS.md, as T4 expects", t3_responses_match_contract)
 check("T2 demo network reachable through T3 route", t2_wired_into_t3)
 check("T1 media analysis wired into T3", t1_wired_into_t3)
-check("T4 consumes T3 responses (compare by hand until T4 adds a check)", t4_uses_t3)
+check("T4 calls only routes that T3 serves", t4_uses_t3)
 '''
 
 

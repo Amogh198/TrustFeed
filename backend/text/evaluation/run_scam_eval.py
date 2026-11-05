@@ -31,7 +31,8 @@ CAVEATS = [
     "All examples are synthetic, hand-written and in English apart from two in Hindi.",
     ("The same author wrote the rules and both splits, just before the rules, so even the test split is not independent. "
     "These figures are likely too high for real messages."),
-    "The rules were frozen in commit ddebf63 before the test split was first scored.",
+    ("The rules were frozen in commit ddebf63 before the test split was first scored, then changed once after "
+    "it, to close bypasses a security review found. So these figures are not a pure first score."),
     "The set is small, so one example moves a figure by several points.",
     "Scams are half of this set, which is far more than in real feeds, so precision here overstates real precision.",
 ]
