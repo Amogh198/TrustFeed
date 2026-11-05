@@ -197,7 +197,8 @@ app.add_middleware(
 CASES: dict[str, AnalysisResponse] = {}
 CASE_STORE = default_store()
 AUTH_STORE = AuthStore(CASE_STORE.path)
-app.include_router(build_router(AUTH_STORE))
+# Added one by one, because tools/compat_check.py reads each route's path from app.routes.
+app.router.routes.extend(build_router(AUTH_STORE).routes)
 
 
 @app.get("/health", response_model=HealthResponse)
