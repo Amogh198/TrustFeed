@@ -36,9 +36,13 @@ python -m uvicorn backend.api.app.main:app --reload
 - `GET /health` — basic liveness response.
 - `POST /api/cases/analyze` — JSON body with `text`, `url`, or both. Returns rule-based text/URL indicators.
 - `POST /api/cases/analyze-media` — multipart form with `file`, and optional `text` and `url`. Adds the media module's result. Uploads go to a temporary file that is deleted after analysis.
-- `GET /api/cases/{case_id}` — fetches the result from this server process's memory. `demo-001` is always available and contains synthetic network results only.
+- `GET /api/cases` — lists saved local case summaries. Use `?risk_level=high` or `?limit=10` to narrow the results.
+- `GET /api/cases/{case_id}` — fetches a saved result. `demo-001` is always available and contains synthetic network results only.
+- `GET /api/cases/{case_id}/export` — returns a saved report as JSON for local export.
 - `GET /api/network/{case_id}` — returns the synthetic graph and timeline for `demo-001`, and empty arrays for submitted cases, which have no spread data.
-- `POST /api/cases/{case_id}/action-packet` — returns a clearly labeled generic draft template; no generative model is called.
+- `GET /api/replay/scenarios` — lists the bundled offline demo scenarios.
+- `POST /api/replay/{scenario_id}/start` — runs a synthetic offline scenario through the same text/URL flow and saves it in case history.
+- `POST /api/cases/{case_id}/action-packet` — returns a clearly labeled evidence-based draft and structured evidence, uncertainty, claim-status and action sections; no generative model is called.
 
 Submitted cases report `network` as `unavailable`. See `API_CONTRACTS.md` for upload errors and how `overall_risk` is combined.
 
@@ -51,4 +55,4 @@ Example request:
 }
 ```
 
-Cases are process-local and disappear when the server stops. Do not send secrets, private data, or credentials in analysis requests.
+Cases are stored locally in `trusttrace.db` by default, or at `CASE_STORE_PATH` if set. The database stores the rendered analysis record; it does not store an original upload, which is deleted after analysis. Do not send secrets, private data, or credentials in analysis requests.

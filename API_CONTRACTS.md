@@ -15,11 +15,20 @@ Status: **initial implementation contract**. Any change requires a PR that names
 - `GET /health` -> service status and version.
 - `POST /api/cases/analyze` -> accepts a text claim and/or URL as JSON; returns one case summary and available module results. `media` is `not_applicable`.
 - `POST /api/cases/analyze-media` -> multipart form with `file` (required; JPEG, PNG, WebP, MP4, MOV, WebM or AVI), plus optional `text` and `url`. Returns the same response shape as `analyze`.
-- `GET /api/cases/{case_id}` -> most recent in-memory case result for the running process (persistence is deferred). `demo-001` is always available: a synthetic case with network results only.
+- `GET /api/cases/{case_id}` -> saved local case result. `demo-001` is always available: a synthetic case with network results only.
+- `GET /api/cases` -> local case-history summaries. Optional `risk_level` filters by the triage label; `limit` is 1–100 and defaults to 25.
+- `GET /api/cases/{case_id}/export` -> the complete saved case report as JSON for local export or offline presentation.
 - `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI. Filled for `demo-001`, where every item has `synthetic: true`, which the UI must show. Empty for submitted cases, which have no spread data; they never receive the demo network.
 - `POST /api/cases/{case_id}/action-packet` -> draft countermeasure text with evidence references and clear AI-generated label.
+- `GET /api/replay/scenarios` -> the bundled offline replay scenarios, with their synthetic labels.
+- `POST /api/replay/{scenario_id}/start` -> runs a bundled scenario through the normal text/URL analysis flow and saves a case marked as replay data.
 
-Persistent storage is deferred. The frontend must not depend on persistence surviving a server restart.
+## Claims, history and replay
+
+- Text submissions return `claims`: sentence-like units with `id`, `text`, `verdict`, and `rationale`. The current verdict is always `unverified`, because no external evidence source is queried.
+- Every normal or replay analysis is retained in a local SQLite case store. The store saves the analysis result, not the original upload; uploaded media remains temporary and is deleted after analysis.
+- Replay scenarios are synthetic and offline. Their responses set `is_replay: true` and include `replay_label`; the UI must display that label.
+- `action-packet` returns structured `sections` alongside its readable draft. It is an evidence-based template, not an AI-generated or independently verified statement.
 
 ## Media upload
 

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "offline-claim-url-demo",
+    "title": "Offline claim and URL triage",
+    "description": "A deterministic demo of claim atomization, urgency signals, and static URL checks.",
+    "label": "SYNTHETIC OFFLINE REPLAY: sample text and URL created for a product demo.",
+    "text": "Urgent! Forward this now to claim your prize. Verify your account immediately.",
+    "url": "http://bit.ly/example"
+  }
+]
