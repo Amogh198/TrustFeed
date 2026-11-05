@@ -57,6 +57,7 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+.test-tmp/
 
 # Build artifacts
 *.pyc
