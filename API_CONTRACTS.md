@@ -160,6 +160,12 @@ Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live t
 
 `image_caption` stays `unavailable`: `openai/clip-vit-base-patch32` has no safetensors weights and declares no licence on the Hub, so it isn't downloaded or run.
 
+## Coordination tests
+
+`GET /api/network/{case_id}/tests` returns `synthetic`, `null_test` (`verdict`: `above_chance`, `not_above_chance`, `nothing_observed` or `test_incomplete`, with `p_value`, `observed`, `chance_mean`, `chance_max`, `permutations`, `reason`), `bursts`, `repeated_media` and `activity_baseline`. It is null when no trace ran. With `not_above_chance`, no cluster is flagged. None of these shows that accounts are coordinating.
+
+Posts may carry `media_fingerprint`, a hex perceptual hash. Fingerprints within Hamming distance 5 count as one image.
+
 ## Common response sketch
 
 ```json

@@ -1,7 +1,7 @@
 """Run the full analysis and shape its output for the API and dashboard."""
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from backend.network.clusters import (
@@ -19,6 +19,13 @@ from backend.network.roles import (
     Origin,
     assign_roles,
     campaign_posts,
+)
+from backend.network.significance import (
+    NOT_ABOVE_CHANCE,
+    activity_baseline,
+    find_bursts,
+    link_fingerprints,
+    permutation_test,
 )
 from backend.network.timeline import build_timeline
 
@@ -46,6 +53,8 @@ class NetworkAnalysis:
     timeline: list[dict[str, Any]]
     clusters: list[dict[str, Any]]
     module_result: dict[str, Any]
+    # Results of the comparison with chance, bursts, repeated media and the post-count baseline.
+    tests: dict[str, Any] = field(default_factory=dict)
 
     def payload(self) -> dict[str, list[dict[str, Any]]]:
         """Return the ``GET /api/network/{case_id}`` body from API_CONTRACTS.md."""
@@ -286,11 +295,37 @@ def _build_module_result(
     }
 
 
+def _with_null_test(result: dict[str, Any], null_test: dict[str, Any]) -> dict[str, Any]:
+    if result["status"] == "complete":
+        result["evidence"].append(f"Comparison with shuffled timing: {null_test['reason']}")
+    return result
+
+
 def analyze_network(dataset: Dataset, config: CoordinationConfig | None = None) -> NetworkAnalysis:
     config = config or CoordinationConfig()
+    posts, media_groups = link_fingerprints(dataset.posts, config.fingerprint_max_distance)
+    dataset = replace(dataset, posts=tuple(posts))
     co_shares = find_co_shares(dataset.posts, config)
     graph = build_coordination_graph(co_shares, config)
     clusters = detect_clusters(graph, co_shares, config)
+    null_test = permutation_test(dataset.posts, config)
+    # What chance alone gives isn't a signal, so nothing is flagged and "nothing found" is possible.
+    if null_test["verdict"] == NOT_ABOVE_CHANCE:
+        clusters = [replace(cluster, flagged=False, risk_level="inconclusive") for cluster in clusters]
+    has_fingerprints = any(post.media_fingerprint for post in dataset.posts)
+    tests = {
+        "synthetic": dataset.synthetic,
+        "null_test": null_test,
+        "bursts": find_bursts(dataset.posts, config),
+        "repeated_media": {
+            "status": "complete" if has_fingerprints else "not_applicable",
+            "reason": None if has_fingerprints else "These posts carry no image fingerprints to compare.",
+            "groups": media_groups,
+        },
+        "activity_baseline": activity_baseline(
+            dataset, {member for cluster in clusters if cluster.flagged for member in cluster.members}
+        ),
+    }
     roles, origins = assign_roles(dataset, graph, clusters, config)
     edges = _build_edges(dataset, co_shares, clusters, config)
     return NetworkAnalysis(
@@ -299,5 +334,6 @@ def analyze_network(dataset: Dataset, config: CoordinationConfig | None = None) 
         edges=edges,
         timeline=build_timeline(dataset, clusters, config),
         clusters=_build_cluster_summaries(clusters, origins, dataset, config),
-        module_result=_build_module_result(dataset, co_shares, clusters, origins, config),
+        module_result=_with_null_test(_build_module_result(dataset, co_shares, clusters, origins, config), null_test),
+        tests=tests,
     )

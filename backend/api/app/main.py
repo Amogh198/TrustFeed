@@ -63,6 +63,7 @@ from backend.network import (
     get_network_coverage,
     get_network_module_result,
     get_network_payload,
+    get_network_tests,
     list_watches,
     poll_watch,
     start_watch,
@@ -161,7 +162,7 @@ def _network_detail(case_id: str) -> dict[str, Any] | None:
     """Return a case's network data, from this process's trace or from the case store."""
     payload = get_network_payload(case_id)
     if payload is not None:
-        return {"payload": payload, "coverage": get_network_coverage(case_id)}
+        return {"payload": payload, "coverage": get_network_coverage(case_id), "tests": get_network_tests(case_id)}
     return CASE_STORE.get_detail(case_id, "network")
 
 
@@ -655,7 +656,7 @@ def get_explanation(case_id: str) -> ExplanationResponse:
     provenance_checks = report.to_checks() if report.status is not Status.NOT_APPLICABLE else []
     detail = _network_detail(case_id)
     network_checks = (
-        build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"))
+        build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"), detail.get("tests"))
         if detail and "network" in case.modules
         else []
     )
@@ -752,6 +753,16 @@ def get_network(case_id: str) -> dict[str, list[dict[str, object]]]:
         return detail["payload"]
     _find_case(case_id)
     return {"nodes": [], "edges": [], "timeline": []}
+
+
+@app.get("/api/network/{case_id}/tests")
+def get_tests(case_id: str) -> dict[str, object] | None:
+    """Say whether the pattern is more than chance. Null means no trace ran for this case."""
+    detail = _network_detail(case_id)
+    if detail is None:
+        _find_case(case_id)
+        return None
+    return detail.get("tests")
 
 
 @app.get("/api/network/{case_id}/coverage")

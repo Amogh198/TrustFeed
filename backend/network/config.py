@@ -32,6 +32,12 @@ class CoordinationConfig:
     # A second account this close to the earliest post makes the origin ambiguous.
     origin_tie_seconds: int = 5
     timeline_bucket_seconds: int = 60
+    # How many times post timing is shuffled for the comparison with chance, and the time allowed.
+    null_test_permutations: int = 199
+    null_test_max_seconds: float = 5.0
+    null_test_seed: int = 42
+    # Image fingerprints this close count as one image. The media check uses the same distance.
+    fingerprint_max_distance: int = 5
 
     def __post_init__(self) -> None:
         if self.window_seconds <= 0:
