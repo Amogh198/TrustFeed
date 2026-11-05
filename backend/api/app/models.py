@@ -143,6 +143,19 @@ class ActionPacketSection(BaseModel):
     heading: str
     items: list[str]
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_section(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            val = dict(value)
+            if "heading" not in val and "title" in val:
+                val["heading"] = str(val["title"])
+            if "items" not in val and "content" in val:
+                content = val["content"]
+                val["items"] = [content] if isinstance(content, str) else list(content)
+            return val
+        return value
+
 
 class ActionPacketResponse(BaseModel):
     case_id: str

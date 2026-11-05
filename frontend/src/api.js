@@ -126,6 +126,8 @@ export const api = {
   },
   /** @returns {Promise<{watches: string[]}>} */
   listMonitors() { return request('/api/monitors'); },
+  /** @returns {Promise<Array<{campaign_id: string, platform_spread: string[], total_posts: number, risk_level: string}>>} */
+  getMonitorAlerts() { return request('/api/monitor/alerts'); },
   /**
    * @param {{opted_in: boolean, text: string | null, urls: string[], hashtags: string[]}} watch
    * @returns {Promise<{watch_id: string}>}

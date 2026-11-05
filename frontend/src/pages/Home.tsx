@@ -92,6 +92,18 @@ function Intake() {
     if (!problem) setFile(chosen);
   };
 
+  useEffect(() => {
+    const pushed = window.sessionStorage.getItem('trustfeed_investigate_input');
+    if (pushed) {
+      window.sessionStorage.removeItem('trustfeed_investigate_input');
+      if (pushed.startsWith('http://') || pushed.startsWith('https://')) {
+        setUrl(pushed);
+      } else {
+        setText(pushed);
+      }
+    }
+  }, []);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const cleanText = text.trim();
