@@ -15,15 +15,23 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from backend.text.scam_model import LABEL_NAMES, MODEL_ID, MODEL_REVISION, PHISHING_THRESHOLD, HuggingFacePhishing
-from backend.text.scams import NONE_FOUND, find_signs
+from backend.text.scam_model import (
+    LABEL_NAMES,
+    MODEL_ID,
+    MODEL_REVISION,
+    PHISHING_THRESHOLD,
+    HuggingFacePhishing,
+)
+from backend.text.scams import NONE_FOUND, WEAK_ONLY, find_signs
 
 HERE = Path(__file__).parent
 EXAMPLES = HERE / "scam_examples.jsonl"
 RESULTS = HERE / "results"
 CAVEATS = [
     "All examples are synthetic, hand-written and in English apart from two in Hindi.",
-    "They were written by the same author as the rules, so these figures are likely too high for real messages.",
+    ("The same author wrote the rules and both splits, just before the rules, so even the test split is not independent. "
+    "These figures are likely too high for real messages."),
+    "The rules were frozen in commit ddebf63 before the test split was first scored.",
     "The set is small, so one example moves a figure by several points.",
     "Scams are half of this set, which is far more than in real feeds, so precision here overstates real precision.",
 ]
@@ -74,7 +82,22 @@ def evaluate(split: str) -> dict[str, object]:
         "scams": sum(row["label"] == "scam" for row in rows),
         "measured_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "caveats": CAVEATS,
-        "rules": {**_metrics(rows, rules), "by_category": _by_category(rows, rules)},
+        "rules": {
+            **_metrics(rows, rules),
+            "by_category": _by_category(rows, rules),
+            # A flag for the wrong reason would name the wrong warning sign to the user.
+            "scams_given_the_right_category": sum(
+                row["label"] == "scam" and row["category"] in reports[row["id"]].categories for row in rows
+            ),
+            "scams_flagged_only_by_weak_signs": sum(
+                row["label"] == "scam" and reports[row["id"]].assessment == WEAK_ONLY for row in rows
+            ),
+            "scams_given_a_different_category": {
+                row["id"]: reports[row["id"]].categories
+                for row in rows
+                if row["label"] == "scam" and reports[row["id"]].signs and row["category"] not in reports[row["id"]].categories
+            },
+        },
     }
     if reason:
         results["model"] = {"status": "unavailable", "reason": reason}

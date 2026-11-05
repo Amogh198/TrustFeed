@@ -120,6 +120,31 @@ class ClaimAnalysis(BaseModel):
     verification: ClaimVerification = Field(default_factory=ClaimVerification)
 
 
+class ScamSignRecord(BaseModel):
+    sign: str
+    # fake_job, investment, giveaway, impersonation, payment_request or credential_request.
+    category: str
+    # "strong" or "weak". One weak sign alone is not treated as a warning.
+    strength: str
+    why: str
+    # From the submission, so show it as plain text.
+    quote: str
+
+
+class ScamAnalysis(BaseModel):
+    # warning_signs_found, weak_signs_only or none_found. None of these means safe, or proven.
+    assessment: str
+    categories: list[str] = Field(default_factory=list)
+    signs: list[ScamSignRecord] = Field(default_factory=list)
+    # The optional phishing model, kept apart from the assessment. It never changes it.
+    model_status: ModuleStatus
+    model_reason: str | None = None
+    model_score: float | None = Field(default=None, ge=0, le=1)
+    # Where the measured figures for these rules and the model are recorded.
+    results_file: str
+    limitations: list[str] = Field(default_factory=list)
+
+
 class AnalyzeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=20_000)
     url: HttpUrl | None = None
@@ -142,6 +167,8 @@ class AnalysisResponse(BaseModel):
     claims: list[ClaimRecord] = Field(default_factory=list)
     # Null when no text was submitted, and for cases saved before this field existed.
     claim_analysis: ClaimAnalysis | None = None
+    # Null when no text was submitted, and for cases saved before this field existed.
+    scam_analysis: ScamAnalysis | None = None
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False

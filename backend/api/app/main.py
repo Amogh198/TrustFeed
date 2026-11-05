@@ -31,6 +31,7 @@ from backend.api.app.models import (
     TimelineResponse,
 )
 from backend.api.app.replay import get_scenario, list_scenarios
+from backend.api.app.scam_records import build_scam_analysis
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media
 from backend.media.models import Assessment, MediaAnalysisResult
@@ -50,6 +51,7 @@ from backend.provenance import (
 )
 from backend.provenance.models import MatchType, Status
 from backend.text.analysis import analyze_text, analyze_url, fuse_risk, signal_summary
+from backend.text.scams import WARNING_SIGNS
 
 # Never log submitted text, links or file names: they can reveal what a user submitted.
 logger = logging.getLogger(__name__)
@@ -222,6 +224,17 @@ def _store_case(
             "Claim results come from comparing public sources by model. They are signals, not proof. "
             "No domain reputation source was queried."
         )
+    scam_analysis = build_scam_analysis("\n".join(claims)) if claims else None
+    if scam_analysis and text_result:
+        # Shown as evidence, but not scored: the unified risk step decides what counts.
+        text_result.evidence.extend(
+            f"Scam warning sign ({item.category}): {item.why} Found: {item.quote!r}" for item in scam_analysis.signs
+        )
+    if scam_analysis and scam_analysis.assessment == WARNING_SIGNS:
+        recommended_actions.append(
+            "Do not pay, share a code or password, or click links in this message. Contact the organization "
+            "through its official website or number."
+        )
     if text_result and claim_analysis:
         # Shown as evidence, but not scored: the unified risk step decides what counts.
         text_result.evidence.extend(
@@ -253,6 +266,7 @@ def _store_case(
         },
         claims=claim_records,
         claim_analysis=claim_analysis,
+        scam_analysis=scam_analysis,
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
         is_replay=replay_label is not None,

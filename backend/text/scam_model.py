@@ -73,7 +73,10 @@ class HuggingFacePhishing:
             if self._loaded is not None:
                 return self._loaded
             try:
-                from transformers import AutoModelForSequenceClassification, AutoTokenizer
+                from transformers import (
+                    AutoModelForSequenceClassification,
+                    AutoTokenizer,
+                )
             except Exception as exc:
                 raise PhishingUnavailable("Model packages are not installed (see backend/text/requirements-model.txt).") from exc
             try:

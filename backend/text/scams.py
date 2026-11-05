@@ -250,7 +250,7 @@ _RULES = (
         re.compile(
             r"\b(?:to get your refund|to receive (?:your )?(?:refund|money))\b[^.!?]{0,50}\b(?:scan|enter|pay)\b"
             r"|\bscan\b[^.!?]{0,30}\bqr\b[^.!?]{0,40}\bpin\b"
-            rf"|\bto release your\b[^.!?]{{0,30}}\bpay\b",
+            r"|\bto release your\b[^.!?]{0,30}\bpay\b",
             _FLAGS,
         ),
         "Asks you to pay or enter a PIN in order to receive money. A PIN is only used to send money.",
@@ -258,8 +258,8 @@ _RULES = (
     _Rule(
         "fee_with_deadline", "payment_request", STRONG,
         re.compile(
-            rf"\bpay\b[^.!?]{{0,40}}\b(?:charge|fee|fine)\b[^.!?]{{0,60}}\b(?:today|or it|so your|immediately|right away|within)\b"
-            rf"|\bwire transfer\b|\bdo not tell (?:anyone|your family)\b",
+            r"\bpay\b[^.!?]{0,40}\b(?:charge|fee|fine)\b[^.!?]{0,60}\b(?:today|or it|so your|immediately|right away|within)\b"
+            r"|\bwire transfer\b|\bdo not tell (?:anyone|your family)\b",
             _FLAGS,
         ),
         "Demands a small fee or secrecy under time pressure.",
