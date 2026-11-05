@@ -1,6 +1,6 @@
 # TrustFeed
 
-**TruthTrace AI** analyses images, videos, text, links and public social posts to find signs of manipulated media, misleading content and coordinated spread, and shows the evidence and its limits. It was built for problem DL-SJBIT-HK26-GOVP006 at LAKSHYA 2026.
+**TrustFeed AI** analyses images, videos, text, links and public social posts to find signs of manipulated media, misleading content and coordinated spread, and shows the evidence and its limits. It was built for problem DL-SJBIT-HK26-GOVP006 at LAKSHYA 2026.
 
 **Its results are signals for a person to review, not proof.** Unknown values stay empty with an explanation, and synthetic or replayed data is labelled.
 
