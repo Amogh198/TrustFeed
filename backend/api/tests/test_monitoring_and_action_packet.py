@@ -79,3 +79,4 @@ def test_action_packet_gemini_failure_falls_back(monkeypatch):
         # Graceful fallback to static template
         assert packet["generated"] is False
         assert len(packet["sections"]) > 0
+

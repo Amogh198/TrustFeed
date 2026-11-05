@@ -328,8 +328,8 @@ The full result adds:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MEDIA_MODEL_ID` | `dima806/deepfake_vs_real_image_detection` | Hugging Face ID or local folder. Weights must be safetensors. |
-| `MEDIA_MODEL_REVISION` | Pinned commit | Revision for the model. |
+| `MEDIA_MODEL_ID` | `nonescape/nonescape-mini-v0` | This, a Hugging Face ID or a local folder. Weights must be safetensors. |
+| `MEDIA_MODEL_REVISION` | Pinned file hash | Revision for the model. |
 | `MEDIA_ALLOW_MODEL_DOWNLOAD` | `false` | Lets analysis download missing weights. |
 | `MEDIA_DEVICE` | `auto` | `cuda`, `cpu` or `auto`. |
 | `MEDIA_PHASH_INDEX` | Not set | Path to the JSON reference index. |
@@ -345,7 +345,7 @@ The full result adds:
 python -m pytest backend/media/tests
 ```
 
-Tests use generated media and a stub or tiny random model, so they need no downloaded weights. Scores from the tiny model mean nothing; it only exercises the loading code. `test_real_model.py` runs the pinned model when its weights are present and is skipped otherwise. It checks that the model runs, not how accurate it is.
+Tests use generated media and a stub or tiny random model, so they need no downloaded weights. Scores from the tiny model mean nothing; it only exercises the loading code. `test_real_model.py` runs the default model when its weights are present and is skipped otherwise. It checks that the model runs, not how accurate it is.
 
 ## Measuring accuracy
 
@@ -381,14 +381,14 @@ Both refuse to write inside the repository. Commons labels come from human-curat
 
 ### Results from 2026-11-05
 
-**The detector in use barely beats guessing on this set: AUC 0.53, where 0.50 is guessing.** Three other detectors measured better, but none is good enough to settle anything alone. The default detector and its bands are unchanged, and only the detector in use affects the overall result.
+**The default detector is now Nonescape mini, the best single detector on this set: AUC 0.69, where 0.50 is guessing.** It replaced `dima806/deepfake_vs_real_image_detection`, which scored 0.53. In this section, "the model in use" means dima806, the default when these figures were measured. No detector here is good enough to settle anything alone. The bands are unchanged, and only the default detector affects the overall result.
 
 The set has 600 images from Wikimedia Commons, with a licence listed for each file: 150 AI-generated, 150 edited, 150 real photos of people, and 150 real landscapes, animals and architecture. The figures below come from the test split only, which has 137 fake and 148 real images. Brackets show the 95% interval.
 
 | Model | AUC | Better than the model in use? | Flagged at current bands: fakes | Flagged at current bands: real | Seconds per image |
 |---|---|---|---|---|---|
-| `dima806/deepfake_vs_real_image_detection` (in use) | 0.53 [0.46–0.60] | Baseline | 3 of 137 | 3 of 148 | 0.21 |
-| `nonescape/nonescape-mini-v0` | 0.69 [0.63–0.75] | Yes | 44 of 137 | 17 of 148 | 0.13 |
+| `dima806/deepfake_vs_real_image_detection` (previous default) | 0.53 [0.46–0.60] | Baseline | 3 of 137 | 3 of 148 | 0.21 |
+| `nonescape/nonescape-mini-v0` (default now) | 0.69 [0.63–0.75] | Yes | 44 of 137 | 17 of 148 | 0.13 |
 | `Ateeqq/ai-vs-human-image-detector` | 0.67 [0.61–0.73] | Yes | 73 of 137 | 46 of 148 | 0.27 |
 | `haywoodsloan/ai-image-detector-deploy` | 0.66 [0.60–0.72] | Yes | 35 of 137 | 8 of 148 | 0.77 |
 | `prithivMLmods/Deep-Fake-Detector-v2-Model` | 0.50 [0.43–0.57] | No | 16 of 137 | 29 of 148 | 0.22 |

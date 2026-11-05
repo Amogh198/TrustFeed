@@ -4,9 +4,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_MODEL_ID = "dima806/deepfake_vs_real_image_detection"
-# Pinned so a demo cannot change behaviour when the upstream repository changes.
-DEFAULT_MODEL_REVISION = "29e4cf9efc543845610045f6ba7e88e5cf9d9301"
+from backend.media.nonescape import NONESCAPE_MODEL_ID, NONESCAPE_SHA256
+
+# The best single detector on data/eval/commons_licensed_2026-11-05.json: AUC 0.69 [0.63-0.75].
+DEFAULT_MODEL_ID = NONESCAPE_MODEL_ID
+# Pinned so a demo cannot change behaviour when the upstream file changes.
+DEFAULT_MODEL_REVISION = NONESCAPE_SHA256
 
 _MB = 1024 * 1024
 _TRUTHY = {"1", "true", "yes", "on"}

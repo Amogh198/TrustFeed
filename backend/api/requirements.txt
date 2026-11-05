@@ -6,3 +6,4 @@ google-generativeai>=0.8.0,<1.0
 -r ../media/requirements.txt
 -r ../network/requirements.txt
 -r ../provenance/requirements.txt
+google-generativeai>=0.8,<1.0

@@ -29,21 +29,21 @@ Last updated 2026-11-05. Backend features are on `main`. The dashboard runs on t
 
 ### Detector accuracy
 
-These figures are for `dima806/deepfake_vs_real_image_detection` at its current bands, from [data/eval/commons_2026-11-05.json](data/eval/commons_2026-11-05.json). The test split has 157 fake and 75 real images.
+These figures are for `nonescape/nonescape-mini-v0` at its current bands, from [data/eval/commons_licensed_2026-11-05.json](data/eval/commons_licensed_2026-11-05.json). The test split has 137 fake and 148 real images.
 
 | Measure | Result |
 |---|---|
-| Fakes flagged | 1 of 157 |
-| Real images wrongly flagged | 1 of 75 |
-| Fakes that scored low | 128 of 157 |
-| Real images that scored low | 72 of 75 |
-| AUC | 0.8541 |
+| Fakes flagged | 44 of 137 |
+| Real images wrongly flagged | 17 of 148 |
+| Fakes that scored low | 50 of 137 |
+| Real images that scored low | 98 of 148 |
+| AUC | 0.69 [0.63–0.75] |
 
-The model separates fakes from real images better than these bands show, so the bands are under review and haven't been changed. Real images in this benchmark are only photos of people, and face swaps weren't measured. See [backend/media/README.md](backend/media/README.md) for details.
+This is the best single detector of six measured on this set, where the previous default scored AUC 0.53. It still misses most fakes. The bands haven't changed, and face swaps, video and images re-saved by social media weren't measured. See [backend/media/README.md](backend/media/README.md) for details.
 
 **Known limits**
 
-- **The image detector is not reliable at its current settings.** It flagged only 3 of 301 fakes across the whole benchmark, so a low media result doesn't show that media is authentic.
+- **The image detector is not reliable on its own.** On the test split it flagged 44 of 137 fakes and wrongly flagged 17 of 148 real images, so neither a low nor an elevated result settles whether media is authentic.
 - **The heatmap shows sensitivity, not proof of editing.** It shows where covering part of an image moved the model's score.
 - **Coordination detection hasn't been measured on real campaigns.** It has only been shown working on synthetic data built to contain a campaign.
 - **Platform coverage is partial.** Public search is read on Mastodon, Lemmy, Hacker News and Bluesky, and none of these is a complete feed. Mastodon finds links only while they trend. Reddit, YouTube and X aren't connected, and private channels such as WhatsApp can't be traced.

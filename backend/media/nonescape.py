@@ -63,10 +63,13 @@ class NonescapeMiniClassifier:
     model_id = NONESCAPE_MODEL_ID
     model_revision = NONESCAPE_SHA256
 
-    def __init__(self, path: Path | None = None, device: str = "auto", batch_size: int = 8) -> None:
+    def __init__(
+        self, path: Path | None = None, device: str = "auto", batch_size: int = 8, *, allow_download: bool = False
+    ) -> None:
         self._path = path or nonescape_path()
         self._device_setting = device
         self._batch_size = max(1, batch_size)
+        self._allow_download = allow_download
         self._lock = threading.Lock()
         self._loaded: tuple[object, object, str] | None = None
 
@@ -84,9 +87,14 @@ class NonescapeMiniClassifier:
                 raise ClassifierUnavailable(
                     "Model dependencies are not installed (see backend/media/requirements-model.txt)."
                 ) from exc
+            if not self._path.is_file() and self._allow_download:
+                try:
+                    download_nonescape(self._path)
+                except (OSError, ValueError) as exc:
+                    raise ClassifierUnavailable("The Nonescape weights could not be downloaded.") from exc
             if not self._path.is_file():
                 raise ClassifierUnavailable(
-                    "Model weights are not available locally. Run: python -m backend.media download-panel"
+                    "Model weights are not available locally. Run: python -m backend.media download-model"
                 )
             if _sha256(self._path) != self.model_revision:
                 raise ClassifierUnavailable("The Nonescape weights on disk do not match the pinned SHA-256.")

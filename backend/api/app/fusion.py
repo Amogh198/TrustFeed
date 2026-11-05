@@ -1,4 +1,4 @@
-"""Combines module results into one triage level. It is never a verdict on truth."""
+"""Combines module results and generates evidence-bound action packets."""
 
 import json
 import logging
@@ -79,6 +79,18 @@ def fused_summary(level: RiskLevel) -> str:
 def _case_evidence(case: AnalysisResponse) -> list[str]:
     """Collect the recorded evidence without adding unsupported references."""
     return [item for module in case.modules.values() for item in module.evidence]
+
+
+def _parse_action_packet(text: str) -> dict[str, Any]:
+    """Accept a Gemini JSON response, including a markdown-fenced fallback."""
+    candidate = text.strip()
+    if candidate.startswith("```"):
+        candidate = candidate.split("\n", 1)[1] if "\n" in candidate else ""
+        candidate = candidate.removesuffix("```")
+    payload = json.loads(candidate.strip())
+    if not isinstance(payload, dict):
+        raise TypeError("Gemini action packet must be a JSON object")
+    return payload
 
 
 def _fallback_packet(case: AnalysisResponse, audience: str = "public") -> ActionPacketResponse:
@@ -179,12 +191,7 @@ Only output the valid JSON object.
         prompt,
         generation_config={"response_mime_type": "application/json", "temperature": 0.2},
     )
-    raw_text = response.text.strip()
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else ""
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
-    payload = json.loads(raw_text.strip())
+    payload = _parse_action_packet(response.text)
     draft = payload.get("draft")
     raw_sections = payload.get("sections")
     if not isinstance(draft, str) or not draft.strip() or not isinstance(raw_sections, list):
@@ -193,6 +200,27 @@ Only output the valid JSON object.
     if not sections:
         raise ValueError("Gemini response contains no sections")
     return draft.strip(), sections
+
+
+def generate_action_packet(
+    case: AnalysisResponse,
+    audience: str,
+    evidence: list[str],
+) -> tuple[str, list[ActionPacketSection]] | None:
+    """Return Gemini output when configured; failures keep the caller's local template."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        return _generate_with_gemini(
+            api_key=api_key,
+            evidence=evidence,
+            overall_risk=case.overall_risk.value,
+            audience=audience,
+        )
+    except Exception:  # noqa: BLE001 - the optional provider must not block the local fallback.
+        logger.warning("Gemini action packet generation failed; falling back to static template", exc_info=True)
+        return None
 
 
 def action_packet(
@@ -244,4 +272,3 @@ def action_packet(
     except Exception as exc:
         logger.warning("Gemini action packet generation failed (%s); falling back to static template", exc)
         return _fallback_packet(case, audience)
-

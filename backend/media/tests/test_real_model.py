@@ -1,11 +1,11 @@
-"""Runs the pinned model. Skipped unless its weights have been downloaded."""
+"""Runs the default model. Skipped unless its weights have been downloaded."""
 
 from __future__ import annotations
 
 import pytest
 
 from backend.media import MediaConfig, analyze_media
-from backend.media.classifier import HuggingFaceClassifier
+from backend.media.classifier import build_classifier
 from backend.media.errors import ClassifierUnavailable
 from backend.media.models import CheckStatus
 from backend.media.tests.helpers import patterned_image
@@ -14,8 +14,7 @@ from backend.media.tests.helpers import patterned_image
 @pytest.fixture(scope="module")
 def real_classifier():
     pytest.importorskip("torch")
-    pytest.importorskip("transformers")
-    classifier = HuggingFaceClassifier(MediaConfig(device="cpu"))
+    classifier = build_classifier(MediaConfig(device="cpu"))
     try:
         classifier.predict([patterned_image()])
     except ClassifierUnavailable as exc:
