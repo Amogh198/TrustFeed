@@ -59,6 +59,7 @@ class CoShare:
     items: dict[str, set[str]] = field(default_factory=lambda: {signal: set() for signal in SIGNALS})
     # One post pair can match on several signals, so it is keyed to count its delay once.
     delays: dict[tuple[str, str], float] = field(default_factory=dict)
+    platforms: set[str] = field(default_factory=set)
 
     @property
     def distinct_items(self) -> int:
@@ -111,5 +112,6 @@ def find_co_shares(
                     pairs[(source, target)] = pair
                 pair.items[signal].add(value)
                 pair.delays[(earlier.id, later.id)] = delay
+                pair.platforms.update(post.platform for post in (earlier, later) if post.platform)
                 pair.first_seen_at = min(pair.first_seen_at, later.created_at)
     return pairs

@@ -34,13 +34,14 @@ To analyze other data, use `analyze_network(parse_dataset(raw))`.
 
 | List | Fields |
 |---|---|
-| `nodes` | `id`, `handle`, `followers`, `role`, `role_label`, `cluster_id`, `in_flagged_cluster`, `degree_centrality`, `weighted_degree`, `post_count`, `first_post_at`, `first_campaign_post_at`, `synthetic` |
-| `edges` | `id`, `source`, `target`, `type`, `weight`, `signals`, `min_delay_seconds`, `median_delay_seconds`, `first_seen_at`, `cluster_id`, `synthetic` |
-| `timeline` | `frame`, `offset_seconds`, `start`, `end`, `post_count`, `cluster_member_post_count`, `new_account_ids`, `cumulative_account_count`, `cumulative_cluster_member_count`, `cluster_ids`, `synthetic` |
+| `nodes` | `id`, `handle`, `followers`, `role`, `role_label`, `cluster_id`, `in_flagged_cluster`, `degree_centrality`, `weighted_degree`, `post_count`, `platforms`, `first_post_at`, `first_campaign_post_at`, `synthetic` |
+| `edges` | `id`, `source`, `target`, `type`, `weight`, `signals`, `platforms`, `cross_platform`, `min_delay_seconds`, `median_delay_seconds`, `first_seen_at`, `cluster_id`, `synthetic` |
+| `timeline` | `frame`, `offset_seconds`, `start`, `end`, `post_count`, `cluster_member_post_count`, `new_account_ids`, `cumulative_account_count`, `cumulative_cluster_member_count`, `cluster_ids`, `platforms`, `synthetic` |
 
 - **Roles:** `origin_candidate`, `amplifier`, `participant`, `target`, `background`. Show `role_label` to users. It keeps the "earliest observed" wording.
 - **Edge types:** `co_share` (repeated, counts as a signal), `weak_co_share` (one item only, not a signal; draw it faintly), `mention` (directed).
 - **Time slider:** show a node from `first_campaign_post_at` and an edge from `first_seen_at`. Empty time buckets are left out of `timeline`, so position frames by `offset_seconds`.
+- **Platforms:** each post may name a platform. The engine reports where items spread and marks `cross_platform` edges. Platform does not affect the score. Missing values stay empty.
 - **Synthetic label:** when `synthetic` is true, the dashboard must say so.
 
 ## How detection works

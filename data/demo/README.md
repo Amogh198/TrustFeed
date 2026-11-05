@@ -4,7 +4,7 @@
 
 | File | Purpose | Read by |
 |---|---|---|
-| `network_demo.json` | 320 accounts and 869 posts for case `demo-001` | Network engine |
+| `network_demo.json` | 320 accounts and 872 posts for case `demo-001` | Network engine |
 | `network_demo_ground_truth.json` | Planted labels | **Tests only**, never the engine |
 
 ## What it contains
@@ -16,6 +16,7 @@
   - **Late reshares:** 15 accounts share a campaign link hours later, well spread out.
   - **Syndication group:** 3 accounts repost identical headlines, which is too small to flag.
 - **Background:** ordinary posts from the remaining accounts.
+- **Platforms:** accounts are spread across three invented platforms (`demo_forum`, `demo_microblog`, `demo_video`), so the demo can show cross-platform spread without implying any real service hosted this activity.
 
 Regenerate with `python -m backend.network.seed_network`. The output is deterministic, and a test fails if these files fall out of date.
 

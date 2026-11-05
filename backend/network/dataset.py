@@ -26,6 +26,7 @@ class Post:
     url: str | None = None
     media_hash: str | None = None
     mentions: tuple[str, ...] = ()
+    platform: str | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ def parse_dataset(raw: dict[str, Any]) -> Dataset:
             url=item.get("url"),
             media_hash=item.get("media_hash"),
             mentions=tuple(item.get("mentions") or ()),
+            platform=item.get("platform"),
         )
         unknown = {post.account_id, *post.mentions} - known_accounts
         if unknown:

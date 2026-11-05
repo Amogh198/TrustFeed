@@ -49,9 +49,12 @@ def _build_nodes(
 ) -> list[dict[str, Any]]:
     first_post: dict[str, str] = {}
     post_counts: dict[str, int] = defaultdict(int)
+    platforms: dict[str, set[str]] = defaultdict(set)
     for post in dataset.posts:
         first_post.setdefault(post.account_id, format_timestamp(post.created_at))
         post_counts[post.account_id] += 1
+        if post.platform:
+            platforms[post.account_id].add(post.platform)
 
     first_campaign_post: dict[str, str] = {}
     for cluster in clusters:
@@ -75,6 +78,7 @@ def _build_nodes(
                 "degree_centrality": role.degree_centrality,
                 "weighted_degree": role.weighted_degree,
                 "post_count": post_counts[account.id],
+                "platforms": sorted(platforms[account.id]),
                 "first_post_at": first_post.get(account.id),
                 "first_campaign_post_at": first_campaign_post.get(account.id),
                 "synthetic": dataset.synthetic,
@@ -103,6 +107,8 @@ def _build_edges(
                 "type": "co_share" if repeated else "weak_co_share",
                 "weight": pair.distinct_items,
                 "signals": pair.signal_counts,
+                "platforms": sorted(pair.platforms),
+                "cross_platform": len(pair.platforms) > 1,
                 "min_delay_seconds": pair.min_delay,
                 "median_delay_seconds": pair.median_delay,
                 "first_seen_at": format_timestamp(pair.first_seen_at),
@@ -125,6 +131,8 @@ def _build_edges(
                 "type": "mention",
                 "weight": len(times),
                 "signals": {},
+                "platforms": [],
+                "cross_platform": False,
                 "min_delay_seconds": None,
                 "median_delay_seconds": None,
                 "first_seen_at": times[0],
@@ -135,8 +143,13 @@ def _build_edges(
     return edges
 
 
+def _cluster_platforms(dataset: Dataset, cluster: Cluster, config: CoordinationConfig) -> list[str]:
+    posts = campaign_posts(dataset.posts, cluster, config)
+    return sorted({post.platform for post in posts if post.platform})
+
+
 def _build_cluster_summaries(
-    clusters: list[Cluster], origins: dict[str, Origin], dataset: Dataset
+    clusters: list[Cluster], origins: dict[str, Origin], dataset: Dataset, config: CoordinationConfig
 ) -> list[dict[str, Any]]:
     summaries = []
     for cluster in clusters:
@@ -152,6 +165,7 @@ def _build_cluster_summaries(
                 "score_components": cluster.components,
                 "score_weights": SCORE_WEIGHTS,
                 "distinct_items": cluster.distinct_items,
+                "platforms": _cluster_platforms(dataset, cluster, config),
                 "median_delay_seconds": cluster.median_delay_seconds,
                 "earliest_observed": None
                 if origin is None
@@ -203,6 +217,9 @@ def _build_module_result(
             f"median delay between co-shares {cluster.median_delay_seconds:.0f} seconds, "
             f"up to {cluster.distinct_items} distinct items shared per pair."
         )
+        platforms = _cluster_platforms(dataset, cluster, config)
+        if platforms:
+            evidence.append(f"{cluster.id}: its items appeared on {len(platforms)} platform(s): {', '.join(platforms)}.")
         origin = origins.get(cluster.id)
         if origin is not None:
             place = "inside" if origin.in_cluster else "outside"
@@ -246,6 +263,6 @@ def analyze_network(dataset: Dataset, config: CoordinationConfig | None = None) 
         nodes=_build_nodes(dataset, roles, clusters, config),
         edges=_build_edges(dataset, co_shares, clusters, config),
         timeline=build_timeline(dataset, clusters, config),
-        clusters=_build_cluster_summaries(clusters, origins, dataset),
+        clusters=_build_cluster_summaries(clusters, origins, dataset, config),
         module_result=_build_module_result(dataset, co_shares, clusters, origins, config),
     )

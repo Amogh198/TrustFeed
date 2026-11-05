@@ -57,6 +57,7 @@ def build_timeline(
                 "cumulative_account_count": len(seen),
                 "cumulative_cluster_member_count": len(seen & members),
                 "cluster_ids": sorted({cluster.id for _, matched in entries for cluster in matched}),
+                "platforms": sorted({post.platform for post, _ in entries if post.platform}),
                 "synthetic": dataset.synthetic,
             }
         )

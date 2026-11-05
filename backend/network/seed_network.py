@@ -43,6 +43,9 @@ _WAVE_OFFSETS_MINUTES = (0, 47, 133, 220)
 _WAVE_MIN_DELAY_SECONDS = 8
 _WAVE_MAX_DELAY_SECONDS = 110
 
+# Invented names, so that no real platform is implied to host this activity.
+_PLATFORMS = ("demo_forum", "demo_microblog", "demo_video")
+
 _CAMPAIGN_TEXTS = (
     "Northbridge reservoir declared unsafe, officials are hiding the test results",
     "Leaked memo says Northbridge water rationing starts this weekend",
@@ -205,6 +208,7 @@ def build_demo_dataset(seed: int = SEED) -> tuple[dict[str, Any], dict[str, Any]
             "handle": f"synthetic_user_{account_id[5:]}",
             "created_at": format_timestamp(_START - timedelta(days=rng.randint(30, 1500))),
             "followers": rng.randint(5, 5000),
+            "platform": rng.choice(_PLATFORMS),
             "synthetic": True,
         }
         for account_id in account_ids
@@ -235,7 +239,9 @@ def build_demo_dataset(seed: int = SEED) -> tuple[dict[str, Any], dict[str, Any]
     _add_background(builder, organic)
 
     posts = sorted(builder.posts, key=lambda post: (post["created_at"], post["account_id"], post["text"]))
+    platform_of = {account["id"]: account["platform"] for account in accounts}
     for index, post in enumerate(posts, start=1):
+        post["platform"] = platform_of[post["account_id"]]
         post["id"] = f"post_{index:05d}"
 
     dataset = {

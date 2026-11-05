@@ -119,6 +119,32 @@ def test_timeline_is_ordered_and_cumulative(make_dataset, ring_rows):
     assert sum(len(frame["new_account_ids"]) for frame in analysis.timeline) == 8
 
 
+def test_platforms_are_reported_without_changing_the_score(make_dataset, ring_rows):
+    raw = make_dataset(ring_rows(members("r", 6)))
+    baseline = analyze(raw).clusters[0]["coordination_risk_score"]
+    for post in raw["posts"]:
+        post["platform"] = "alpha" if post["account_id"] == "r00" else "beta"
+    analysis = analyze(raw)
+    cluster = analysis.clusters[0]
+    assert cluster["coordination_risk_score"] == baseline
+    assert cluster["platforms"] == ["alpha", "beta"]
+    assert node(analysis, "r00")["platforms"] == ["alpha"]
+    edges = {edge["id"]: edge for edge in analysis.edges}
+    assert edges["co_share:r00|r01"]["cross_platform"] is True
+    assert edges["co_share:r00|r01"]["platforms"] == ["alpha", "beta"]
+    assert edges["co_share:r01|r02"]["cross_platform"] is False
+    assert analysis.timeline[0]["platforms"] == ["alpha", "beta"]
+    assert any("2 platform(s): alpha, beta" in line for line in analysis.module_result["evidence"])
+
+
+def test_missing_platform_data_is_not_invented(make_dataset, ring_rows):
+    analysis = analyze(make_dataset(ring_rows(members("r", 6))))
+    assert analysis.clusters[0]["platforms"] == []
+    assert node(analysis, "r00")["platforms"] == []
+    assert all(edge["cross_platform"] is False for edge in analysis.edges)
+    assert not any("platform(s)" in line for line in analysis.module_result["evidence"])
+
+
 def test_returning_accounts_are_not_counted_as_new_again(make_dataset, ring_rows):
     rows = ring_rows(members("r", 6))
     rows.append(("late", 90000, "https://site.example/item/0"))

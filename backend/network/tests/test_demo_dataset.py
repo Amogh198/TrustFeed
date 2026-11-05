@@ -88,6 +88,13 @@ def test_data_uses_only_reserved_domains_and_synthetic_handles(raw):
     assert all(".example/" in url for url in urls)
 
 
+def test_demo_covers_several_invented_platforms(raw, analysis):
+    assert {post["platform"] for post in raw["posts"]} == {"demo_forum", "demo_microblog", "demo_video"}
+    flagged = next(cluster for cluster in analysis.clusters if cluster["flagged"])
+    assert len(flagged["platforms"]) == 3
+    assert any(edge["cross_platform"] for edge in analysis.edges if edge["type"] == "co_share")
+
+
 def test_engine_never_reads_ground_truth():
     for name in ENGINE_FILES:
         source = (REPO_ROOT / "backend" / "network" / f"{name}.py").read_text(encoding="utf-8")
