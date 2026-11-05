@@ -81,9 +81,9 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
-| T1 | `feature/akshay-media-forensics` | PR #5 open | Adapter with tests; output fits T3's `ModuleResult` | T3 wiring | None known |
-| T2 | `feat/network-coordination` | Validated, PR #3 | Engine and demo data. At `bea996c`: 61 tests pass on Python 3.13 and 3.11, Pyright 0 errors, ruff passes | Support T3 wiring | None |
-| T3 | `feat/amogh-backend-api-text` | PR #1 open | API starter, heuristics, placeholders | Fusion, replay, wiring | None known |
+| T1 | `main` | PR #5 merged | Adapter with tests; output fits T3's `ModuleResult` | Test on known real and fake samples | None known |
+| T2 | `main` | PR #3 merged | Engine and demo data. At `bea996c`: 61 tests pass on Python 3.13 and 3.11, Pyright 0 errors, ruff passes | Fix findings listed in section D | None |
+| T3 | `main` | PR #1 merged; wiring on `feat/wire-media-network-api` | API, heuristics, media upload, demo network route, media fusion | Replay, generated action packet | None known |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
 
 ## C. Contracts
@@ -103,20 +103,26 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 | Component | Built | Tested alone | Integrated |
 |---|---|---|---|
-| T1 media | Yes, PR #5 | Yes, 79 pass and 8 skipped without the model | No |
-| T2 network | Yes, PR #3 | Yes | No |
-| T3 API and text | Starter, PR #1 | Tests added; `/health` and analyze responded in a T2 smoke test | No |
-| T3 fusion | Text and URL only | Not run | No |
+| T1 media | Yes | Yes, 87 pass with the model | Yes, through `POST /api/cases/analyze-media` |
+| T2 network | Yes | Yes | Demo case only, through `demo-001` |
+| T3 API and text | Yes | Yes | Yes |
+| T3 fusion | Text, URL and media | Yes | Yes |
 | T4 dashboard | No | No | No |
 | T5 replay and demo | No | No | No |
 
-**Requirements not yet met:** deepfake and synthetic-media detection in `main` (T1's PR #5 is unmerged, and its real model wasn't part of the compatibility check); media upload; the dashboard; generated countermeasures (T3 has a template only). Multi-platform coverage is synthetic demo data only, in PR #3.
+The T1, T2 and T3 rows describe `feat/wire-media-network-api` until that PR merges.
+
+**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which has no spread data. Detector accuracy on known fakes is untested. Multi-platform coverage is synthetic demo data only.
 
 **Open compatibility problems:**
-1. `get_network` returns 404 for `demo-001` because it checks `CASES` first. T3 fix; steps in PR #3.
-2. `networkx` is missing from `backend/api/requirements.txt`. T3 fix.
-3. T1's `analyze_media` isn't called by T3 yet. T3 fix.
-4. The repo has no CI, so required checks can't be enforced.
+1. The repo has no CI, so required checks can't be enforced.
+
+**Open T2 findings, reproduced on `eca7847`:**
+1. Target accounts have a null `first_campaign_post_at`, so they never appear under the README's slider rule, and 472 edges have an endpoint that never appears.
+2. A popular link shared by two ring members can make an unrelated earlier account the `origin_candidate`.
+3. `normalize_text` strips Indic combining marks, so पानी and पीना both become "प न".
+4. Malformed records raise `KeyError` or `TypeError`, and a bad URL raises `ValueError`.
+5. Two items matched by different signals count as 1 in `distinct_items`.
 
 **Repository settings:** the `Protect Main` ruleset needs a pull request to reach `main`, with no required approvals. Merging is still reserved for controlled final integration.
 

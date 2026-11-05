@@ -13,12 +13,30 @@ Status: **initial implementation contract**. Any change requires a PR that names
 ## Endpoints
 
 - `GET /health` -> service status and version.
-- `POST /api/cases/analyze` -> accepts a text claim and/or URL; returns one case summary and available module results. Media uploads are deferred to a later issue.
-- `GET /api/cases/{case_id}` -> most recent in-memory case result for the running process (persistence is deferred).
-- `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI.
+- `POST /api/cases/analyze` -> accepts a text claim and/or URL as JSON; returns one case summary and available module results. `media` is `not_applicable`.
+- `POST /api/cases/analyze-media` -> multipart form with `file` (required; JPEG, PNG, WebP, MP4, MOV, WebM or AVI), plus optional `text` and `url`. Returns the same response shape as `analyze`.
+- `GET /api/cases/{case_id}` -> most recent in-memory case result for the running process (persistence is deferred). `demo-001` is always available: a synthetic case with network results only.
+- `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI. Filled for `demo-001`, where every item has `synthetic: true`, which the UI must show. Empty for submitted cases, which have no spread data; they never receive the demo network.
 - `POST /api/cases/{case_id}/action-packet` -> draft countermeasure text with evidence references and clear AI-generated label.
 
-Media upload mechanics and persistent storage are deferred. The frontend should submit JSON for text/URL analysis and must not depend on persistence surviving a server restart.
+Persistent storage is deferred. The frontend must not depend on persistence surviving a server restart.
+
+## Media upload
+
+A rejected upload creates no case and returns `{"detail": {"code": "...", "message": "..."}}`:
+
+| Status | `code` | Meaning |
+|---|---|---|
+| 411 | `length_required` | The request has no `Content-Length`. |
+| 413 | `too_large` | Over 25 MB for an image, 200 MB for a video, or the image has too many pixels. |
+| 415 | `unsupported_type` | The file's content is not a supported type. The file name and extension are ignored. |
+| 422 | `empty_file`, `corrupt_media` | The file is empty or cannot be decoded. |
+
+Other `422` responses, for a missing `file` or an invalid `url`, use the standard FastAPI `detail` list.
+
+If the file is valid but the model cannot run, the response is `200` with the `media` module `unavailable`, a `null` score and the reason in `limitations`. Metadata and pHash evidence is still returned.
+
+`overall_risk` for an upload comes from the media module's assessment, not its raw score, combined with any text and URL results. Media alone reaches at most `high`. A result is `low` only if every module reached a result; otherwise it is `inconclusive`.
 
 ## Common response sketch
 
@@ -38,4 +56,4 @@ Media upload mechanics and persistent storage are deferred. The frontend should 
 }
 ```
 
-This is the current response shape. The backend exposes Pydantic/OpenAPI types and deterministic rule-based text/URL results. Media is marked unavailable until the media lane integrates.
+This is the current response shape. The backend exposes Pydantic/OpenAPI types and deterministic rule-based text/URL results.

@@ -56,7 +56,7 @@ def test_analyze_and_retrieve_case():
     body = response.json()
     assert body["case_id"]
     assert body["modules"]["text"]["status"] == "complete"
-    assert body["modules"]["media"]["status"] == "unavailable"
+    assert body["modules"]["media"]["status"] == "not_applicable"
     assert body["modules"]["network"]["status"] == "unavailable"
     assert client.get(f"/api/cases/{body['case_id']}").json() == body
 
