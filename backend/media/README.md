@@ -44,7 +44,7 @@ python -m backend.media analyze sample.jpg --index media_index.json
 
 ### Explanations
 
-`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes`, `media.fingerprint` and `media.c2pa`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
+`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes`, `media.fingerprint`, `media.c2pa` and `media.forensics`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
 
 - **`benchmark`** holds test-split figures from `data/eval/commons_licensed_2026-11-05.json`, and adds `auc` and counts by band. It is `null` unless that file measured this model and revision at these bands, and it is always `null` for video.
 - **Plain statement:** the classifier check's limitations say how few fakes the current bands flag, and whether the detector barely beats guessing.
@@ -165,6 +165,37 @@ To measure again:
 
 ```bash
 python -m backend.media.eval.content_credentials --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
+```
+
+### Pixel forensics
+
+Every image analysis adds a `media.forensics` check with seven tests, built with OpenCV and NumPy. It takes about 0.2 seconds, and stops after `forensics_time_limit_s`. **It never changes the score or assessment.** An unusual reading doesn't show an image is fake, and a marked region doesn't show an area was edited.
+
+Measured on 285 test images, with limits set on 315 others. Figures are in `data/eval/forensics_2026-11-06.json`. AUC is how well a test separates a group from real images, and 0.50 is guessing.
+
+| Test | Regions | AI-generated, JPEG files | Edited, JPEG files | AI-generated, all re-saved | Edited, all re-saved | Result |
+|---|---|---|---|---|---|---|
+| `frequency_detail` | No | 0.66 | 0.69 | 0.67 | 0.66 | Separates both groups |
+| `compression_grid` | No | 0.66 | 0.63 | 0.66 | 0.64 | Separates both groups |
+| `ela` | Yes | 0.64 | 0.48 | 0.68 | 0.55 | Separates AI-generated only |
+| `noise_level` | No | 0.61 | 0.51 | 0.66 | 0.48 | **Adds nothing** by the rule below, though only 23 AI-generated JPEGs were tested |
+| `noise_unevenness` | Yes | 0.57 | 0.56 | 0.56 | 0.53 | **Adds nothing** |
+| `frequency_peaks` | No | 0.48 | 0.46 | 0.54 | 0.45 | **Adds nothing** |
+| `compression_ghost` | Yes | 0.40 | 0.51 | 0.38 | 0.53 | **Adds nothing** |
+
+A test counts as separating a group only if its AUC reaches 0.60, with a 95% interval above 0.50, on JPEG files and also after re-saving everything the same way.
+
+- **Why two ways.** On the test split, 45 of 68 AI-generated files aren't JPEGs, against 14 of 148 real ones. A test reading compression could look good by spotting the file type. `ela`, `compression_ghost` and `compression_grid` run on JPEG files only, and report `unavailable` on others.
+- **No test finds splices.** Rectangular patches pasted into 134 real JPEGs didn't reach the bar on any test, in any of the four kinds of splice. Marked regions lined up with the patch at best 31 of 134 times (`compression_ghost` on an upscaled patch, against 4 of 134 without the patch), and that counts regions whether or not the test read as unusual. The check only shows regions when it does, and that test read as unusual on 4 of those 134.
+- **At their limits, the useful tests catch little.** `frequency_detail` read as unusual on 0 of 23 AI-generated JPEGs, `compression_grid` on 1 of 23 and `ela` on 5 of 23, against 0, 8 and 9 of 134 real JPEGs.
+- **Limits don't survive re-saving.** Limits aim to flag 5% of real images. After re-saving, `ela` flagged 38 of 148 real images. After a re-save at quality 60, `compression_grid` flagged 42 of 134.
+- **Beside the detector in use.** It didn't flag 134 of 137 fakes on this split. Of those, `noise_level` flagged 26 of 134, against 14 of 148 real images, and `ela` 14 of 86, against 9 of 134 real JPEGs. These are single readings that could be combined with the detector, which hasn't been tried.
+- **Tests measured as adding nothing** are still reported, and say so, but add no evidence line.
+- **Not run on video.** The check reports `not_applicable`. Images above 8 megapixels are examined in the middle only, and nothing above 3.3 megapixels was measured.
+- **A very large score isn't a stronger signal.** `noise_unevenness` can read in the thousands when most of an image has no measurable noise.
+
+```bash
+python -m backend.media.eval.forensics --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url" --detector-cache DIR
 ```
 
 ### Detector panel

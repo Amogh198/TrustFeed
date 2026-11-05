@@ -50,7 +50,15 @@ def test_full_result_is_json_serializable(image_file):
     result = analyze_media(image_file, classifier=FakeClassifier(0.5), config=MediaConfig())
     decoded = json.loads(result.model_dump_json())
     assert decoded["schema_version"] == "media-1"
-    assert set(decoded["checks"]) == {"metadata", "classifier", "phash", "keyframes", "fingerprint", "content_credentials"}
+    assert set(decoded["checks"]) == {
+        "metadata",
+        "classifier",
+        "phash",
+        "keyframes",
+        "fingerprint",
+        "content_credentials",
+        "forensics",
+    }
 
 
 def test_importing_the_package_does_not_load_heavy_libraries():

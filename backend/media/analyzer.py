@@ -14,6 +14,7 @@ from backend.media.classifier import ImageClassifier, default_classifier
 from backend.media.config import MediaConfig
 from backend.media.content_credentials import INVALID, SIGNED, declares_ai, read_credentials
 from backend.media.errors import ClassifierUnavailable, HashIndexUnavailable, MediaInputError
+from backend.media.forensics import ADDS_NOTHING, run_forensics
 from backend.media.keyframes import STRATEGY, Keyframe, extract_keyframes
 from backend.media.metadata import InputInfo, inspect_input, read_image
 from backend.media.models import (
@@ -24,6 +25,7 @@ from backend.media.models import (
     DetectorPanelCheck,
     DetectorResult,
     FingerprintCheck,
+    ForensicsCheck,
     FrameEvidence,
     HashMatch,
     KeyframeCheck,
@@ -296,6 +298,16 @@ def _credentials_evidence(check: ContentCredentialsCheck | None) -> list[str]:
     return lines
 
 
+def _forensics_evidence(check: ForensicsCheck | None) -> list[str]:
+    if check is None or check.status is not CheckStatus.COMPLETE:
+        return []
+    # Tests measured as adding nothing stay in the check, but aren't offered as evidence.
+    flagged = sum(1 for test in check.tests if test.flagged and test.name not in ADDS_NOTHING)
+    if not flagged:
+        return []
+    return [f"Pixel forensics tests read as unusual: {flagged}. Ordinary editing and re-saving can also cause this."]
+
+
 def _lookup(index: HashIndex, phash: str, config: MediaConfig) -> list[HashMatch] | None:
     try:
         return index.lookup(phash, config.phash_max_distance)
@@ -441,6 +453,7 @@ def _finish(
     panel: DetectorPanelCheck | None = None,
     fingerprint: FingerprintCheck | None = None,
     credentials: ContentCredentialsCheck | None = None,
+    forensics: ForensicsCheck | None = None,
 ) -> MediaAnalysisResult:
     evidence = [
         *_classifier_evidence(classifier, keyframes.frames, config),
@@ -448,6 +461,7 @@ def _finish(
         *metadata.indicators,
         *_fingerprint_evidence(fingerprint),
         *_credentials_evidence(credentials),
+        *_forensics_evidence(forensics),
     ]
     limitations = [*extra_limitations]
     if classifier.band is ModelBand.LOW and (phash.matches or metadata.generator_hint):
@@ -478,6 +492,7 @@ def _finish(
             detector_panel=panel,
             fingerprint=fingerprint,
             content_credentials=credentials,
+            forensics=forensics,
         ),
     )
 
@@ -518,6 +533,7 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
         _detector_panel([image], check, config, panel_factory, is_image=True) if panel_factory else None,
         fingerprint,
         read_credentials(path, config),
+        run_forensics(path, image, info.container, config),
     )
 
 
@@ -568,7 +584,11 @@ def _analyze_video(path, info, classifier, index, note, config, panel_factory=No
     queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
     fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
     credentials = read_credentials(path, config)
-    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials)
+    forensics = ForensicsCheck(
+        status=CheckStatus.NOT_APPLICABLE,
+        limitations=["Pixel forensics run on images only. Video compression hides these traces, and video wasn't measured."],
+    )
+    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials, forensics)
 
 
 def analyze_media(

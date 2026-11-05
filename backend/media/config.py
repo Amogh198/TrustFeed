@@ -53,6 +53,9 @@ class MediaConfig:
     # A PEM file of certificate authorities. Not set means signers are not checked against a list.
     c2pa_trust_list_path: Path | None = None
 
+    # Pixel forensics stop after this long, and the check says so.
+    forensics_time_limit_s: float = 20.0
+
     @classmethod
     def from_env(cls) -> MediaConfig:
         model_id = os.environ.get("MEDIA_MODEL_ID", "").strip()

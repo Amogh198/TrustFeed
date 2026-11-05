@@ -166,6 +166,35 @@ class ContentCredentialsCheck(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class ForensicRegion(BaseModel):
+    """A box in the image's own pixels where a test's reading stood out. It doesn't show that the area was edited."""
+
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+class ForensicTest(BaseModel):
+    name: str
+    status: CheckStatus
+    score: float | None = None
+    # The score at which this test reads as unusual. Null if no limit has been measured.
+    limit: float | None = None
+    # Null when the test did not run, or has no limit.
+    flagged: bool | None = None
+    regions: list[ForensicRegion] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class ForensicsCheck(BaseModel):
+    status: CheckStatus
+    source_format: str | None = None
+    jpeg_quality_estimate: int | None = None
+    tests: list[ForensicTest] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class MediaChecks(BaseModel):
     metadata: MetadataCheck
     classifier: ClassifierCheck
@@ -175,11 +204,12 @@ class MediaChecks(BaseModel):
     detector_panel: DetectorPanelCheck | None = None
     fingerprint: FingerprintCheck | None = None
     content_credentials: ContentCredentialsCheck | None = None
+    forensics: ForensicsCheck | None = None
 
     @model_serializer(mode="wrap")
     def _leave_out_checks_that_did_not_run(self, handler: Any) -> dict[str, Any]:
         data = handler(self)
-        for name in ("detector_panel", "fingerprint", "content_credentials"):
+        for name in ("detector_panel", "fingerprint", "content_credentials", "forensics"):
             if data.get(name) is None:
                 data.pop(name, None)
         return data
@@ -197,6 +227,7 @@ def empty_checks(reason: str) -> MediaChecks:
         keyframes=KeyframeCheck(**_not_run(reason)),
         fingerprint=FingerprintCheck(**_not_run(reason)),
         content_credentials=ContentCredentialsCheck(**_not_run(reason)),
+        forensics=ForensicsCheck(**_not_run(reason)),
     )
 
 

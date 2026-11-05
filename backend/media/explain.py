@@ -22,6 +22,17 @@ from backend.media.content_credentials import (
     UNSIGNED,
 )
 from backend.media.fingerprint import EXACT_COPY, MATCH_LIMITS, MATCHES_NEEDED
+from backend.media.forensics import (
+    ADDS_NOTHING,
+    COMPRESSION_GHOST,
+    COMPRESSION_GRID,
+    ELA,
+    FLAG_LIMITS,
+    FREQUENCY_DETAIL,
+    FREQUENCY_PEAKS,
+    NOISE_LEVEL,
+    NOISE_UNEVENNESS,
+)
 from backend.media.models import (
     CheckStatus,
     ClassifierCheck,
@@ -30,6 +41,8 @@ from backend.media.models import (
     DetectorResult,
     FingerprintCheck,
     FingerprintMatch,
+    ForensicsCheck,
+    ForensicTest,
     KeyframeCheck,
     MediaAnalysisResult,
     MediaType,
@@ -79,6 +92,22 @@ TRUST_NOT_CHECKED = (
 )
 METADATA_UNTRUSTED = "Metadata comes from the file, so it can be missing, removed or false."
 PHASH_MEANING = "A perceptual match shows visual similarity to a reference, not who made the media or if a claim is true."
+FORENSICS_RESULTS_PATH = BENCHMARK_PATH.with_name("forensics_2026-11-06.json")
+FORENSIC_TEST_LABELS = {
+    ELA: "Error level analysis",
+    NOISE_UNEVENNESS: "Uneven noise",
+    NOISE_LEVEL: "Very little noise",
+    COMPRESSION_GHOST: "Compression differences",
+    COMPRESSION_GRID: "JPEG grid strength",
+    FREQUENCY_DETAIL: "Little fine detail",
+    FREQUENCY_PEAKS: "Regular frequency peaks",
+}
+FORENSICS_MEANING = (
+    "These tests read how the pixels behave. An unusual reading doesn't show an image is fake, and a normal one doesn't "
+    "show it is genuine: sharpening, re-saving, cropping and text overlays can all move them. A marked region shows "
+    "where a reading stood out, not that the area was edited."
+)
+FORENSICS_NO_EFFECT = "This check does not change the overall score or assessment."
 
 
 @lru_cache(maxsize=4)
@@ -463,6 +492,112 @@ def _content_credentials(check: ContentCredentialsCheck) -> dict[str, Any]:
     )
 
 
+def load_forensics_figures(path: Path = FORENSICS_RESULTS_PATH) -> dict[str, Any] | None:
+    """Return the measured figures, or None if they can't be read or were measured at other limits."""
+    raw = _read_results(path)
+    if raw is None or not FLAG_LIMITS:
+        return None
+    try:
+        document = json.loads(raw)
+        if document["limits_chosen_on_calibration"] != FLAG_LIMITS:
+            return None
+        document["verdicts"], document["test_split"]
+        return document
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _forensic_figures_sentence(name: str, figures: dict[str, Any] | None) -> str:
+    if figures is None:
+        return "How well this test works has not been measured."
+    try:
+        verdict = figures["verdicts"][name]
+        jpeg = figures["test_split"][name]["jpeg_files_only"]
+        groups = jpeg["groups"]
+        ai, edited = groups["ai_generated"]["auc"], groups["edited"]["auc"]
+        aucs = f"AUC {ai:.2f} for AI-generated and {edited:.2f} for edited images on JPEG files, where 0.50 is guessing"
+        if verdict["adds_nothing"]:
+            return (
+                f"When measured, this test added nothing ({aucs}). It didn't reliably separate those images from real "
+                "ones, or spliced images from unspliced ones."
+            )
+        flagged = groups["ai_generated"]["flagged"]
+        real = jpeg["real_flagged"]
+        return (
+            f"When measured: {aucs}. At its limit it read as unusual on {flagged['count']} of {flagged['total']} "
+            f"AI-generated and {real['count']} of {real['total']} real JPEG files."
+        )
+    except (KeyError, TypeError, ValueError):
+        return "How well this test works has not been measured."
+
+
+def _regions_text(test: ForensicTest) -> str:
+    return "; ".join(f"x {r.x}, y {r.y}, width {r.width}, height {r.height}" for r in test.regions)
+
+
+def _forensic_artifact(test: ForensicTest, measured: str) -> dict[str, str]:
+    artifact = {
+        "kind": "forensic_test",
+        "test": test.name,
+        "label": FORENSIC_TEST_LABELS.get(test.name, test.name),
+        "status": test.status.value,
+        "measured": measured,
+    }
+    if test.score is not None:
+        artifact["score"] = f"{test.score:.4f}"
+    if test.limit is not None:
+        artifact["limit"] = f"{test.limit:.4f}"
+    if test.flagged is not None:
+        artifact["unusual"] = "true" if test.flagged else "false"
+    if test.regions:
+        artifact["regions"] = _regions_text(test)
+    if test.reason:
+        artifact["reason"] = test.reason
+    return artifact
+
+
+def _forensics(check: ForensicsCheck) -> dict[str, Any]:
+    check_id, label = "media.forensics", "Pixel forensics"
+    if check.status is CheckStatus.NOT_APPLICABLE:
+        return _check(check_id, label, check.status, "Not applicable", "This is not an image.", check.limitations)
+    if check.status is not CheckStatus.COMPLETE:
+        return _check(check_id, label, check.status, "Not run", "Pixel forensics were not completed.", check.limitations)
+    figures = load_forensics_figures()
+    ran = [test for test in check.tests if test.status is CheckStatus.COMPLETE]
+    flagged = [test for test in ran if test.flagged]
+    measured = {test.name: _forensic_figures_sentence(test.name, figures) for test in check.tests}
+    region_count = sum(len(test.regions) for test in flagged)
+    result = f"{len(flagged)} of {len(ran)} tests unusual"
+    if flagged:
+        useful = sum(test.name not in ADDS_NOTHING for test in flagged)
+        result += f", {useful} of those measured as useful"
+    if region_count:
+        result += f", {region_count} {'region' if region_count == 1 else 'regions'} marked"
+    if flagged:
+        parts = [f"{FORENSIC_TEST_LABELS[test.name]}: {measured[test.name]}" for test in flagged]
+        reasoning = "These tests read as unusual, which a person may want to look at. " + " ".join(parts)
+    else:
+        reasoning = "No test read as unusual. This doesn't show the image is genuine."
+    limitations = [*check.limitations, FORENSICS_MEANING, FORENSICS_NO_EFFECT]
+    if figures is not None:
+        share = figures["settings"]["target_real_flagged"]
+        limitations.append(f"Each test's limit was set so that about {share:.0%} of real images read as unusual.")
+        if not any(verdict["separates_spliced_from_unspliced"] for verdict in figures["verdicts"].values()):
+            limitations.append(
+                "When measured on simulated splices, no test reliably told spliced images from unspliced ones, so don't "
+                "rely on these tests or on marked regions to find an edit."
+            )
+    return _check(
+        check_id,
+        label,
+        check.status,
+        result,
+        reasoning,
+        limitations,
+        artifacts=[_forensic_artifact(test, measured[test.name]) for test in check.tests],
+    )
+
+
 def load_comparison(path: Path = BENCHMARK_PATH) -> tuple[dict[str, dict[str, Any]], float | None]:
     """Return each model's measured comparison by "id@revision", and the baseline's test AUC."""
     raw = _read_results(path)
@@ -558,6 +693,8 @@ def build_checks(
         checks.append(_fingerprint(result.checks.fingerprint))
     if result.checks.content_credentials is not None:
         checks.append(_content_credentials(result.checks.content_credentials))
+    if result.checks.forensics is not None:
+        checks.append(_forensics(result.checks.forensics))
     if result.checks.detector_panel is not None:
         checks.append(_detector_panel(result.checks.detector_panel, result.media_type))
     return checks

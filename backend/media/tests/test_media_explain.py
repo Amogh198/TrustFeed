@@ -107,6 +107,7 @@ def test_every_check_has_the_agreed_fields(tmp_path):
         "media.keyframes",
         "media.fingerprint",
         "media.c2pa",
+        "media.forensics",
     ]
     for check in checks:
         assert set(check) == fields
