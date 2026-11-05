@@ -15,6 +15,13 @@ python -m uvicorn backend.api.app.main:app --reload
 
 Open `http://127.0.0.1:8000/docs` for the generated OpenAPI interface. The frontend dev server at `http://localhost:5173` is allowed by the current CORS configuration.
 
+The default CORS origins include both `http://localhost:5173` and `http://127.0.0.1:5173`. To allow a different local or deployed frontend, set `CORS_ORIGINS` to a comma-separated list before starting Uvicorn, for example:
+
+```powershell
+$env:CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://demo.example.org"
+python -m uvicorn backend.api.app.main:app --reload
+```
+
 ## Current routes
 
 - `GET /health` — basic liveness response.
