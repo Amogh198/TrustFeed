@@ -3,7 +3,7 @@ RESPONSIBILITY: T2 network tracing: dataset, co-sharing, graph scoring, role tag
 BRANCH: feat/network-monitoring
 CURRENT TASK: Findings fixed; real-post tracing, monitoring and the linked demo story ready for integration
 STATUS: Validated
-COMPLETED: Five findings fixed; Mastodon, Lemmy and Hacker News adapters; trace_case; Monitor; demo-story-001; 171 tests pass offline, plus manual live runs
+COMPLETED: Five findings fixed; Mastodon, Lemmy and Hacker News adapters; trace_case; Monitor; demo-story-001; 185 tests pass offline, plus manual live runs
 IN PROGRESS: none
 NEXT ACTION: Connect Bluesky, Reddit or YouTube if the team gets credentials; add Mastodon repost data; support T3 wiring
 FILES OWNED: backend/network/**, data/demo/network_demo*, data/demo/README.md

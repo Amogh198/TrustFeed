@@ -8,6 +8,7 @@ from typing import Any
 
 from backend.network.analysis import NetworkAnalysis, analyze_network
 from backend.network.dataset import load_dataset
+from backend.network.sources import Fetch, live_fetch
 from backend.network.story import DEMO_STORY_CASE_ID, is_demo_story, trace_demo_story
 from backend.network.trace import TraceResult, trace_public_spread
 
@@ -54,18 +55,30 @@ def _analysis(case_id: str) -> NetworkAnalysis | None:
     return traced.analysis if traced else None
 
 
-def trace_case(case_id: str, **submission: Any) -> dict[str, Any]:
+def trace_case(
+    case_id: str,
+    *,
+    text: str | None = None,
+    url: str | None = None,
+    urls: tuple[str, ...] = (),
+    hashtags: tuple[str, ...] = (),
+    fetch: Fetch | None = None,
+) -> dict[str, Any]:
     """Trace a submitted case's public spread and keep the result for the getters below.
 
-    Takes the arguments of ``trace_public_spread``. This reads live platforms by
-    default and can take up to about 25 seconds, so call it outside a request's hot path.
-    Submitting the demo story's exact text or link replays its labelled synthetic data
-    offline, so the demo needs no internet.
+    This reads live platforms by default and can take up to about 25 seconds, so call
+    it outside a request's hot path. Submitting the demo story's exact text or link
+    replays its labelled synthetic data offline, so the demo needs no internet.
+
+    The text and links are sent to the platforms' search services, so ask the user
+    first. ``fetch`` is for tests and replays: never fill it from request data.
     """
-    if "fetch" not in submission and is_demo_story(submission.get("text"), submission.get("url")):
+    if fetch is None and is_demo_story(text, url):
         result = trace_demo_story(case_id)
     else:
-        result = trace_public_spread(case_id, **submission)
+        result = trace_public_spread(
+            case_id, text=text, url=url, urls=urls, hashtags=hashtags, fetch=fetch or live_fetch
+        )
     store_trace(case_id, result)
     return copy.deepcopy(result.module_result)
 
