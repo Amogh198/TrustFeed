@@ -56,7 +56,7 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
             {trust.mediaMissing && <p className="trust-warn">The media check didn't run, so this score covers the text and link only.</p>}
             <p className="fineprint">
               An estimate, not proof.
-              {usedMedia && benchmark?.low_fake != null
+              {usedMedia && trust.capped && benchmark?.low_fake != null
                 ? ` In testing, this detector scored ${benchmark.low_fake} of ${benchmark.n_fake} fakes as low, so a low score says very little.`
                 : ''}
             </p>

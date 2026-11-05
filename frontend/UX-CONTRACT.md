@@ -26,7 +26,7 @@ Every view has its own address, so a demo can be reloaded or bookmarked at any s
 | API not running | Show a banner with the command to start it, and reconnect by itself. |
 | A view fails to render | Show a message and a reload button. The rest of the app keeps working. |
 | `unavailable`, `not_applicable` | Look different from a real result. A null score reads "No score", never 0. |
-| Trust score | Shown on every case as 100 minus the strongest score from media, text and link, with the sum and a warning that a high score doesn't show content is genuine. Spread and source search aren't counted. With nothing measured it reads "No trust score" and never a number. |
+| Trust score | Shown on every case as 100 minus the strongest score from media, text and link, and never above 50, because no check can show content is genuine. 50 reads "Inconclusive: not enough evidence", and the page says it's a neutral midpoint, not a measurement. Moderate and high overall risk lower it to at most 40 and 25. Spread and source search aren't counted. With nothing measured it reads "No trust score" and never a number. |
 | Reasoning | Each check's result and reasoning are visible on Findings without opening anything. |
 | Model not running | Say the media check didn't run, and give the install command. |
 | Low or inconclusive media | Say that this does not show the media is authentic. |
