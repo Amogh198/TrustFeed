@@ -125,7 +125,7 @@ def build_unified_risk(
 ) -> UnifiedRisk:
     weights = load_weights()
     language = [line for line in (text.evidence if text else []) if " rule" not in line and not line.startswith(("Scam warning sign", "Possible inconsistency", "Media and caption"))]
-    refuted = [record.text for record in claims or [] if getattr(record.verdict, "value", None) == "refuted"]
+    refuted = [record.text for record in claims or [] if getattr(record.verdict, "value", None) == "contradicted"]
     conflicts = [item.explanation for item in (claim_analysis.inconsistencies if claim_analysis else []) if item.severity == "conflict"]
     link_other = [item.why for item in (link_analysis.signs if link_analysis else []) if not item.sign.startswith("lookalike_")]
     url_rules = [line for line in (url.evidence if url else []) if not line.startswith("Link warning sign:") and (url.score or 0) >= _WEAK]

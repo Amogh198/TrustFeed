@@ -174,6 +174,12 @@ Counted, because each has a results file: the media detector (only in its elevat
 
 The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is at most 50, at most 40 at moderate and 25 at high or critical, and null when nothing was measured. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
 
+## Reports, search and overview
+
+`GET /api/cases/{id}/report` returns `investigation_id`, `submitted`, `detected`, `findings` (`manipulated_media`, `misleading_context`, `false_claims` and `scams`, each with `status` of `signs_found`, `none_found` or `not_checked`, plus `items` and `note`), `sources_consulted`, `supporting_evidence`, `contradicting_evidence`, `earlier_appearances`, `spread`, `uncertain` and `recommended_actions`. `GET /api/cases/{id}/report.pdf` downloads it. PDF fonts cover Western characters only, so others print as "?".
+
+`GET /api/cases` also takes `q` (words in a saved report) and `kind` (`media`, `link`, `text`, `scam` or `campaign`), searching the newest 500 reports. `GET /api/overview` gives counts, with replays counted apart.
+
 ## Common response sketch
 
 ```json

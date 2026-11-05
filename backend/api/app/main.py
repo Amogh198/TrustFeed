@@ -7,12 +7,12 @@ import threading
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import HttpUrl
 
 from backend.api.app.claim_records import build_claims
@@ -30,6 +30,7 @@ from backend.api.app.models import (
     AnalysisResponse,
     AnalyzeRequest,
     CaseHistoryResponse,
+    CaseSummary,
     ClaimRecord,
     ExplanationResponse,
     HealthResponse,
@@ -44,6 +45,7 @@ from backend.api.app.models import (
     TimelineResponse,
 )
 from backend.api.app.replay import get_scenario, list_scenarios
+from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
 from backend.api.app.risk import build_unified_risk, summary_for
 from backend.api.app.scam_records import build_scam_analysis
 from backend.text.cross_modal import compare_channels
@@ -177,6 +179,7 @@ def _follow_short_link(url: str | None) -> str | None:
 
 
 LINK_CHECK_LIMIT_SECONDS = 30.0
+MAX_SEARCHED_CASES = 500
 
 
 def _check_link(url: str | None, search_web: bool, text: str | None = None) -> LinkAnalysis | None:
@@ -620,9 +623,30 @@ def analyze_media_case(
 def list_cases(
     limit: int = Query(default=25, ge=1, le=100),
     risk_level: RiskLevel | None = None,
+    q: Annotated[str | None, Query(max_length=200, description="Words to find in a saved report.")] = None,
+    kind: Annotated[Literal["media", "link", "text", "scam", "campaign"] | None, Query()] = None,
 ) -> CaseHistoryResponse:
-    cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level)
-    return CaseHistoryResponse(cases=cases, total=total)
+    if not q and not kind:
+        cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level)
+        return CaseHistoryResponse(cases=cases, total=total)
+    # Only the newest reports are searched, which keeps this quick on a local database.
+    found = []
+    needle = (q or "").casefold()
+    for case in CASE_STORE.recent(MAX_SEARCHED_CASES):
+        if risk_level and case.overall_risk is not risk_level:
+            continue
+        if kind and kind not in case_kinds(case):
+            continue
+        if needle and needle not in case.model_dump_json().casefold():
+            continue
+        found.append(CaseSummary(**case.model_dump(include=set(CaseSummary.model_fields))))
+    return CaseHistoryResponse(cases=found[:limit], total=len(found))
+
+
+@app.get("/api/overview")
+def overview() -> dict[str, Any]:
+    """Counts across saved reports, from their stored results."""
+    return build_overview(CASE_STORE.recent(MAX_SEARCHED_CASES), CASE_STORE.list(limit=1)[1])
 
 
 @app.get("/api/replay/scenarios", response_model=ReplayScenariosResponse)
@@ -651,6 +675,27 @@ def export_case(case_id: str) -> AnalysisResponse:
 @app.get("/api/cases/{case_id}", response_model=AnalysisResponse)
 def get_case(case_id: str) -> AnalysisResponse:
     return _find_case(case_id)
+
+
+def _report(case_id: str) -> dict[str, Any]:
+    case = _find_case(case_id)
+    return build_report(case, CASE_STORE.get_detail(case_id, "provenance"), _network_detail(case_id))
+
+
+@app.get("/api/cases/{case_id}/report")
+def get_report(case_id: str) -> dict[str, Any]:
+    return _report(case_id)
+
+
+@app.get("/api/cases/{case_id}/report.pdf")
+def get_report_pdf(case_id: str) -> Response:
+    # The name comes from the stored ID, never from the request, as _find_case has matched it.
+    name = f"trustfeed-report-{_find_case(case_id).case_id[:8]}.pdf"
+    return Response(
+        render_pdf(_report(case_id)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @app.get("/api/cases/{case_id}/provenance", response_model=ProvenanceReport)

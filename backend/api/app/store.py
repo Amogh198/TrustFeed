@@ -124,6 +124,14 @@ class CaseStore:
             total,
         )
 
+    def recent(self, limit: int) -> "list[AnalysisResponse]":
+        """Return whole cases, newest first, for search and the overview."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT response_json FROM cases ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [AnalysisResponse.model_validate_json(row["response_json"]) for row in rows]
+
     def clear(self) -> None:
         """Test helper; production code does not expose a deletion endpoint."""
         with self._connect() as connection:
