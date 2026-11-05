@@ -9,9 +9,11 @@ From the repository root, install the backend dependencies and start the develop
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r backend/api/requirements.txt
+python -m pip install -r backend/api/requirements-dev.txt
 python -m uvicorn backend.api.app.main:app --reload
 ```
+
+Run the backend unit/API tests from the repository root with `python -m pytest backend/api/tests -q`.
 
 Open `http://127.0.0.1:8000/docs` for the generated OpenAPI interface. The frontend dev server at `http://localhost:5173` is allowed by the current CORS configuration.
 
