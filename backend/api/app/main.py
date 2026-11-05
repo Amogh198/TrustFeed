@@ -46,8 +46,8 @@ from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
 from backend.media.errors import MediaInputError
-from backend.media.metadata import read_image
-from backend.media.models import Assessment, MediaAnalysisResult
+from backend.media.metadata import inspect_input, read_image
+from backend.media.models import Assessment, MediaAnalysisResult, MediaType
 from backend.network import (
     DEMO_CASE_ID,
     DEMO_STORY_CASE_ID,
@@ -158,6 +158,15 @@ def _network_detail(case_id: str) -> dict[str, Any] | None:
     return CASE_STORE.get_detail(case_id, "network")
 
 
+def _replay_mode() -> bool:
+    """Replay mode promises to stay offline, so it stops every outside request."""
+    return bool(os.getenv("PROVENANCE_REPLAY_PATH"))
+
+
+def _follow_short_link(url: str | None) -> str | None:
+    return expand_shortener(url) if url and not _replay_mode() else None
+
+
 def _traceable_links(provenance: ProvenanceReport | None) -> tuple[str, ...]:
     """Pick pages holding this image. A merely similar picture would trace something else."""
     if provenance is None:
@@ -174,7 +183,8 @@ def _trace_spread(
     case_id: str, text: str | None, url: str | None, provenance: ProvenanceReport | None = None
 ) -> ModuleResult:
     """Search public platforms. This sends the text and links out, so the user must opt in first."""
-    if provenance is not None and provenance.replay and not is_demo_story(text, url):
+    replaying = _replay_mode() or (provenance is not None and provenance.replay)
+    if replaying and not is_demo_story(text, url):
         return ModuleResult(
             status=ModuleStatus.UNAVAILABLE,
             limitations=["Replay mode stays offline, so no public platform was searched."],
@@ -463,8 +473,8 @@ def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
     if not request.search_web:
         url_result = analyze_url(url) if url else None
         return _store_case(text_result, url_result, claims=claims)
-    destination = expand_shortener(url) if url else None
-    url_result = analyze_url(url, destination) if url else None
+    destination = _follow_short_link(url)
+    url_result = analyze_url(url, destination, follow_tried=not _replay_mode()) if url else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, request.text if text_result else None, destination or url)
     return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network)
@@ -489,8 +499,8 @@ def analyze_media_case(
     if not search_web:
         url_result = analyze_url(link) if link else None
         return _store_case(text_result, url_result, media, claims, provenance=provenance)
-    destination = expand_shortener(link) if link else None
-    url_result = analyze_url(link, destination) if link else None
+    destination = _follow_short_link(link)
+    url_result = analyze_url(link, destination, follow_tried=not _replay_mode()) if link else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, text if text_result else None, destination or link, provenance)
     return _store_case(text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network)
@@ -553,7 +563,7 @@ def get_explanation(case_id: str) -> ExplanationResponse:
     detail = _network_detail(case_id)
     network_checks = (
         build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"))
-        if detail
+        if detail and "network" in case.modules
         else []
     )
     return build_explanation(case, media_detail.get("checks", []), provenance_checks, network_checks)
@@ -570,10 +580,13 @@ def media_heatmap(
         config = MediaConfig.from_env()
         with tempfile.NamedTemporaryFile(prefix="trustfeed-heatmap-", delete=False) as handle:
             path = Path(handle.name)
-            shutil.copyfileobj(file.file, handle)
         try:
+            with path.open("wb") as handle:
+                shutil.copyfileobj(file.file, handle)
+            # The same content and size checks as an upload, before anything is decoded.
+            if inspect_input(path, config).media_type is not MediaType.IMAGE:
+                raise MediaInputError("unsupported_type", "A heatmap can only be made for an image.")
             image, _, _ = read_image(path, config)
-            image.load()
         except MediaInputError as error:
             status_code = MEDIA_REJECTION_STATUS.get(error.code, 422)
             raise HTTPException(status_code=status_code, detail={"code": error.code, "message": error.message}) from error

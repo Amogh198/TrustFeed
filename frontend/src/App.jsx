@@ -146,7 +146,7 @@ export default function App() {
 
   async function loadHistory(filter = risk) { setHistoryLoading(true); try { const data = await api.getHistory(filter); setCases(data.cases || []); if (!filter) setSavedTotal(data.total ?? (data.cases || []).length); setHistoryError(''); } catch (error) { setHistoryError(error.message); } finally { setHistoryLoading(false); } }
   useEffect(() => { loadHistory(''); }, []);
-  useEffect(() => { if (page === 'history') loadHistory(risk); }, [risk, page]);
+  useEffect(() => { if (page === 'history') loadHistory(risk); if (page === 'overview') loadHistory(''); }, [risk, page]);
   useEffect(() => { api.getReplayScenarios().then(data => setScenarios(data.scenarios || [])).catch(error => setScenarioError(error.message)); }, []);
 
   async function loadCase(caseId, supplied = null) {

@@ -66,6 +66,7 @@ export const api = {
     body.append('file', file);
     return request('/api/media/heatmap', { method: 'POST', body });
   },
+  listMonitors() { return request('/api/monitors'); },
   startMonitor(watch) {
     return request('/api/monitors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(watch) });
   },

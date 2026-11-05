@@ -6,10 +6,15 @@ data. They flag common patterns for a person to review and never verify a claim.
 import ipaddress
 import re
 from collections.abc import Callable
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from backend.api.app.models import ModuleResult, ModuleStatus, RiskLevel
-from backend.provenance.safe_http import HttpBlocked, HttpFailed, safe_request
+from backend.provenance.safe_http import (
+    HttpBlocked,
+    HttpFailed,
+    HttpResponse,
+    safe_request,
+)
 
 # (evidence wording, weight per phrase, most this category can add, phrases)
 _TEXT_CATEGORIES = (
@@ -78,6 +83,8 @@ _CREDENTIAL_WORDS = re.compile(r"login|log-in|signin|sign-in|verify|password|acc
 _CLAIM_BOUNDARY = re.compile(r"(?<=[.!?।])\s+|\n+")
 _MAX_CLAIMS = 20
 _EXPAND_TIMEOUT_SECONDS = 4.0
+_MAX_SHORTENER_HOPS = 4
+_MAX_REDIRECT_BODY = 64 * 1024
 
 
 def extract_claims(text: str) -> list[str]:
@@ -166,7 +173,7 @@ def _url_signals(url: str) -> tuple[list[str], float]:
     return [wording for wording, _ in signals], sum(weight for _, weight in signals)
 
 
-def analyze_url(url: str, expanded_to: str | None = None) -> ModuleResult:
+def analyze_url(url: str, expanded_to: str | None = None, *, follow_tried: bool = False) -> ModuleResult:
     """Score a link. ``expanded_to`` is its destination, when an opted-in request followed it."""
     evidence, score = _url_signals(url)
     limitation = "Static URL heuristics only; no domain reputation source was checked."
@@ -176,7 +183,11 @@ def analyze_url(url: str, expanded_to: str | None = None) -> ModuleResult:
         evidence = [*evidence, f"The short link leads to {host}", *(f"Destination: {item}" for item in final_evidence)]
         score += final_score
     elif urlsplit(url).hostname in SHORTENER_HOSTS:
-        evidence.append("The destination was not followed, as the user did not opt in to outside requests")
+        evidence.append(
+            "The short link could not be followed, so its destination is unknown"
+            if follow_tried
+            else "The destination was not followed, as no outside request was allowed"
+        )
     return ModuleResult(
         status=ModuleStatus.COMPLETE,
         score=round(min(_MAX_RULE_SCORE, score), 2),
@@ -186,20 +197,26 @@ def analyze_url(url: str, expanded_to: str | None = None) -> ModuleResult:
     )
 
 
-def expand_shortener(url: str, request: Callable[..., object] = safe_request) -> str | None:
-    """Follow a known shortener to its destination. Call only when the user has opted in.
+def expand_shortener(url: str, request: Callable[..., HttpResponse] = safe_request) -> str | None:
+    """Find where a known shortener points. Call only when the user has opted in.
 
-    This uses the same protected HTTP as source search, which refuses private addresses.
+    Only the shortener is contacted: each redirect is read by hand and the destination page
+    is never fetched. This uses the protected HTTP client, which refuses private addresses.
     Any failure returns None, as the link is then scored without its destination.
     """
-    if (urlsplit(url).hostname or "").casefold() not in SHORTENER_HOSTS:
-        return None
-    try:
-        response = request(url, method="GET", timeout_s=_EXPAND_TIMEOUT_SECONDS, max_bytes=4096)
-    except (HttpBlocked, HttpFailed):
-        return None
-    final = getattr(response, "url", None)
-    return final if isinstance(final, str) and final != url else None
+    current = url
+    for _ in range(_MAX_SHORTENER_HOPS):
+        if (urlsplit(current).hostname or "").casefold() not in SHORTENER_HOSTS:
+            return current if current != url else None
+        try:
+            response = request(current, method="GET", timeout_s=_EXPAND_TIMEOUT_SECONDS, max_bytes=_MAX_REDIRECT_BODY, max_redirects=0)
+        except (HttpBlocked, HttpFailed):
+            return None
+        location = response.headers.get("location")
+        if response.status not in (301, 302, 303, 307, 308) or not location:
+            return None
+        current = urljoin(current, location)
+    return None
 
 
 def fuse_risk(text_result: ModuleResult | None, url_result: ModuleResult | None) -> RiskLevel:

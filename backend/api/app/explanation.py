@@ -18,6 +18,13 @@ _RULE_LABELS = {"text": "Text language rules", "url": "Link rules"}
 _MEDIA_ELEVATED = 0.75
 
 
+def _module(case: AnalysisResponse, name: str) -> ModuleResult:
+    """Read a module, as a case saved before that module existed won't have it."""
+    return case.modules.get(name) or ModuleResult(
+        status=ModuleStatus.NOT_APPLICABLE, limitations=["This case was saved before this check existed."]
+    )
+
+
 def _rule_check(name: str, module: ModuleResult) -> ExplanationCheck:
     found = len(module.evidence)
     return ExplanationCheck(
@@ -36,17 +43,17 @@ def _rule_check(name: str, module: ModuleResult) -> ExplanationCheck:
 def _submitted(case: AnalysisResponse) -> list[str]:
     """Name the kinds of content received, without repeating the content."""
     kinds = {"text": "Text", "url": "A link", "media": "An image or video"}
-    submitted = [label for name, label in kinds.items() if case.modules[name].status is not ModuleStatus.NOT_APPLICABLE]
+    submitted = [label for name, label in kinds.items() if _module(case, name).status is not ModuleStatus.NOT_APPLICABLE]
     return submitted or ["No content was submitted. This is a demonstration case."]
 
 
 def _supports(case: AnalysisResponse) -> list[str]:
     """List what raises concern. Each item is a signal for review, not proof."""
-    lines = [*case.modules["text"].evidence, *case.modules["url"].evidence]
-    media = case.modules["media"]
+    lines = [*_module(case, "text").evidence, *_module(case, "url").evidence]
+    media = _module(case, "media")
     if media.score is not None and media.score >= _MEDIA_ELEVATED:
         lines.append(f"The media detector scored {media.score:.2f} out of 1, in its elevated band.")
-    network = case.modules["network"]
+    network = _module(case, "network")
     if network.score is not None:
         lines.append(f"A group of accounts repeatedly co-shared items, with a heuristic score of {network.score:.2f}.")
     return lines
@@ -56,7 +63,7 @@ def _refutes(case: AnalysisResponse) -> list[str]:
     """List checks that found nothing. A quiet media detector is left out, as it isn't reassuring."""
     lines = []
     for name in ("text", "url"):
-        module = case.modules[name]
+        module = _module(case, name)
         if module.status is ModuleStatus.COMPLETE and not module.evidence:
             lines.append(f"{_RULE_LABELS[name]} matched nothing, which does not show the content is genuine.")
     return lines
@@ -80,9 +87,9 @@ def build_explanation(
 ) -> ExplanationResponse:
     """Merge every lane's checks. Anything not run is listed as missing, never filled in."""
     checks = [
-        _rule_check(name, case.modules[name])
+        _rule_check(name, _module(case, name))
         for name in ("text", "url")
-        if case.modules[name].status is ModuleStatus.COMPLETE
+        if _module(case, name).status is ModuleStatus.COMPLETE
     ]
     checks += [ExplanationCheck.model_validate(check) for check in [*media_checks, *provenance_checks, *network_checks]]
     return ExplanationResponse(
@@ -100,17 +107,17 @@ def build_explanation(
 def build_countermeasures(case: AnalysisResponse) -> list[str]:
     """Choose next steps from what this case actually shows."""
     actions: list[str] = []
-    text_evidence = " ".join(case.modules["text"].evidence)
+    text_evidence = " ".join(_module(case, "text").evidence)
     if "scam-pattern" in text_evidence:
         actions.append("Do not send money, passwords or one-time codes. Warn people who received this message.")
     if "health claim" in text_evidence:
         actions.append("Do not follow this health advice. Check it with a qualified doctor or a public health authority.")
     if "Urgency" in text_evidence or "conspiracy" in text_evidence:
         actions.append("Pause before forwarding. Pressure to share quickly is a common manipulation pattern.")
-    url = case.modules["url"]
+    url = _module(case, "url")
     if url.score and url.score >= 0.3:
         actions.append("Do not open this link or enter any details. Report it to the platform or a cybercrime authority.")
-    media = case.modules["media"]
+    media = _module(case, "media")
     if media.status is ModuleStatus.COMPLETE:
         if media.score is not None and media.score >= _MEDIA_ELEVATED:
             actions.append("Have a person review this media, and ask the sharer for the original file.")
@@ -118,9 +125,9 @@ def build_countermeasures(case: AnalysisResponse) -> list[str]:
             actions.append(
                 "Don't treat this media as authentic because of a low score. Ask for the original file and check its context."
             )
-    if case.modules["provenance"].status is ModuleStatus.COMPLETE:
+    if _module(case, "provenance").status is ModuleStatus.COMPLETE:
         actions.append("Compare the date claimed for this image with the earliest appearance found, and note the caveat.")
-    if case.modules["network"].score is not None:
+    if _module(case, "network").score is not None:
         actions.append(
             "Ask the platforms' trust and safety teams to review the flagged accounts. This is a signal, not proof of coordination."
         )

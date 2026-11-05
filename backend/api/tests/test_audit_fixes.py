@@ -15,7 +15,7 @@ from backend.api.app.models import RiskLevel
 from backend.media.heatmap import OcclusionHeatmap
 from backend.media.models import CheckStatus
 from backend.network import list_watches, stop_watch
-from backend.provenance.safe_http import HttpFailed
+from backend.provenance.safe_http import HttpFailed, HttpResponse
 from backend.text.analysis import analyze_text, analyze_url, expand_shortener, fuse_risk
 
 client = TestClient(app)
@@ -107,12 +107,43 @@ def test_real_sites_are_not_flagged(url):
     assert result.score == 0, result.evidence
 
 
-def test_short_link_is_followed_only_through_the_given_request():
-    class Response:
-        url = "https://paypal-secure.example/login"
+def redirect(location, status=301):
+    return HttpResponse(url="", status=status, headers={"location": location} if location else {})
 
-    assert expand_shortener("https://bit.ly/abc", request=lambda *_a, **_k: Response()) == Response.url
-    assert expand_shortener("https://example.org/abc", request=lambda *_a, **_k: Response()) is None
+
+def test_short_link_reads_the_redirect_and_never_fetches_the_destination():
+    calls = []
+
+    def fake(url, **options):
+        calls.append(url)
+        assert options["max_redirects"] == 0
+        return redirect("https://paypal-secure.example/login")
+
+    assert expand_shortener("https://bit.ly/abc", request=fake) == "https://paypal-secure.example/login"
+    assert calls == ["https://bit.ly/abc"]
+
+
+def test_short_link_through_a_second_shortener_is_followed_a_limited_number_of_times():
+    answers = {"https://bit.ly/a": redirect("https://tinyurl.com/b"), "https://tinyurl.com/b": redirect("https://end.example/page")}
+    assert expand_shortener("https://bit.ly/a", request=lambda url, **_k: answers[url]) == "https://end.example/page"
+    loop = {"https://bit.ly/a": redirect("https://tinyurl.com/b"), "https://tinyurl.com/b": redirect("https://bit.ly/a")}
+    assert expand_shortener("https://bit.ly/a", request=lambda url, **_k: loop[url]) is None
+
+
+def test_other_links_are_not_contacted():
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("Only known shorteners are followed")
+
+    assert expand_shortener("https://example.org/abc", request=refuse) is None
+
+
+def test_a_shortener_page_with_no_redirect_gives_no_destination():
+    assert expand_shortener("https://bit.ly/a", request=lambda *_a, **_k: redirect(None, 200)) is None
+
+
+def test_failed_follow_is_worded_as_a_failure_not_a_missing_opt_in():
+    assert any("could not be followed" in line for line in analyze_url("https://bit.ly/a", follow_tried=True).evidence)
+    assert not any("opt" in line for line in analyze_url("https://bit.ly/a", follow_tried=True).evidence)
 
 
 def test_a_failed_expansion_is_scored_without_the_destination():
@@ -353,3 +384,61 @@ def test_heatmap_runs_one_at_a_time():
     finally:
         main_module._heatmap_slot.release()
     assert response.status_code == 429
+
+
+@pytest.mark.parametrize("image_format", ["BMP", "TIFF", "GIF", "PPM"])
+def test_heatmap_refuses_formats_uploads_refuse(monkeypatch, image_format):
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("A refused file must not reach the model")
+
+    monkeypatch.setattr(main_module, "occlusion_heatmap", refuse)
+    buffer = io.BytesIO()
+    Image.new("RGB", (128, 128)).save(buffer, image_format)
+    response = client.post("/api/media/heatmap", files={"file": ("a.png", buffer.getvalue(), "image/png")})
+    assert response.status_code == 415
+
+
+def test_heatmap_refuses_postscript_named_as_an_image(monkeypatch):
+    eps = b"%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 64 64\n%%EndComments\nshowpage\n%%EOF\n"
+    monkeypatch.setattr(main_module, "occlusion_heatmap", lambda *_a, **_k: pytest.fail("reached the model"))
+    assert client.post("/api/media/heatmap", files={"file": ("x.jpg", eps, "image/jpeg")}).status_code == 415
+
+
+def test_heatmap_applies_the_image_size_limit(monkeypatch):
+    monkeypatch.setattr(main_module, "occlusion_heatmap", lambda *_a, **_k: pytest.fail("reached the model"))
+    big = png_bytes() + b"\0" * (26 * 1024 * 1024)
+    assert client.post("/api/media/heatmap", files={"file": ("a.png", big, "image/png")}).status_code == 413
+
+
+def test_image_decoder_refuses_other_formats_even_when_called_directly(tmp_path):
+    from backend.media import MediaConfig
+    from backend.media.errors import MediaInputError
+    from backend.media.metadata import read_image
+
+    path = tmp_path / "a.bmp"
+    Image.new("RGB", (64, 64)).save(path, "BMP")
+    with pytest.raises(MediaInputError):
+        read_image(path, MediaConfig())
+
+
+def test_replay_mode_makes_no_outside_request_for_text_or_links(monkeypatch):
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("Replay mode must stay offline")
+
+    monkeypatch.setenv("PROVENANCE_REPLAY_PATH", "recording.json")
+    monkeypatch.setattr(main_module, "trace_case", refuse)
+    monkeypatch.setattr(main_module, "expand_shortener", refuse)
+    body = client.post("/api/cases/analyze", json={"url": "https://bit.ly/abc", "search_web": True}).json()
+    assert body["modules"]["network"]["status"] == "unavailable"
+    assert any("outside request" in line for line in body["modules"]["url"]["evidence"])
+
+
+def test_old_case_without_newer_modules_still_explains_and_gets_a_packet():
+    case = client.post("/api/cases/analyze", json={"text": "The library opens at nine."}).json()
+    stored = main_module.CASE_STORE.get(case["case_id"])
+    assert stored is not None
+    del stored.modules["provenance"]
+    del stored.modules["network"]
+    main_module.CASES[case["case_id"]] = stored
+    assert client.get(f"/api/cases/{case['case_id']}/explanation").status_code == 200
+    assert client.post(f"/api/cases/{case['case_id']}/action-packet", json={}).status_code == 200

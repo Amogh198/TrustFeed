@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LoaderCircle, Radar, Square } from 'lucide-react';
 import { api } from './api.js';
 import NetworkPanel from './NetworkPanel.jsx';
@@ -18,6 +18,11 @@ export default function MonitorPage() {
   const [coverage, setCoverage] = useState(null);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Watches outlive this page, so list them on return. Otherwise they can't be stopped from here.
+  const [running, setRunning] = useState([]);
+  async function loadRunning() { try { setRunning((await api.listMonitors()).watches || []); } catch { setRunning([]); } }
+  useEffect(() => { loadRunning(); }, []);
 
   async function refreshSpread(id) {
     const [nextGraph, nextCoverage] = await Promise.all([api.getNetwork(id), api.getCoverage(id)]);
@@ -54,9 +59,11 @@ export default function MonitorPage() {
     await api.stopMonitor(watchId).catch(() => null);
     setWatchId(null);
     setMessage('Monitoring stopped. Nothing further will be sent.');
+    loadRunning();
   }
 
   return <><header className="page-title"><div><span className="eyebrow">MONITORING</span><h1>Watch public platforms</h1><p>Search a topic again whenever you choose, and see what is new. This polls public search. It is not a complete feed of any platform.</p></div></header>
+    {!watchId && running.length ? <section className="panel detail-panel"><h2>Watches still running</h2><p className="graph-count">These send nothing unless polled, and end after 24 hours.</p><ul className="plain-list">{running.map(id => <li key={id} className="monitor-actions"><span>{id.slice(0, 18)}…</span><button type="button" className="button secondary" onClick={() => { setWatchId(id); poll(id); }}>Resume</button><button type="button" className="button secondary" onClick={async () => { await api.stopMonitor(id).catch(() => null); loadRunning(); }}>Stop</button></li>)}</ul></section> : null}
     {!watchId && !snapshot ? <section className="panel intake"><form onSubmit={start} className="intake">
       <label>Text to watch<textarea value={text} onChange={event => setText(event.target.value)} maxLength="2000" rows="3" placeholder="A distinctive sentence from the post…" /></label>
       <label>Links, separated by spaces<input value={links} onChange={event => setLinks(event.target.value)} placeholder="https://example.org/story" /></label>
