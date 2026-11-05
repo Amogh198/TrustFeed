@@ -235,8 +235,9 @@ def _classifier(
     limitations = list(check.limitations)
     if benchmark:
         limitations.append(
-            f"At the current bands this detector flags very few fakes: {benchmark['flagged_fake']} of "
-            f"{benchmark['n_fake']} when measured."
+            f"When measured at the current bands, this detector flagged {benchmark['flagged_fake']} of "
+            f"{benchmark['n_fake']} fake images and wrongly flagged {benchmark['flagged_real']} of "
+            f"{benchmark['n_real']} real ones, so most fakes are not flagged."
         )
         if benchmark["auc"] is not None and benchmark["auc"] < NEAR_GUESSING_AUC:
             limitations.append(
@@ -802,17 +803,18 @@ def load_comparison(path: Path = BENCHMARK_PATH) -> tuple[dict[str, dict[str, An
         return {}, None
 
 
-def _why_counted(detector: DetectorResult, models: dict[str, dict[str, Any]], baseline_auc: float | None) -> str:
+def _measured_auc(detector: DetectorResult, models: dict[str, dict[str, Any]]) -> float | None:
+    entry = models.get(f"{detector.model_id}@{detector.model_revision}")
+    return entry["test_split"]["auc"] if entry else None
+
+
+def _why_counted(detector: DetectorResult, models: dict[str, dict[str, Any]], in_use_auc: float | None) -> str:
     if detector.counted:
         return "Counted: this is the detector behind the overall model score."
-    entry = models.get(f"{detector.model_id}@{detector.model_revision}")
-    measured = entry["test_split"]["auc"] if entry else None
-    if measured is None or baseline_auc is None:
+    measured = _measured_auc(detector, models)
+    if measured is None or in_use_auc is None:
         return "Shown, not counted: it has not been measured."
-    figures = f"AUC {measured:.2f}, against {baseline_auc:.2f} for the detector in use"
-    if entry["difference_from_baseline"]["adds_value"]:
-        return f"Shown, not counted: it measured better ({figures}), but counting it has not been decided."
-    return f"Shown, not counted: it did not measure better ({figures})."
+    return f"Shown, not counted: AUC {measured:.2f}, against {in_use_auc:.2f} for the detector in use."
 
 
 def _describe_detector(detector: DetectorResult, why: str) -> str:
@@ -841,8 +843,10 @@ def _detector_artifact(detector: DetectorResult, why: str) -> dict[str, str]:
 
 def _detector_panel(check: DetectorPanelCheck, media_type: MediaType) -> dict[str, Any]:
     label = "All AI image detectors"
-    models, baseline_auc = load_comparison()
-    whys = [_why_counted(detector, models, baseline_auc) for detector in check.detectors]
+    models, _ = load_comparison()
+    in_use = next((detector for detector in check.detectors if detector.counted), None)
+    in_use_auc = _measured_auc(in_use, models) if in_use else None
+    whys = [_why_counted(detector, models, in_use_auc) for detector in check.detectors]
     ran = [detector for detector in check.detectors if detector.status is CheckStatus.COMPLETE]
     bands = {band: sum(detector.band is band for detector in ran) for band in ModelBand}
     result = (

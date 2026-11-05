@@ -500,7 +500,7 @@ def test_download_panel_uses_each_pin(monkeypatch):
     calls = []
     monkeypatch.setattr("backend.media.panel.download_model", lambda c: calls.append((c.model_id, c.model_revision)) or "x")
     monkeypatch.setattr("backend.media.panel.download_nonescape", lambda: "y")
-    assert download_panel(CONFIG) == ["x"] * (len(PANEL_MODELS) - 1) + ["y"]
+    assert download_panel(CONFIG) == ["y"] + ["x"] * (len(PANEL_MODELS) - 1)
     assert calls == [pin for pin in PANEL_MODELS if pin[0] != NONESCAPE_MODEL_ID]
 
 
@@ -540,8 +540,21 @@ def test_missing_dependencies_are_reported_without_a_crash(tmp_path, monkeypatch
 def test_missing_weights_are_reported_with_the_fix(tmp_path):
     pytest.importorskip("torchvision")
     classifier = NonescapeMiniClassifier(tmp_path / "none.safetensors", device="cpu")
-    with pytest.raises(ClassifierUnavailable, match="download-panel"):
+    with pytest.raises(ClassifierUnavailable, match="download-model"):
         classifier.predict([patterned_image()])
+
+
+def test_missing_weights_download_only_when_allowed(tmp_path, monkeypatch):
+    pytest.importorskip("torchvision")
+    calls = []
+    monkeypatch.setattr("backend.media.nonescape.download_nonescape", lambda path: calls.append(path))
+    target = tmp_path / "none.safetensors"
+    with pytest.raises(ClassifierUnavailable):
+        NonescapeMiniClassifier(target, device="cpu").predict([patterned_image()])
+    assert calls == []
+    with pytest.raises(ClassifierUnavailable):
+        NonescapeMiniClassifier(target, device="cpu", allow_download=True).predict([patterned_image()])
+    assert calls == [target]
 
 
 def test_weights_that_do_not_match_the_pin_are_refused_before_loading(tmp_path, monkeypatch):

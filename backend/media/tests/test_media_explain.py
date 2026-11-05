@@ -122,23 +122,35 @@ def test_low_score_is_not_reassuring_and_says_how_often_fakes_score_low(tmp_path
     check = by_id(build_checks(analyzed(tmp_path, 0.1), config=CONFIG))["media.classifier"]
     assert check["result"] == "0.1000, low band"
     assert "does not show the image is authentic" in check["reasoning"]
-    assert "100 of 137 fake images also scored low" in check["reasoning"]
+    assert "50 of 137 fake images also scored low" in check["reasoning"]
     assert "a low score is weak evidence" in check["reasoning"]
     assert any("did not measure face swaps" in line for line in check["limitations"])
-    assert "flags very few fakes: 3 of 137 when measured." in " ".join(check["limitations"])
+    assert "flagged 44 of 137 fake images and wrongly flagged 17 of 148 real ones" in " ".join(check["limitations"])
+
+
+class WeakClassifier(FakeClassifier):
+    """Reports the benchmarked model that barely beat guessing."""
+
+    model_id = "dima806/deepfake_vs_real_image_detection"
+    model_revision = "29e4cf9efc543845610045f6ba7e88e5cf9d9301"
 
 
 def test_says_plainly_when_the_detector_barely_beats_guessing(tmp_path):
-    check = by_id(build_checks(analyzed(tmp_path, 0.1), config=CONFIG))["media.classifier"]
+    check = by_id(build_checks(analyzed(tmp_path, 0.1, WeakClassifier(0.1)), config=CONFIG))["media.classifier"]
     assert f"little better than guessing (AUC {check['benchmark']['auc']:.2f}" in " ".join(check["limitations"])
+
+
+def test_does_not_say_guessing_for_the_detector_in_use(tmp_path):
+    check = by_id(build_checks(analyzed(tmp_path, 0.1), config=CONFIG))["media.classifier"]
+    assert "guessing" not in " ".join(check["limitations"])
 
 
 def test_elevated_score_reports_measured_misses_and_false_flags(tmp_path):
     check = by_id(build_checks(analyzed(tmp_path, 0.9), config=CONFIG))["media.classifier"]
     assert check["result"] == "0.9000, elevated band"
     assert "It is not proof" in check["reasoning"]
-    assert "caught 3 of 137 fake images" in check["reasoning"]
-    assert "wrongly flagged 3 of 148 real ones" in check["reasoning"]
+    assert "caught 44 of 137 fake images" in check["reasoning"]
+    assert "wrongly flagged 17 of 148 real ones" in check["reasoning"]
 
 
 def test_middle_score_is_inconclusive(tmp_path):
