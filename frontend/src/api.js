@@ -1,7 +1,16 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+// The dashboard's only route to the backend. tools/compat_check.py reads the routes in this file.
+
+/** @typedef {import('./types').AnalysisResponse} AnalysisResponse */
+
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 180_000;
 
 export class ApiError extends Error {
+  /**
+   * @param {string} message
+   * @param {number} [status]
+   * @param {any} [detail]
+   */
   constructor(message, status = 0, detail = null) {
     super(message);
     this.name = 'ApiError';
@@ -10,91 +19,161 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * @param {any} payload
+ * @param {string} fallback
+ * @returns {string}
+ */
 function errorMessage(payload, fallback) {
   const detail = payload?.detail;
   if (typeof detail === 'string') return detail;
   if (detail?.message) return detail.message;
-  if (Array.isArray(detail)) return detail.map(item => item.msg).filter(Boolean).join('. ') || fallback;
+  if (Array.isArray(detail)) {
+    return detail.map(item => String(item.msg || '').replace(/^Value error, /, '')).filter(Boolean).join('. ') || fallback;
+  }
   return fallback;
 }
 
+/**
+ * @param {string} path
+ * @param {RequestInit} [options]
+ * @returns {Promise<any>}
+ */
 async function request(path, options = {}) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let timedOut = false;
+  const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, REQUEST_TIMEOUT_MS);
+  const outer = options.signal;
+  if (outer) outer.addEventListener('abort', () => controller.abort(), { once: true });
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, { ...options, signal: controller.signal });
     const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new ApiError(errorMessage(payload, `Request failed (${response.status}).`), response.status, payload?.detail);
+    if (!response.ok) throw new ApiError(errorMessage(payload, `The API answered with an error (${response.status}).`), response.status, payload?.detail);
     return payload;
   } catch (error) {
-    if (error.name === 'AbortError') throw new ApiError('The request took longer than 3 minutes. The API may still be processing it; check case history before retrying.');
-    throw error;
+    if (error instanceof ApiError) throw error;
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      if (timedOut) throw new ApiError('This took longer than 3 minutes. The API may still be working, so check Cases before trying again.');
+      throw new ApiError('Stopped waiting. The API may still finish this and save it under Cases.', 0, { code: 'cancelled' });
+    }
+    throw new ApiError(`The API isn't answering at ${API_BASE_URL}. Start it and try again.`, 0, { code: 'offline' });
   } finally {
-    window.clearTimeout(timeout);
+    window.clearTimeout(timer);
   }
 }
 
+const json = { 'Content-Type': 'application/json' };
+const id = (/** @type {string} */ value) => encodeURIComponent(value);
+
 export const api = {
-  analyze({ text, url, searchWeb }) {
+  /** @returns {Promise<{status: string, version: string}>} */
+  health() { return request('/health'); },
+  /**
+   * @param {{text?: string, url?: string, searchWeb: boolean, signal?: AbortSignal}} input
+   * @returns {Promise<AnalysisResponse>}
+   */
+  analyze({ text, url, searchWeb, signal }) {
     return request('/api/cases/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: json,
       body: JSON.stringify({ text: text || null, url: url || null, search_web: searchWeb }),
+      signal,
     });
   },
-  analyzeMedia({ file, text, url, searchWeb }) {
+  /**
+   * @param {{file: File, text?: string, url?: string, searchWeb: boolean, signal?: AbortSignal}} input
+   * @returns {Promise<AnalysisResponse>}
+   */
+  analyzeMedia({ file, text, url, searchWeb, signal }) {
     const body = new FormData();
     body.append('file', file);
     if (text) body.append('text', text);
     if (url) body.append('url', url);
     body.append('search_web', String(searchWeb));
-    return request('/api/cases/analyze-media', { method: 'POST', body });
+    return request('/api/cases/analyze-media', { method: 'POST', body, signal });
   },
-  getCase(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}`); },
-  getHistory(riskLevel = '') {
-    const query = riskLevel ? `?risk_level=${encodeURIComponent(riskLevel)}` : '';
-    return request(`/api/cases${query}`);
+  /** @param {string} caseId @returns {Promise<AnalysisResponse>} */
+  getCase(caseId) { return request(`/api/cases/${id(caseId)}`); },
+  /**
+   * @param {string} [riskLevel]
+   * @param {number} [limit]
+   * @returns {Promise<import('./types').CaseHistory>}
+   */
+  getHistory(riskLevel = '', limit = 100) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (riskLevel) params.set('risk_level', riskLevel);
+    return request(`/api/cases?${params}`);
   },
-  getExport(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}/export`); },
-  getProvenance(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}/provenance`); },
-  getTimeline(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}/timeline`); },
-  getNetwork(caseId) { return request(`/api/network/${encodeURIComponent(caseId)}`); },
-  getCoverage(caseId) { return request(`/api/network/${encodeURIComponent(caseId)}/coverage`); },
-  getExplanation(caseId) { return request(`/api/cases/${encodeURIComponent(caseId)}/explanation`); },
+  /** @param {string} caseId @returns {Promise<AnalysisResponse>} */
+  getExport(caseId) { return request(`/api/cases/${id(caseId)}/export`); },
+  /** @param {string} caseId @returns {Promise<import('./types').ProvenanceReport>} */
+  getProvenance(caseId) { return request(`/api/cases/${id(caseId)}/provenance`); },
+  /** @param {string} caseId @returns {Promise<{events: import('./types').TimelineEvent[]}>} */
+  getTimeline(caseId) { return request(`/api/cases/${id(caseId)}/timeline`); },
+  /** @param {string} caseId @returns {Promise<import('./types').NetworkPayload>} */
+  getNetwork(caseId) { return request(`/api/network/${id(caseId)}`); },
+  /** @param {string} caseId @returns {Promise<import('./types').Coverage | null>} */
+  getCoverage(caseId) { return request(`/api/network/${id(caseId)}/coverage`); },
+  /** @param {string} caseId @returns {Promise<import('./types').Explanation>} */
+  getExplanation(caseId) { return request(`/api/cases/${id(caseId)}/explanation`); },
+  /** @param {File} file @returns {Promise<import('./types').Heatmap>} */
   heatmap(file) {
     const body = new FormData();
     body.append('file', file);
     return request('/api/media/heatmap', { method: 'POST', body });
   },
+  /** @returns {Promise<{watches: string[]}>} */
   listMonitors() { return request('/api/monitors'); },
+  /**
+   * @param {{opted_in: boolean, text: string | null, urls: string[], hashtags: string[]}} watch
+   * @returns {Promise<{watch_id: string}>}
+   */
   startMonitor(watch) {
-    return request('/api/monitors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(watch) });
+    return request('/api/monitors', { method: 'POST', headers: json, body: JSON.stringify(watch) });
   },
-  pollMonitor(watchId) { return request(`/api/monitors/${encodeURIComponent(watchId)}/poll`, { method: 'POST' }); },
-  stopMonitor(watchId) { return request(`/api/monitors/${encodeURIComponent(watchId)}`, { method: 'DELETE' }); },
+  /** @param {string} watchId @returns {Promise<import('./types').WatchSnapshot>} */
+  pollMonitor(watchId) { return request(`/api/monitors/${id(watchId)}/poll`, { method: 'POST' }); },
+  /** @param {string} watchId @returns {Promise<{stopped: boolean}>} */
+  stopMonitor(watchId) { return request(`/api/monitors/${id(watchId)}`, { method: 'DELETE' }); },
+  /** @returns {Promise<{scenarios: import('./types').Scenario[]}>} */
   getReplayScenarios() { return request('/api/replay/scenarios'); },
-  startReplay(scenarioId) { return request(`/api/replay/${encodeURIComponent(scenarioId)}/start`, { method: 'POST' }); },
+  /** @param {string} scenarioId @returns {Promise<AnalysisResponse>} */
+  startReplay(scenarioId) { return request(`/api/replay/${id(scenarioId)}/start`, { method: 'POST' }); },
+  /**
+   * @param {string} caseId
+   * @param {string} [audience]
+   * @returns {Promise<import('./types').ActionPacket>}
+   */
   actionPacket(caseId, audience = 'reviewers') {
-    return request(`/api/cases/${encodeURIComponent(caseId)}/action-packet`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audience }),
+    return request(`/api/cases/${id(caseId)}/action-packet`, {
+      method: 'POST', headers: json, body: JSON.stringify({ audience }),
     });
   },
 };
 
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
 export function readableUploadError(error) {
-  if (!(error instanceof ApiError)) return 'The API could not be reached. Start it at the configured VITE_API_BASE_URL and try again.';
-  const code = error.detail?.code;
+  if (!(error instanceof ApiError)) return 'The upload failed. Try again.';
+  /** @type {Record<string, string>} */
   const messages = {
-    length_required: 'The upload could not be sent because its size was not provided.',
-    too_large: 'That file is over the API upload limit. Images must be 25 MB or less; videos must be 200 MB or less.',
-    unsupported_type: 'Choose a JPEG, PNG, WebP, MP4, MOV, WebM, or AVI file.',
-    empty_file: 'The selected file is empty. Choose another file.',
-    corrupt_media: 'The selected file could not be decoded. Choose another file.',
+    length_required: "The upload couldn't be sent because its size wasn't provided. Try again in another browser.",
+    too_large: 'That file is too large. Images can be up to 25 MB and videos up to 200 MB.',
+    unsupported_type: "That file isn't a supported type. Choose a JPEG, PNG, WebP, MP4, MOV, WebM or AVI file.",
+    empty_file: 'That file is empty. Choose another one.',
+    corrupt_media: "That file couldn't be decoded. Choose another one.",
   };
-  return messages[code] || error.message;
+  return messages[error.detail?.code] || error.message;
 }
 
+/**
+ * @param {string | null | undefined} value
+ * @returns {string | null}
+ */
 export function safeHttpUrl(value) {
+  if (!value) return null;
   try {
     const url = new URL(value);
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;

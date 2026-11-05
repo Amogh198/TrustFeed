@@ -25,7 +25,7 @@ Last updated 2026-11-05. Backend features are on `main`. The dashboard runs on t
 | Media | Image model, metadata, keyframes, known-image matching, accuracy benchmark, explanation checks, occlusion heatmap | OCR, audio, lip-sync, video accuracy |
 | Source search | Works with a provider key the user sets up, and only on opt-in. Includes an explanation check. | Coverage not measured. Results depend on what search services have indexed. |
 | Network | Co-sharing detection, risk score, roles, timeline, public-post tracing, monitoring, explanation checks | Repost timing, accuracy on real campaigns |
-| Dashboard | Real API: submissions, opt-in, spread graph with time slider, coverage, explanation, heatmap, monitoring, history, export, replay | More device testing |
+| Dashboard | Real API: check form, opt-in, spread replay with time bar and account details, coverage, explanation, benchmark, heatmap, monitoring, history, JSON export, printable report, action packet with correction draft, offline replay, demo walkthrough | Tested in one browser at desktop and phone widths |
 
 ### Detector accuracy
 
@@ -52,17 +52,26 @@ The model separates fakes from real images better than these bands show, so the 
 
 ## Run it
 
-Needs Python 3.11 or later. Run these from the repository root.
+Needs Python 3.11 or later and Node 18 or later. **The dashboard with the trust score is on `feat/dashboard-rebuild` until it's merged. `main` still has the older one.** Run these from the repository root, inside a virtual environment:
 
 ```bash
 pip install -r backend/api/requirements-dev.txt
-python -m uvicorn backend.api.app.main:app --env-file .env
 ```
-
-Copy `.env.example` to `.env` first, and never commit `.env`. The image model is optional, and without it the media check reports `unavailable`:
 
 ```bash
 pip install -r backend/media/requirements-model.txt
+```
+
+The second install is the image model. Without it, uploads have no media score and no trust score. Then start everything. It uses `.venv` if there is one, and warns if the model can't run:
+
+```bash
+python tools/start_demo.py
+```
+
+To use source search keys, copy `.env.example` to `.env`, and never commit `.env`. To start the parts separately:
+
+```bash
+python -m uvicorn backend.api.app.main:app
 ```
 
 Then start the dashboard, which reads the API at `http://localhost:8000`:
@@ -73,9 +82,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:5173`. It needs Node 18 or later. For the demo script, open **Walkthrough** in the top bar.
 
-**Offline demos need no keys or internet:** `demo-001` and `demo-story-001` are synthetic networks, and `GET /api/replay/scenarios` lists the replay cases.
+**Offline demos need no keys or internet:** `demo-001` and `demo-story-001` are synthetic networks, and `GET /api/replay/scenarios` lists the replay cases. The dashboard bundles its fonts, so it also runs with no internet once installed.
 
 **Privacy:** nothing leaves the server unless a request sets `search_web` to `true`. With it, an image goes to source search services, and the text and links go to public platform search. See [API_CONTRACTS.md](API_CONTRACTS.md).
 
@@ -107,6 +116,12 @@ python -m pytest tools -q
 python tools/compat_check.py
 ```
 
+For the dashboard, run this from `frontend`. It covers the type check, lint, tests and build:
+
+```bash
+npm run check
+```
+
 ## Team and docs
 
 | Lane | Owner | Paths |
@@ -114,7 +129,7 @@ python tools/compat_check.py
 | T1 media and source search | Akshay | `backend/media`, `backend/provenance` |
 | T2 network tracing | Bhuvan | `backend/network`, `data/demo/network_demo*` |
 | T3 API, text, fusion, coordination | Amogh | `backend/api`, `backend/text`, `API_CONTRACTS.md` |
-| T4 dashboard | Manas | `frontend` |
+| T4 dashboard | Manas; rebuilt by Bhuvan's lane at Bhuvan's request on `feat/dashboard-rebuild` | `frontend` |
 
 - **Contributors and agents:** start with [CLAUDE.md](CLAUDE.md), then [AGENT_COORDINATION.md](AGENT_COORDINATION.md).
 - **API:** [API_CONTRACTS.md](API_CONTRACTS.md).

@@ -84,7 +84,7 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 | T1 | `main` | Merged | Media adapter, source search, benchmark, explanation checks, heatmap | Band decision, more signals | A real search needs a provider key |
 | T2 | `main` | Merged | Engine, real-post tracing, monitoring, demo story, explanation checks | Reddit or YouTube if keys exist | None |
 | T3 | `main` | Merged | API, rules, fusion, history, replay, explanation, monitor and heatmap routes | Claim checking needs a fact-check key | None |
-| T4 | `main` | Merged | Dashboard on the real API: graph, coverage, explanation, heatmap, monitoring | Browser testing on more devices | None |
+| T4 | `feat/dashboard-rebuild` | Rebuilt by Bhuvan's lane at Bhuvan's request, stacked on `fix/full-project-audit`. Manas's earlier work stays on its branches | Same API routes, new UI in TypeScript, with tests | Merge after PR #24; browser testing on more devices | None |
 
 ## C. Contracts
 
@@ -112,7 +112,7 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 **Requirements not yet met:** a reliable detector (bands and face swaps), claim checking against outside evidence (needs a key), OCR, audio and lip-sync. See the root README.
 
-**Open compatibility problems:** GitHub CI doesn't start until the workflow fix is pushed, which needs a login with the `workflow` scope.
+**Open compatibility problems:** GitHub CI doesn't start until the workflow fix is pushed, which needs a login with the `workflow` scope. `fix/full-project-audit` (PR #24) and `feat/amogh-explanation-ci` (PR #25) conflict in `AGENT_COORDINATION.md`, `API_CONTRACTS.md`, `backend/api/README.md`, `backend/api/app/main.py` and `backend/text/analysis.py`, so `compat_check.py` reports `FAIL` until one is merged and the other updated.
 
 **T2 findings reproduced on `eca7847`:** all five are fixed and merged in PR #9, with regression tests in `backend/network/tests/test_findings.py`. Nodes gained `appears_at`, which T4 should use for the time slider.
 
