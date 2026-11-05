@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import io
 import json
 import os
 import re
@@ -41,7 +42,7 @@ FIELDS = (
     "LAST UPDATED",
     "PROTOCOL",
 )
-STATUS_VALUES = ("Ready", "Doing", "In Review", "Blocked", "Done")
+STATUS_VALUES = ("Ready", "Doing", "Validated", "Blocked", "Done")
 MAX_VALUE_LENGTH = 240
 # Changes here affect every lane, so they are always shown on the board.
 SHARED_PATHS = (
@@ -203,7 +204,7 @@ def analyze_branches(
 def open_pull_requests() -> list[str] | None:
     output = run(
         ["gh", "pr", "list", "--state", "open", "--limit", "20", "--json",
-         "number,title,headRefName,author,reviewDecision,isDraft,isCrossRepository"],
+         "number,title,headRefName,author,isDraft,isCrossRepository"],
         timeout=15,
     )
     if output is None:
@@ -216,12 +217,52 @@ def open_pull_requests() -> list[str] | None:
     if len(team_pulls) < len(pulls):
         lines.append(f"({len(pulls) - len(team_pulls)} PR(s) from forks hidden; inspect them with gh)")
     for pull in team_pulls:
-        state ="draft" if pull["isDraft"] else (pull["reviewDecision"] or "no review").lower()
+        state = "draft" if pull["isDraft"] else "open"
         lines.append(
             f"#{pull['number']} {pull['title'][:70]} | {pull['headRefName']} | "
             f"{pull['author']['login']} | {state}"
         )
     return lines
+
+
+def branch_progress() -> list[str]:
+    """Describe each remote branch, most recently updated first."""
+    output = git(
+        "for-each-ref",
+        "--sort=-committerdate",
+        "--format=%(refname:short) | %(objectname:short) | %(authorname) | %(committerdate:relative)",
+        "refs/remotes/origin",
+    ) or ""
+    return [
+        line.removeprefix("origin/")
+        for line in output.splitlines()
+        if line.startswith("origin/") and not line.startswith("origin/HEAD")
+    ]
+
+
+def local_backup_state() -> str | None:
+    """Summarize work in this clone that GitHub doesn't have yet."""
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    if branch is None:
+        return None
+    uncommitted = len((git("status", "--porcelain") or "").splitlines())
+    unpushed = len((git("log", "--branches", "--not", "--remotes", "--oneline") or "").splitlines())
+    stashes = len((git("stash", "list") or "").splitlines())
+    state = (
+        f"This clone: on {branch.strip()}; {uncommitted} uncommitted file(s), "
+        f"{unpushed} commit(s) not on GitHub, {stashes} stash(es)."
+    )
+    return f"{state} Push completed work." if uncommitted or unpushed or stashes else state
+
+
+def commits_missing_from_github(records: dict[str, tuple[dict[str, str], str]]) -> list[str]:
+    """Flag status files naming a commit that no remote branch contains."""
+    missing = []
+    for agent, (record, _) in records.items():
+        match = re.search(r"\b[0-9a-f]{7,40}\b", record.get("LATEST COMMIT", ""))
+        if match and not (git("branch", "-r", "--contains", match.group()) or "").strip():
+            missing.append(f"{agent} reports {match.group()}, which no remote branch contains")
+    return missing
 
 
 def _section(title: str, lines: list[str]) -> None:
@@ -253,7 +294,11 @@ def command_board(args: argparse.Namespace) -> int:
         )
 
     overlaps, shared, ownership = analyze_branches(branches, records)
-    _section("Branches", [branch.removeprefix("origin/") for branch in branches])
+    backup = local_backup_state()
+    if backup:
+        print(backup)
+    _section("Remote branches, newest first", branch_progress())
+    _section("Reported commits missing from GitHub", commits_missing_from_github(records))
     if not args.no_prs:
         pulls = open_pull_requests()
         _section("Open PRs", ["unavailable (gh missing, offline or not logged in)"] if pulls is None else pulls)
@@ -313,6 +358,9 @@ def command_check(args: argparse.Namespace) -> int:
         if path.startswith(f"{STATUS_DIR}/") and path != f"{STATUS_DIR}/{args.agent}.md":
             notices.append(f"another agent's status file changed: {path}")
 
+    backup = local_backup_state()
+    if backup:
+        notices.append(backup)
     for notice in notices:
         print(f"NOTE: {notice}")
     for problem in problems:
@@ -322,7 +370,7 @@ def command_check(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         # A Windows console encoding must not crash the tool on a teammate's PR title.
         sys.stdout.reconfigure(errors="replace")
 

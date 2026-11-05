@@ -5,7 +5,7 @@ CURRENT TASK: Unknown to the T2 agent; owner to update
 STATUS: Doing
 COMPLETED: Media forensics adapter pushed, no PR yet (seen on GitHub; T2 agent did not run it)
 IN PROGRESS: Unknown to the T2 agent; owner to update
-NEXT ACTION: Pull main, adopt the protocol, publish status; review PR #3 (assigned as T2's reviewer lane)
+NEXT ACTION: Pull main, adopt the protocol, publish status
 FILES OWNED: backend/media/**
 LATEST COMMIT: 64f40c9 on feature/akshay-media-forensics
 INTERFACES CHANGED: none
