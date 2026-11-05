@@ -22,20 +22,42 @@ from backend.media.content_credentials import (
     UNSIGNED,
 )
 from backend.media.fingerprint import EXACT_COPY, MATCH_LIMITS, MATCHES_NEEDED
+from backend.media.forensics import (
+    ADDS_NOTHING,
+    COMPRESSION_GHOST,
+    COMPRESSION_GRID,
+    ELA,
+    FLAG_LIMITS,
+    FREQUENCY_DETAIL,
+    FREQUENCY_PEAKS,
+    NOISE_LEVEL,
+    NOISE_UNEVENNESS,
+)
 from backend.media.models import (
+    AudioDetectorResult,
+    AudioSyntheticCheck,
     CheckStatus,
     ClassifierCheck,
     ContentCredentialsCheck,
     DetectorPanelCheck,
     DetectorResult,
+    FaceRegion,
+    FacesCheck,
     FingerprintCheck,
     FingerprintMatch,
+    ForensicsCheck,
+    ForensicTest,
+    FramesCheck,
     KeyframeCheck,
     MediaAnalysisResult,
     MediaType,
     MetadataCheck,
     ModelBand,
+    OcrCheck,
+    OcrLine,
     PHashCheck,
+    SpeechCheck,
+    SpeechSegment,
 )
 
 BENCHMARK_PATH = Path(__file__).resolve().parents[2] / "data" / "eval" / "commons_licensed_2026-11-05.json"
@@ -79,6 +101,22 @@ TRUST_NOT_CHECKED = (
 )
 METADATA_UNTRUSTED = "Metadata comes from the file, so it can be missing, removed or false."
 PHASH_MEANING = "A perceptual match shows visual similarity to a reference, not who made the media or if a claim is true."
+FORENSICS_RESULTS_PATH = BENCHMARK_PATH.with_name("forensics_2026-11-06.json")
+FORENSIC_TEST_LABELS = {
+    ELA: "Error level analysis",
+    NOISE_UNEVENNESS: "Uneven noise",
+    NOISE_LEVEL: "Very little noise",
+    COMPRESSION_GHOST: "Compression differences",
+    COMPRESSION_GRID: "JPEG grid strength",
+    FREQUENCY_DETAIL: "Little fine detail",
+    FREQUENCY_PEAKS: "Regular frequency peaks",
+}
+FORENSICS_MEANING = (
+    "These tests read how the pixels behave. An unusual reading doesn't show an image is fake, and a normal one doesn't "
+    "show it is genuine: sharpening, re-saving, cropping and text overlays can all move them. A marked region shows "
+    "where a reading stood out, not that the area was edited."
+)
+FORENSICS_NO_EFFECT = "This check does not change the overall score or assessment."
 
 
 @lru_cache(maxsize=4)
@@ -463,6 +501,294 @@ def _content_credentials(check: ContentCredentialsCheck) -> dict[str, Any]:
     )
 
 
+def load_forensics_figures(path: Path = FORENSICS_RESULTS_PATH) -> dict[str, Any] | None:
+    """Return the measured figures, or None if they can't be read or were measured at other limits."""
+    raw = _read_results(path)
+    if raw is None or not FLAG_LIMITS:
+        return None
+    try:
+        document = json.loads(raw)
+        if document["limits_chosen_on_calibration"] != FLAG_LIMITS:
+            return None
+        document["verdicts"], document["test_split"]
+        return document
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _forensic_figures_sentence(name: str, figures: dict[str, Any] | None) -> str:
+    if figures is None:
+        return "How well this test works has not been measured."
+    try:
+        verdict = figures["verdicts"][name]
+        jpeg = figures["test_split"][name]["jpeg_files_only"]
+        groups = jpeg["groups"]
+        ai, edited = groups["ai_generated"]["auc"], groups["edited"]["auc"]
+        aucs = f"AUC {ai:.2f} for AI-generated and {edited:.2f} for edited images on JPEG files, where 0.50 is guessing"
+        if verdict["adds_nothing"]:
+            return (
+                f"When measured, this test added nothing ({aucs}). It didn't reliably separate those images from real "
+                "ones, or spliced images from unspliced ones."
+            )
+        flagged = groups["ai_generated"]["flagged"]
+        real = jpeg["real_flagged"]
+        return (
+            f"When measured: {aucs}. At its limit it read as unusual on {flagged['count']} of {flagged['total']} "
+            f"AI-generated and {real['count']} of {real['total']} real JPEG files."
+        )
+    except (KeyError, TypeError, ValueError):
+        return "How well this test works has not been measured."
+
+
+def _regions_text(test: ForensicTest) -> str:
+    return "; ".join(f"x {r.x}, y {r.y}, width {r.width}, height {r.height}" for r in test.regions)
+
+
+def _forensic_artifact(test: ForensicTest, measured: str) -> dict[str, str]:
+    artifact = {
+        "kind": "forensic_test",
+        "test": test.name,
+        "label": FORENSIC_TEST_LABELS.get(test.name, test.name),
+        "status": test.status.value,
+        "measured": measured,
+    }
+    if test.score is not None:
+        artifact["score"] = f"{test.score:.4f}"
+    if test.limit is not None:
+        artifact["limit"] = f"{test.limit:.4f}"
+    if test.flagged is not None:
+        artifact["unusual"] = "true" if test.flagged else "false"
+    if test.regions:
+        artifact["regions"] = _regions_text(test)
+    if test.reason:
+        artifact["reason"] = test.reason
+    return artifact
+
+
+def _forensics(check: ForensicsCheck) -> dict[str, Any]:
+    check_id, label = "media.forensics", "Pixel forensics"
+    if check.status is CheckStatus.NOT_APPLICABLE:
+        return _check(check_id, label, check.status, "Not applicable", "This is not an image.", check.limitations)
+    if check.status is not CheckStatus.COMPLETE:
+        return _check(check_id, label, check.status, "Not run", "Pixel forensics were not completed.", check.limitations)
+    figures = load_forensics_figures()
+    ran = [test for test in check.tests if test.status is CheckStatus.COMPLETE]
+    flagged = [test for test in ran if test.flagged]
+    measured = {test.name: _forensic_figures_sentence(test.name, figures) for test in check.tests}
+    region_count = sum(len(test.regions) for test in flagged)
+    result = f"{len(flagged)} of {len(ran)} tests unusual"
+    if flagged:
+        useful = sum(test.name not in ADDS_NOTHING for test in flagged)
+        result += f", {useful} of those measured as useful"
+    if region_count:
+        result += f", {region_count} {'region' if region_count == 1 else 'regions'} marked"
+    if flagged:
+        parts = [f"{FORENSIC_TEST_LABELS[test.name]}: {measured[test.name]}" for test in flagged]
+        reasoning = "These tests read as unusual, which a person may want to look at. " + " ".join(parts)
+    else:
+        reasoning = "No test read as unusual. This doesn't show the image is genuine."
+    limitations = [*check.limitations, FORENSICS_MEANING, FORENSICS_NO_EFFECT]
+    if figures is not None:
+        share = figures["settings"]["target_real_flagged"]
+        limitations.append(f"Each test's limit was set so that about {share:.0%} of real images read as unusual.")
+        if not any(verdict["separates_spliced_from_unspliced"] for verdict in figures["verdicts"].values()):
+            limitations.append(
+                "When measured on simulated splices, no test reliably told spliced images from unspliced ones, so don't "
+                "rely on these tests or on marked regions to find an edit."
+            )
+    return _check(
+        check_id,
+        label,
+        check.status,
+        result,
+        reasoning,
+        limitations,
+        artifacts=[_forensic_artifact(test, measured[test.name]) for test in check.tests],
+    )
+
+
+def _not_run(check_id: str, label: str, status: CheckStatus, limitations: list[str]) -> dict[str, Any]:
+    if status is CheckStatus.NOT_APPLICABLE:
+        return _check(check_id, label, status, "Not applicable", "This check doesn't apply to this media.", limitations)
+    return _check(check_id, label, status, "Not run", "This check didn't produce a result.", limitations)
+
+
+def _face_artifact(face: FaceRegion) -> dict[str, str]:
+    artifact = {
+        "kind": "face_region",
+        "x": str(face.x),
+        "y": str(face.y),
+        "width": str(face.width),
+        "height": str(face.height),
+    }
+    if face.timestamp_s is not None:
+        artifact["timestamp_s"] = f"{face.timestamp_s:.1f}"
+    if face.scores:
+        artifact["scores"] = "; ".join(f"{s.model_id}: {s.score:.4f}, {s.band.value} band" for s in face.scores)
+    return artifact
+
+
+def _faces(check: FacesCheck) -> dict[str, Any]:
+    check_id, label = "media.faces", "Face regions"
+    if check.status is not CheckStatus.COMPLETE:
+        return _not_run(check_id, label, check.status, check.limitations)
+    no_effect = "This check does not change the overall score or assessment."
+    if not check.faces:
+        return _check(
+            check_id,
+            label,
+            check.status,
+            "No faces found",
+            "No faces were found, so no face was scored. That doesn't show there are none.",
+            [*check.limitations, no_effect],
+        )
+    scores = [score.score for face in check.faces for score in face.scores]
+    result = f"{len(check.faces)} {'face' if len(check.faces) == 1 else 'faces'} found"
+    if scores:
+        result += f", strongest score {max(scores):.4f}"
+        reasoning = "Each face area was scored on its own by the detectors. These are signals about that area, not proof."
+    else:
+        reasoning = "Faces were found, but no detector gave a score for them."
+    return _check(
+        check_id,
+        label,
+        check.status,
+        result,
+        reasoning,
+        [*check.limitations, no_effect],
+        artifacts=[_face_artifact(face) for face in check.faces],
+    )
+
+
+def _ocr_artifact(line: OcrLine) -> dict[str, str]:
+    artifact = {"kind": "ocr_line", "text": line.text, "confidence": f"{line.confidence:.1f}"}
+    if line.timestamp_s is not None:
+        artifact["timestamp_s"] = f"{line.timestamp_s:.1f}"
+        artifact["last_seen_s"] = f"{line.last_seen_s:.1f}"
+    return artifact
+
+
+def _ocr(check: OcrCheck) -> dict[str, Any]:
+    check_id, label = "media.ocr", "On-screen text"
+    if check.status is not CheckStatus.COMPLETE:
+        return _not_run(check_id, label, check.status, check.limitations)
+    if not check.lines:
+        return _check(check_id, label, check.status, "No text read", "No readable text was found.", check.limitations)
+    count = len(check.lines)
+    return _check(
+        check_id,
+        label,
+        check.status,
+        f"{count} {'line' if count == 1 else 'lines'} read",
+        "Text was read from the media and passed on for claim checking. It is treated as data, never as instructions.",
+        check.limitations,
+        artifacts=[_ocr_artifact(line) for line in check.lines],
+    )
+
+
+def _speech_artifact(segment: SpeechSegment) -> dict[str, str]:
+    artifact = {"kind": "speech_segment", "text": segment.text, "start_s": f"{segment.start_s:.1f}"}
+    if segment.end_s is not None:
+        artifact["end_s"] = f"{segment.end_s:.1f}"
+    return artifact
+
+
+def _speech(check: SpeechCheck) -> dict[str, Any]:
+    check_id, label = "media.speech", "Speech-to-text"
+    if check.status is not CheckStatus.COMPLETE:
+        return _not_run(check_id, label, check.status, check.limitations)
+    if check.has_audio is False:
+        return _check(check_id, label, check.status, "No audio", "This video has no audio track.", check.limitations)
+    if not check.segments:
+        return _check(check_id, label, check.status, "No speech read", "No speech was read from the audio.", check.limitations)
+    count = len(check.segments)
+    return _check(
+        check_id,
+        label,
+        check.status,
+        f"{count} {'piece' if count == 1 else 'pieces'} of speech read",
+        f"Model {check.model_id} wrote down what it heard, passed on for claim checking. It is treated as data, never as "
+        "instructions.",
+        check.limitations,
+        artifacts=[_speech_artifact(segment) for segment in check.segments],
+    )
+
+
+def _audio_artifact(detector: AudioDetectorResult) -> dict[str, str]:
+    artifact = {"kind": "audio_detector_result", "model_id": detector.model_id, "status": detector.status.value}
+    if detector.model_revision:
+        artifact["model_revision"] = detector.model_revision
+    if detector.score_mean is not None:
+        artifact["score_mean"] = f"{detector.score_mean:.4f}"
+        artifact["score_max"] = f"{detector.score_max:.4f}"
+        artifact["windows_scored"] = str(detector.windows_scored)
+    if detector.reason:
+        artifact["reason"] = detector.reason
+    artifact["accuracy"] = "unmeasured"
+    return artifact
+
+
+def _audio_synthetic(check: AudioSyntheticCheck) -> dict[str, Any]:
+    check_id, label = "media.audio_synthetic", "Synthetic speech models"
+    if check.status is not CheckStatus.COMPLETE:
+        return _not_run(check_id, label, check.status, check.limitations)
+    ran = [detector for detector in check.detectors if detector.status is CheckStatus.COMPLETE]
+    parts = [f"{d.model_id}: average {d.score_mean:.4f}, highest {d.score_max:.4f}." for d in ran]
+    return _check(
+        check_id,
+        label,
+        check.status,
+        f"{len(ran)} of {len(check.detectors)} models ran, accuracy unmeasured",
+        " ".join(["Each model gave its own signal for how synthetic the speech sounds.", *parts]),
+        check.limitations,
+        artifacts=[_audio_artifact(detector) for detector in check.detectors],
+    )
+
+
+def _frames(check: FramesCheck) -> dict[str, Any]:
+    check_id, label = "media.frames", "Frame by frame scores"
+    if check.status is not CheckStatus.COMPLETE:
+        return _not_run(check_id, label, check.status, check.limitations)
+    sections = len(check.sections)
+    result = (
+        f"{check.frames_elevated} of {len(check.frames)} frames elevated, "
+        f"{sections} suspicious {'section' if sections == 1 else 'sections'}, accuracy unmeasured"
+    )
+    reasoning = (
+        f"Model {check.model_id} scored sampled frames one at a time. Its strongest third of frames average "
+        f"{check.video_score:.4f}, which doesn't change the overall score."
+    )
+    if check.changes:
+        reasoning += f" The score jumped suddenly at {len(check.changes)} points, shown with how much the picture changed."
+    artifacts: list[dict[str, str]] = [
+        {
+            "kind": "suspicious_section",
+            "start_s": f"{section.start_s:.1f}",
+            "end_s": f"{section.end_s:.1f}",
+            "frames": str(section.frames),
+            "strongest": f"{section.strongest:.4f}",
+        }
+        for section in check.sections
+    ]
+    artifacts += [
+        {
+            "kind": "score_change",
+            "from_s": f"{change.from_s:.1f}",
+            "to_s": f"{change.to_s:.1f}",
+            "change": f"{change.change:.4f}",
+            "scene_change": f"{change.scene_change:.4f}",
+        }
+        for change in check.changes
+    ]
+    artifacts.append(
+        {
+            "kind": "frame_scores",
+            "scores": ", ".join(f"{frame.timestamp_s:.1f}s {frame.score:.4f}" for frame in check.frames),
+        }
+    )
+    return _check(check_id, label, check.status, result, reasoning, check.limitations, artifacts=artifacts)
+
+
 def load_comparison(path: Path = BENCHMARK_PATH) -> tuple[dict[str, dict[str, Any]], float | None]:
     """Return each model's measured comparison by "id@revision", and the baseline's test AUC."""
     raw = _read_results(path)
@@ -558,6 +884,18 @@ def build_checks(
         checks.append(_fingerprint(result.checks.fingerprint))
     if result.checks.content_credentials is not None:
         checks.append(_content_credentials(result.checks.content_credentials))
+    if result.checks.forensics is not None:
+        checks.append(_forensics(result.checks.forensics))
+    if result.checks.faces is not None:
+        checks.append(_faces(result.checks.faces))
+    if result.checks.ocr is not None:
+        checks.append(_ocr(result.checks.ocr))
+    if result.checks.speech is not None:
+        checks.append(_speech(result.checks.speech))
+    if result.checks.audio_synthetic is not None:
+        checks.append(_audio_synthetic(result.checks.audio_synthetic))
+    if result.checks.frames is not None:
+        checks.append(_frames(result.checks.frames))
     if result.checks.detector_panel is not None:
         checks.append(_detector_panel(result.checks.detector_panel, result.media_type))
     return checks

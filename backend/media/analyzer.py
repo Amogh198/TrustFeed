@@ -10,21 +10,37 @@ from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
 
+from backend.media.audio import (
+    AudioDetector,
+    AudioUnavailable,
+    SpeechTranscriber,
+    WhisperTranscriber,
+    detect_synthetic_speech,
+    extract_audio,
+    transcribe_speech,
+)
 from backend.media.classifier import ImageClassifier, default_classifier
 from backend.media.config import MediaConfig
-from backend.media.content_credentials import INVALID, SIGNED, declares_ai, read_credentials
+from backend.media.content_credentials import INVALID, SIGNED, _with_time_limit, declares_ai, read_credentials
 from backend.media.errors import ClassifierUnavailable, HashIndexUnavailable, MediaInputError
+from backend.media.faces import analyze_faces
+from backend.media.frames import FRAMES_LIMITATIONS, score_frames
+from backend.media.forensics import ADDS_NOTHING, run_forensics
 from backend.media.keyframes import STRATEGY, Keyframe, extract_keyframes
 from backend.media.metadata import InputInfo, inspect_input, read_image
 from backend.media.models import (
     Assessment,
     CheckStatus,
     ClassifierCheck,
+    AudioSyntheticCheck,
     ContentCredentialsCheck,
     DetectorPanelCheck,
     DetectorResult,
+    FacesCheck,
     FingerprintCheck,
+    ForensicsCheck,
     FrameEvidence,
+    FramesCheck,
     HashMatch,
     KeyframeCheck,
     MediaAnalysisResult,
@@ -32,9 +48,12 @@ from backend.media.models import (
     MediaType,
     MetadataCheck,
     ModelBand,
+    OcrCheck,
     PHashCheck,
+    SpeechCheck,
     empty_checks,
 )
+from backend.media.ocr import read_text
 from backend.media.fingerprint import (
     EXACT_COPY,
     CaseFingerprintStore,
@@ -296,6 +315,66 @@ def _credentials_evidence(check: ContentCredentialsCheck | None) -> list[str]:
     return lines
 
 
+def _forensics_evidence(check: ForensicsCheck | None) -> list[str]:
+    if check is None or check.status is not CheckStatus.COMPLETE:
+        return []
+    # Tests measured as adding nothing stay in the check, but aren't offered as evidence.
+    flagged = sum(1 for test in check.tests if test.flagged and test.name not in ADDS_NOTHING)
+    if not flagged:
+        return []
+    return [f"Pixel forensics tests read as unusual: {flagged}. Ordinary editing and re-saving can also cause this."]
+
+
+def _extracted_text(ocr: OcrCheck | None, speech: SpeechCheck | None) -> dict[str, list[dict[str, object]]]:
+    """The shape the claim checker reads. All of this text is untrusted data."""
+    return {
+        "ocr": [line.model_dump() for line in ocr.lines] if ocr else [],
+        "speech": [segment.model_dump() for segment in speech.segments] if speech else [],
+    }
+
+
+def _not_requested(check_type, note: str | None = None):
+    limitations = ["This is slow on CPU, so it runs on request. Set MEDIA_RUN_HEAVY_CHECKS=1 or pass run_heavy=True."]
+    if note:
+        limitations.append(note)
+    return check_type(status=CheckStatus.UNAVAILABLE, limitations=limitations)
+
+
+def _faces(frames, classifier, config, panel_factory) -> FacesCheck:
+    if panel_factory:
+        return analyze_faces(frames, classifier, config, panel_models=PANEL_MODELS, factory=panel_factory)
+    return analyze_faces(frames, classifier, config)
+
+
+def _audio_checks(
+    path: Path, config: MediaConfig, transcriber: SpeechTranscriber | None, detectors
+) -> tuple[SpeechCheck, AudioSyntheticCheck]:
+    """Run the speech checks, each within its limit. A stuck model keeps running in the background, unused."""
+    try:
+        track = extract_audio(path, config)
+    except AudioUnavailable as exc:
+        return (
+            SpeechCheck(status=CheckStatus.UNAVAILABLE, limitations=[str(exc)]),
+            AudioSyntheticCheck(status=CheckStatus.UNAVAILABLE, limitations=[str(exc)]),
+        )
+    active = transcriber or WhisperTranscriber(config)
+    try:
+        speech = _with_time_limit(lambda: transcribe_speech(track, config, active), config.speech_time_limit_s)
+    except TimeoutError:
+        speech = SpeechCheck(
+            status=CheckStatus.UNAVAILABLE,
+            limitations=[f"Speech-to-text didn't finish within {config.speech_time_limit_s:.0f} seconds."],
+        )
+    try:
+        synthetic = _with_time_limit(lambda: detect_synthetic_speech(track, config, detectors), config.audio_time_limit_s + 30)
+    except TimeoutError:
+        synthetic = AudioSyntheticCheck(
+            status=CheckStatus.UNAVAILABLE,
+            limitations=[f"Synthetic speech checks didn't finish within {config.audio_time_limit_s + 30:.0f} seconds."],
+        )
+    return speech, synthetic
+
+
 def _lookup(index: HashIndex, phash: str, config: MediaConfig) -> list[HashMatch] | None:
     try:
         return index.lookup(phash, config.phash_max_distance)
@@ -441,6 +520,8 @@ def _finish(
     panel: DetectorPanelCheck | None = None,
     fingerprint: FingerprintCheck | None = None,
     credentials: ContentCredentialsCheck | None = None,
+    forensics: ForensicsCheck | None = None,
+    extras: dict[str, object] | None = None,
 ) -> MediaAnalysisResult:
     evidence = [
         *_classifier_evidence(classifier, keyframes.frames, config),
@@ -448,6 +529,7 @@ def _finish(
         *metadata.indicators,
         *_fingerprint_evidence(fingerprint),
         *_credentials_evidence(credentials),
+        *_forensics_evidence(forensics),
     ]
     limitations = [*extra_limitations]
     if classifier.band is ModelBand.LOW and (phash.matches or metadata.generator_hint):
@@ -458,7 +540,9 @@ def _finish(
         limitations.append(PHASH_CAVEAT)
 
     assessment, summary = _assess(metadata, classifier, phash)
+    extras = extras or {}
     return MediaAnalysisResult(
+        extracted_text=_extracted_text(extras.get("ocr"), extras.get("speech")),
         media_type=info.media_type,
         # "complete" means a model result exists, as in the contract sketch.
         # Metadata and pHash evidence is still returned when it does not.
@@ -478,6 +562,8 @@ def _finish(
             detector_panel=panel,
             fingerprint=fingerprint,
             content_credentials=credentials,
+            forensics=forensics,
+            **extras,
         ),
     )
 
@@ -518,10 +604,17 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
         _detector_panel([image], check, config, panel_factory, is_image=True) if panel_factory else None,
         fingerprint,
         read_credentials(path, config),
+        run_forensics(path, image, info.container, config),
+        {
+            "faces": _faces([(None, image)], classifier, config, panel_factory),
+            "ocr": read_text([(None, image)], config),
+        },
     )
 
 
-def _analyze_video(path, info, classifier, index, note, config, panel_factory=None, cases=None) -> MediaAnalysisResult:
+def _analyze_video(
+    path, info, classifier, index, note, config, panel_factory=None, cases=None, run_heavy=False, transcriber=None, detectors=None
+) -> MediaAnalysisResult:
     try:
         video, frames, limitations = extract_keyframes(path, config)
     except ImportError:
@@ -568,7 +661,26 @@ def _analyze_video(path, info, classifier, index, note, config, panel_factory=No
     queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
     fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
     credentials = read_credentials(path, config)
-    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials)
+    forensics = ForensicsCheck(
+        status=CheckStatus.NOT_APPLICABLE,
+        limitations=["Pixel forensics run on images only. Video compression hides these traces, and video wasn't measured."],
+    )
+    timed_frames = [(frame.timestamp_s, frame.image) for frame in frames]
+    if run_heavy:
+        speech, synthetic = _audio_checks(path, config, transcriber, detectors)
+        frame_scores_check = score_frames(path, classifier, config)
+    else:
+        speech = _not_requested(SpeechCheck)
+        synthetic = _not_requested(AudioSyntheticCheck)
+        frame_scores_check = _not_requested(FramesCheck, FRAMES_LIMITATIONS[-1])
+    extras = {
+        "faces": _faces(timed_frames, classifier, config, panel_factory),
+        "ocr": read_text(timed_frames, config),
+        "speech": speech,
+        "audio_synthetic": synthetic,
+        "frames": frame_scores_check,
+    }
+    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials, forensics, extras)
 
 
 def analyze_media(
@@ -580,6 +692,9 @@ def analyze_media(
     run_panel: bool = False,
     panel_factory: ClassifierFactory = build_classifier,
     case_store: CaseFingerprintStore | None = None,
+    run_heavy: bool | None = None,
+    transcriber: SpeechTranscriber | None = None,
+    audio_detectors: Sequence[tuple[str, str, AudioDetector]] | None = None,
 ) -> MediaAnalysisResult:
     """Analyze one image or video.
 
@@ -588,6 +703,10 @@ def analyze_media(
 
     ``run_panel`` also runs every detector on the panel. It is slow on CPU, so it
     is off by default, and it never changes the overall score or assessment.
+
+    ``run_heavy`` also runs a video's speech-to-text, synthetic speech and frame by
+    frame checks. Left unset, it follows MEDIA_RUN_HEAVY_CHECKS. These never change
+    the overall score or assessment either.
     """
     config = config or MediaConfig.from_env()
     path = Path(path)
@@ -598,5 +717,8 @@ def analyze_media(
 
     classifier = classifier or default_classifier(config)
     index, note = _resolve_index(config, hash_index)
-    analyze = _analyze_image if info.media_type is MediaType.IMAGE else _analyze_video
-    return analyze(path, info, classifier, index, note, config, panel_factory if run_panel else None, case_store)
+    panel = panel_factory if run_panel else None
+    if info.media_type is MediaType.IMAGE:
+        return _analyze_image(path, info, classifier, index, note, config, panel, case_store)
+    heavy = config.run_heavy_checks if run_heavy is None else run_heavy
+    return _analyze_video(path, info, classifier, index, note, config, panel, case_store, heavy, transcriber, audio_detectors)

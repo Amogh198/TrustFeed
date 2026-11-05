@@ -273,17 +273,86 @@ def _parse_crawl_date(value: object) -> datetime | None:
         return None
 
 
+def serpapi_searches_left(api_key: str, http: RequestFunction, config: ProvenanceConfig) -> int | None:
+    """Ask SerpApi's free Account API how many searches are left. This spends no credit.
+
+    Its response holds the API key and the account's email, so it is never logged, kept or returned.
+    Only this one number is read from it.
+    """
+    query = urlencode({"api_key": api_key})
+    payload = _call_json("serpapi_account", http, f"{SerpApiLens.account_url}?{query}", config)
+    for field_name in ("total_searches_left", "plan_searches_left"):
+        value = payload.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    return None
+
+
 class SerpApiLens:
-    """SerpApi Google Lens exact matches. Its dates are relative, such as "2 years ago"."""
+    """SerpApi Google Lens matches. Its dates are relative, such as "2 years ago".
+
+    Exact matches come from one search, and visual matches from a second. Visual matches
+    are only labelled "similar": they can be a different picture of something alike.
+    """
 
     name = "serpapi_google_lens"
     upload_url = "https://serpapi.com/image"
     search_url = "https://serpapi.com/search"
+    account_url = "https://serpapi.com/account.json"
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, *, visual_matches: bool = True) -> None:
         self._key = api_key
+        self._visual_matches = visual_matches
+        self.notes: list[str] = []
+
+    @property
+    def cache_key(self) -> str:
+        return f"{self.name}:{'exact+visual' if self._visual_matches else 'exact'}"
+
+    def _check_credits(self, http: RequestFunction, config: ProvenanceConfig) -> None:
+        needed = 2 if self._visual_matches else 1
+        try:
+            left = serpapi_searches_left(self._key, http, config)
+        except ProviderFailure:
+            raise ProviderFailure(f"{self.name} couldn't confirm the searches left, so none were spent.") from None
+        if left is None:
+            raise ProviderFailure(f"{self.name} couldn't confirm the searches left, so none were spent.")
+        if left < needed:
+            raise ProviderFailure(f"{self.name} has too few searches left this month, so none were spent.")
+
+    def _lens(self, image_id: str, match_kind: str, http: RequestFunction, config: ProvenanceConfig) -> dict[str, Any]:
+        query = urlencode({"engine": "google_lens", "type": match_kind, "image_id": image_id, "api_key": self._key})
+        payload = _call_json(self.name, http, f"{self.search_url}?{query}", config)
+        error = payload.get("error")
+        if isinstance(error, str) and _NO_RESULTS_MARKER not in error:
+            raise ProviderFailure(f"{self.name} could not complete the search.")
+        return payload
+
+    def _visual(self, image_id: str, http: RequestFunction, config: ProvenanceConfig) -> list[Candidate]:
+        """A failure here keeps the exact matches already found, and says what's missing."""
+        try:
+            payload = self._lens(image_id, "visual_matches", http, config)
+        except ProviderFailure:
+            self.notes.append("The search for similar pictures failed, so only exact matches are shown.")
+            return []
+        candidates = []
+        for item in _dict_items(payload.get("visual_matches"))[: config.max_results_per_provider]:
+            page_url = clean_url(item.get("link"))
+            if page_url:
+                candidates.append(
+                    Candidate(
+                        self.name,
+                        MatchType.SIMILAR,
+                        page_url,
+                        clean_text(item.get("title")),
+                        clean_url(item.get("thumbnail")),
+                        provider_date_text=clean_text(item.get("date"), limit=40),
+                    )
+                )
+        return candidates
 
     def search(self, upload: Upload, http: RequestFunction, config: ProvenanceConfig) -> list[Candidate]:
+        self._check_credits(http, config)
         # SerpApi takes its key as a field. http never logs URLs or puts them in errors.
         body, content_type = _multipart(
             {"api_key": self._key}, "image", upload.jpeg(_SERPAPI_UPLOAD_LIMIT)
@@ -294,13 +363,7 @@ class SerpApiLens:
         image_id = uploaded.get("image_id")
         if not isinstance(image_id, str) or not image_id:
             raise ProviderFailure(f"{self.name} could not accept this image.")
-        query = urlencode(
-            {"engine": "google_lens", "type": "exact_matches", "image_id": image_id, "api_key": self._key}
-        )
-        payload = _call_json(self.name, http, f"{self.search_url}?{query}", config)
-        error = payload.get("error")
-        if isinstance(error, str) and _NO_RESULTS_MARKER not in error:
-            raise ProviderFailure(f"{self.name} could not complete the search.")
+        payload = self._lens(image_id, "exact_matches", http, config)
         candidates = []
         for item in _dict_items(payload.get("exact_matches"))[: config.max_results_per_provider]:
             page_url = clean_url(item.get("link"))
@@ -315,6 +378,8 @@ class SerpApiLens:
                         provider_date_text=clean_text(item.get("date"), limit=40),
                     )
                 )
+        if self._visual_matches:
+            candidates.extend(self._visual(image_id, http, config))
         return candidates
 
 
@@ -325,5 +390,5 @@ def configured_providers(config: ProvenanceConfig) -> list[Provider]:
     if config.tineye_api_key:
         providers.append(TinEye(config.tineye_api_key))
     if config.serpapi_api_key:
-        providers.append(SerpApiLens(config.serpapi_api_key))
+        providers.append(SerpApiLens(config.serpapi_api_key, visual_matches=config.serpapi_visual_matches))
     return providers

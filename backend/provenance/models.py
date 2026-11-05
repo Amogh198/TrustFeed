@@ -9,6 +9,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 EARLIEST_CAVEAT = "Earliest appearance these searches found. The true source may be older or elsewhere."
+SIMILAR_MEANING = (
+    "A similar picture can be a different image of something alike. These results don't show where this image came "
+    "from, and they never change the detector score."
+)
 
 
 class Status(StrEnum):
@@ -97,18 +101,19 @@ class ProvenanceReport(BaseModel):
 
     def to_checks(self) -> list[dict[str, Any]]:
         """Return the explanation check. Its benchmark is null, because search has not been measured."""
-        exact = sum(item.match_type is MatchType.EXACT for item in self.appearances)
-        dated = sum(item.observed_at is not None for item in self.appearances)
+        matched = [item for item in self.appearances if item.match_type is not MatchType.SIMILAR]
+        exact = sum(item.match_type is MatchType.EXACT for item in matched)
+        dated = sum(item.observed_at is not None for item in matched)
         if self.status is not Status.COMPLETE:
             result = "No search result"
-        elif not self.appearances:
+        elif not matched:
             result = "No matching pages found"
         else:
-            result = f"{len(self.appearances)} pages found, {exact} exact, {dated} with a usable date"
+            result = f"{len(matched)} pages found, {exact} exact, {dated} with a usable date"
         reasoning = self._evidence()
         if self.status is not Status.COMPLETE:
             reasoning.append("No search result is available, so this check says nothing about where the image appeared.")
-        elif not self.appearances:
+        elif not matched:
             reasoning.append("Finding nothing does not show the image is new or unused. Search covers only part of the web.")
         if self.earliest_found:
             reasoning.append(self.earliest_found.caveat)
@@ -123,8 +128,47 @@ class ProvenanceReport(BaseModel):
                 "benchmark": None,
                 "artifacts": [],
                 "limitations": list(self.limitations),
-            }
+            },
+            self._similar_check(),
         ]
+
+    def _similar_check(self) -> dict[str, Any]:
+        """Similar pictures are reported on their own, because they don't show the image itself was found."""
+        similar = [item for item in self.appearances if item.match_type is MatchType.SIMILAR]
+        if self.status is not Status.COMPLETE:
+            result, reasoning = "No search result", "No search result is available, so nothing is said about similar pictures."
+        elif similar:
+            count = len(similar)
+            result = f"{count} similar {'picture' if count == 1 else 'pictures'} found"
+            reasoning = f"The search found pages holding pictures that look similar. {SIMILAR_MEANING}"
+        else:
+            result = "No similar pictures found"
+            reasoning = "No similar pictures were found. Search covers only part of the web, so this shows very little."
+        return {
+            "check_id": "provenance.similar",
+            "module": "provenance",
+            "label": "Similar pictures",
+            "status": self.status.value,
+            "result": result,
+            "reasoning": reasoning,
+            "benchmark": None,
+            "artifacts": [
+                {
+                    name: value
+                    for name, value in {
+                        "kind": "similar_match",
+                        "label": "similar",
+                        "page_url": item.page_url or "",
+                        "page_title": item.page_title or "",
+                        "domain": item.domain or "",
+                        "provider": item.provider,
+                    }.items()
+                    if value
+                }
+                for item in similar
+            ],
+            "limitations": list(self.limitations),
+        }
 
     def timeline_events(self) -> list[dict[str, Any]]:
         """Return one event per appearance. Undated ones stay in, with a null time."""
@@ -132,7 +176,11 @@ class ProvenanceReport(BaseModel):
             {
                 "at": item.observed_at.isoformat().replace("+00:00", "Z") if item.observed_at else None,
                 "kind": "web_appearance",
-                "label": f"Image found on {item.domain or 'a reference list'}",
+                "label": (
+                    f"Similar picture found on {item.domain or 'a page'}"
+                    if item.match_type is MatchType.SIMILAR
+                    else f"Image found on {item.domain or 'a reference list'}"
+                ),
                 "module": "provenance",
                 "ref": item.id,
                 "date_source": item.date_source.value,
@@ -159,6 +207,9 @@ class ProvenanceReport(BaseModel):
             f"Found {len(self.appearances)} appearances ({exact} exact), {dated} with a usable date. "
             f"Searched: {', '.join(searched)}."
         )
+        similar = sum(item.match_type is MatchType.SIMILAR for item in self.appearances)
+        if similar:
+            lines.append(f"{similar} of these are only similar pictures, not shown to be this image.")
         if self.earliest_found:
             earliest = next(i for i in self.appearances if i.id == self.earliest_found.appearance_id)
             lines.append(
