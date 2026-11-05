@@ -5,7 +5,7 @@ CURRENT TASK: Unknown to the T2 agent; owner to update
 STATUS: Ready
 COMPLETED: none seen on GitHub
 IN PROGRESS: Unknown to the T2 agent; owner to update
-NEXT ACTION: Pull main, confirm the T4 assignment, adopt the protocol, publish status
+NEXT ACTION: Pull main, confirm the T4 assignment, start a new session, adopt the workflow, publish a frontend branch
 FILES OWNED: frontend/**
 LATEST COMMIT: none
 INTERFACES CHANGED: none

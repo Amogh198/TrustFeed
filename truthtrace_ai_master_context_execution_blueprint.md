@@ -1,5 +1,13 @@
 # PROJECT TRUTHTRACE AI: MASTER HACKATHON CONTEXT & EXECUTION BLUEPRINT
 
+> **Background document.** This is the original plan and is kept for technical reference. Where it differs from `AGENT_COORDINATION.md`, `TASK_BOARD.md` or `API_CONTRACTS.md`, those files win. In particular:
+>
+> - The exact official problem wording is in `AGENT_COORDINATION.md`. Section 2 below adds a countermeasures clause to the description.
+> - Features below are proposed implementation unless `AGENT_COORDINATION.md` lists them as official requirements.
+> - T3 owns all HTTP routes, so Developer 2's "network payload endpoints" are Python functions that T3 serves.
+> - The "AI tooling" and developer role labels are superseded by the lanes in `TASK_BOARD.md`.
+> - "Botnet" and "Patient Zero" describe a synthetic demo scenario. Results don't establish real bot activity, intent or attribution, and show the earliest observed account, not a proven origin.
+
 ---
 
 ## 1. PROJECT METADATA & CONSTRAINTS

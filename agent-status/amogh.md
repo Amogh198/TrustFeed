@@ -5,7 +5,7 @@ CURRENT TASK: Backend analysis API starter in PR #1
 STATUS: Doing
 COMPLETED: API starter, text and URL heuristics, network and action-packet placeholders (PR #1)
 IN PROGRESS: Unknown to the T2 agent; owner to update
-NEXT ACTION: Owner to update; tests were added in e5a22f2, but PR #1's description still says they haven't been run
+NEXT ACTION: Run git merge origin/main, start a new session, adopt the workflow; wire T1 and T2 into the API (steps in PR #3)
 FILES OWNED: backend/api/**, backend/text/**, contracts/**, API_CONTRACTS.md
 LATEST COMMIT: 794c9a2 on feat/amogh-backend-api-text
 INTERFACES CHANGED: API_CONTRACTS.md updated in PR #1

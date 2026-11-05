@@ -53,6 +53,8 @@ SHARED_PATHS = (
     "TASK_BOARD.md",
     "GITHUB_WORKFLOW.md",
     "COLLABORATION.md",
+    "README.md",
+    "truthtrace_ai_master_context_execution_blueprint.md",
     ".claude/*",
     "tools/*",
     ".gitignore",

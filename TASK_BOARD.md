@@ -6,13 +6,13 @@ This is the work split, and it is enough to determine responsibilities; Issues a
 
 | ID | Difficulty | Work package | Primary AI | Human partner | Path ownership (proposed) |
 |---|---|---|---|---|---|
-| T1 | Hard | Media forensics adapter: run one chosen image model, metadata, video keyframe sampling, pHash match, explainable evidence JSON | `akshay_claude` (Claude A) | M1 / vision lead | `backend/media/**` |
-| T2 | Hard | Synthetic social dataset, time-window co-sharing, graph/community scoring, patient-zero/role tags, timeline JSON | `bhuvan_claude` (Claude B) | M2 / graph lead | `backend/network/**`, `data/demo/**` |
-| T3 | Medium/Hard | FastAPI app, text/claim and URL rules, unified response/fusion, demo fixtures and replay endpoint; publish shared API contract first | Gemini lane 1 | M3 / backend & integration coordinator | `backend/api/**`, `backend/text/**`, `contracts/**` |
-| T4 | Medium | React dashboard, upload/text workflow, evidence panel, graph/timeline rendering, replay-mode presentation | Gemini lane 2 | M4 / UI lead | `frontend/**` |
-| T5 | Medium | End-to-end wiring, offline replay, demo script/data, bug fixes | Assigned by the coordinator, who sequences it after T1–T4 | M3 coordinates | only explicitly assigned paths |
+| T1 | Hard | Media forensics adapter: run one chosen image model, metadata, video keyframe sampling, pHash match, explainable evidence JSON | `akshay_claude` (Claude A) | Akshay (M1 / vision lead) | `backend/media/**` |
+| T2 | Hard | Synthetic social dataset, time-window co-sharing, graph/community scoring, patient-zero/role tags, timeline JSON | `bhuvan_claude` (Claude B) | Bhuvan (M2 / graph lead) | `backend/network/**`, `data/demo/**` (other lanes may add their own prefixed files) |
+| T3 | Medium/Hard | FastAPI app, text/claim and URL rules, unified response/fusion, demo fixtures and replay endpoint; publish shared API contract first | Gemini lane 1 | Amogh (M3 / backend & integration coordinator) | `backend/api/**`, `backend/text/**`, `contracts/**` |
+| T4 | Medium | React dashboard, upload/text workflow, evidence panel, graph/timeline rendering, replay-mode presentation | Gemini lane 2 | Owner unconfirmed (M4 / UI lead) | `frontend/**` |
+| T5 | Medium | End-to-end wiring, offline replay, demo script/data, bug fixes | Assigned by the coordinator, who sequences it after T1–T4 | Amogh (M3) coordinates | only explicitly assigned paths |
 
-M1–M4 and the Claude/Gemini labels are role placeholders. Actual GitHub handles are recorded in `AGENT_COORDINATION.md`. `akshay_claude` and `bhuvan_claude` are account labels, not GitHub usernames.
+The Claude/Gemini labels are role placeholders, and the lane decides ownership whichever AI tool operates it. GitHub handles and T4's unconfirmed owner are recorded in `AGENT_COORDINATION.md`. `akshay_claude` and `bhuvan_claude` are account labels, not GitHub usernames.
 
 ## Order and dependencies
 
@@ -25,7 +25,7 @@ M1–M4 and the Claude/Gemini labels are role placeholders. Actual GitHub handle
 ## Keep scope feasible
 
 - Do not attempt to integrate Harken, LockStep, OSoMe, DeepTrace, Nonescape, and DeepfakeBench all at once. The blueprint lists them as candidate references, not required dependencies. Before adopting any, check install/runtime cost, license, data/network needs, and whether it helps the demo. Prefer a small adapter or synthetic replay where setup threatens schedule.
-- Live platform ingestion, audio model inference, robust bot attribution, and regulatory/legal conclusions are optional. Demo with synthetic or user-provided sample data and label simulated evidence clearly.
+- Live platform APIs, audio model inference, robust bot attribution, and regulatory/legal conclusions are optional for the demo. Multi-platform monitoring is still an official requirement, so report honestly how far the demo meets it. Demo with synthetic or user-provided sample data and label simulated evidence clearly.
 - Deliver a vertical slice: input -> analysis -> evidence-backed/inconclusive result -> coordinated-spread visualization -> action packet -> offline replay.
 
 ## Status vocabulary
