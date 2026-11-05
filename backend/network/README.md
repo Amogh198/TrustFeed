@@ -79,6 +79,7 @@ Risk bands: under 0.35 `low`, under 0.55 `moderate`, under 0.75 `high`, otherwis
 
 - **Demo results prove little.** The engine recovers the planted cluster in data built to contain one. That shows it works as designed, not how accurate it would be on real data.
 - **No claims about people.** Co-sharing does not establish intent, common control, automation or attribution. Newsrooms and fan communities can look similar.
+- **Evidence coverage.** Similarity alone is never treated as coordination: a pair must co-share repeatedly within the time window. The engine uses timestamps, shared URLs, media hashes, normalized text and mentions. It has no repost data, and mentions are its only account relationship.
 - **Origin is limited to the dataset.** The true source may have posted elsewhere or earlier.
 - **Evasion is easy.** Paraphrases, re-encoded media and delays over 120 seconds are all missed. Perceptual matching from T1 could address the media case after integration.
 - **Single-threaded and in-memory.** Suitable for demo-sized data. Very large bursts within the window get slow, since every pair is compared.
