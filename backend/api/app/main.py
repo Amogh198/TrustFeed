@@ -560,6 +560,29 @@ def get_explanation(case_id: str) -> ExplanationResponse:
     media_detail = CASE_STORE.get_detail(case_id, "media_checks") or {}
     report = _provenance_report(case_id)
     provenance_checks = report.to_checks() if report.status is not Status.NOT_APPLICABLE else []
+    if provenance_checks:
+        # Keep the old aggregate check ID available while clients move to the
+        # detailed provenance.search and provenance.similar checks.
+        search = provenance_checks[0]
+        provenance_checks.append({
+            "check_id": "provenance-search",
+            "module": "provenance",
+            "label": "Source-search summary",
+            "status": report.status.value,
+            "result": report.status.value,
+            "reasoning": search["reasoning"],
+            "benchmark": None,
+            "artifacts": [
+                {
+                    "kind": "web_appearance",
+                    "label": "Source page",
+                    "url": item.page_url,
+                }
+                for item in report.appearances
+                if item.page_url and item.match_type is not MatchType.SIMILAR
+            ],
+            "limitations": report.limitations,
+        })
     detail = _network_detail(case_id)
     network_checks = (
         build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"))
