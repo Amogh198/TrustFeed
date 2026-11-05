@@ -1,0 +1,2 @@
+# The source search itself uses the Python standard library for HTTP.
+-r ../media/requirements.txt

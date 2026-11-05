@@ -1,0 +1,85 @@
+{
+  "notice": "SYNTHETIC DEMO DATA under cases. Every page, domain and date there is invented for the demo. It is not evidence about any real image, person or site. Entries under recorded are real searches, each with its image's licence.",
+  "cases": {
+    "demo-001": {
+      "status": "complete",
+      "searched_at": "2026-01-16T15:00:00Z",
+      "replay": true,
+      "synthetic": true,
+      "media_sha256": null,
+      "phash": "742dc2b3587a83a2",
+      "providers": [
+        {"name": "synthetic_demo", "status": "complete", "result_count": 4, "limitation": null}
+      ],
+      "earliest_found": {
+        "appearance_id": "a1",
+        "observed_at": "2026-01-15T08:20:00Z",
+        "date_source": "page_metadata",
+        "caveat": "Earliest appearance these searches found. The true source may be older or elsewhere."
+      },
+      "appearances": [
+        {
+          "id": "a1",
+          "page_url": "https://first-post.example/2026/01/15/demo-story",
+          "page_title": "Synthetic demo page: first appearance found",
+          "domain": "first-post.example",
+          "platform": "web",
+          "image_url": "https://first-post.example/images/demo.jpg",
+          "match_type": "exact",
+          "phash_distance": 0,
+          "observed_at": "2026-01-15T08:20:00Z",
+          "date_source": "page_metadata",
+          "date_evidence": "JSON-LD datePublished on the page.",
+          "provider": "synthetic_demo"
+        },
+        {
+          "id": "a2",
+          "page_url": "https://demo-news.example/world/demo-story",
+          "page_title": "Synthetic demo page: news copy",
+          "domain": "demo-news.example",
+          "platform": "news",
+          "image_url": "https://demo-news.example/media/demo-resized.jpg",
+          "match_type": "exact",
+          "phash_distance": 2,
+          "observed_at": "2026-01-15T08:47:00Z",
+          "date_source": "page_metadata",
+          "date_evidence": "Open Graph article:published_time on the page.",
+          "provider": "synthetic_demo"
+        },
+        {
+          "id": "a3",
+          "page_url": "https://reshare-blog.example/posts/demo-copy",
+          "page_title": "Synthetic demo page: cropped copy",
+          "domain": "reshare-blog.example",
+          "platform": "web",
+          "image_url": "https://reshare-blog.example/uploads/demo-crop.jpg",
+          "match_type": "partial",
+          "phash_distance": 9,
+          "observed_at": "2026-01-16T00:00:00Z",
+          "date_source": "crawl_date",
+          "date_evidence": "TinEye's crawl date: when its crawler saw this image on the page, which is not when the page published it.",
+          "provider": "synthetic_demo"
+        },
+        {
+          "id": "a4",
+          "page_url": "https://undated-forum.example/thread/demo",
+          "page_title": "Synthetic demo page: no date available",
+          "domain": "undated-forum.example",
+          "platform": "web",
+          "image_url": "https://undated-forum.example/attachments/demo.jpg",
+          "match_type": "exact",
+          "phash_distance": 1,
+          "observed_at": null,
+          "date_source": "none",
+          "date_evidence": "The page states no publication date.",
+          "provider": "synthetic_demo"
+        }
+      ],
+      "limitations": [
+        "All pages and dates in this case are invented to show how the report works.",
+        "A search only covers pages these services have indexed. Private groups, deleted pages and much of social media are not covered."
+      ]
+    }
+  },
+  "recorded": {}
+}

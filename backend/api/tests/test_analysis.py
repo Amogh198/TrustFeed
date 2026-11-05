@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
 from backend.api.app.main import app
-from backend.text.analysis import analyze_text, analyze_url, fuse_risk
 from backend.api.app.models import RiskLevel
+from backend.text.analysis import analyze_text, analyze_url, fuse_risk
 
 client = TestClient(app)
 
@@ -14,7 +14,7 @@ def test_text_analysis_reports_matching_evidence_and_limits_claims():
     assert any("Urgency" in item for item in result.evidence)
     assert any("scam-pattern" in item for item in result.evidence)
     assert result.confidence is None
-    assert claims == ["Urgent! Forward this now to claim your prize!!!"]
+    assert claims == ["Urgent!", "Forward this now to claim your prize!!!"]
     assert "do not verify" in result.limitations[0]
 
 
