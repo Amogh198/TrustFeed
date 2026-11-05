@@ -1,0 +1,83 @@
+"""Command line for demos and manual checks. Run from the repository root."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from dataclasses import replace
+from pathlib import Path
+
+from backend.media.analyzer import analyze_media
+from backend.media.classifier import download_model
+from backend.media.config import MediaConfig
+from backend.media.errors import HashIndexUnavailable, MediaInputError
+from backend.media.metadata import read_image
+from backend.media.phash import JsonHashIndex, ReferenceEntry, compute_phash
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="python -m backend.media")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    analyze = commands.add_parser("analyze", help="analyze an image or video and print JSON")
+    analyze.add_argument("file", type=Path)
+    analyze.add_argument("--index", type=Path, help="pHash reference index (JSON)")
+    analyze.add_argument("--module-only", action="store_true", help="print only the contract-shaped result")
+
+    add = commands.add_parser("index-add", help="add an image to a pHash reference index")
+    add.add_argument("file", type=Path)
+    add.add_argument("--index", type=Path, required=True)
+    add.add_argument("--label", required=True)
+    add.add_argument("--first-seen")
+    add.add_argument("--source")
+
+    commands.add_parser("download-model", help="download the classifier's safetensors weights")
+    return parser
+
+
+def _analyze(args: argparse.Namespace, config: MediaConfig) -> int:
+    if args.index:
+        config = replace(config, phash_index_path=args.index)
+    result = analyze_media(args.file, config=config)
+    output = result.to_module_result() if args.module_only else result.model_dump(mode="json")
+    print(json.dumps(output, indent=2))
+    return 2 if result.failure_code else 0
+
+
+def _index_add(args: argparse.Namespace, config: MediaConfig) -> int:
+    try:
+        index = JsonHashIndex.load(args.index) if args.index.exists() else JsonHashIndex()
+        image, _, _ = read_image(args.file, config)
+    except (HashIndexUnavailable, MediaInputError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    phash = compute_phash(image)
+    index.add(ReferenceEntry(phash=phash, label=args.label, first_seen=args.first_seen, source=args.source))
+    index.save(args.index)
+    print(f"added {phash} ({len(index)} references)")
+    return 0
+
+
+def _download_model(config: MediaConfig) -> int:
+    try:
+        location = download_model(config)
+    except Exception as exc:
+        print(f"error: model download failed ({type(exc).__name__})", file=sys.stderr)
+        return 1
+    print(f"model ready: {location}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    config = MediaConfig.from_env()
+    if args.command == "analyze":
+        return _analyze(args, config)
+    if args.command == "index-add":
+        return _index_add(args, config)
+    return _download_model(config)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

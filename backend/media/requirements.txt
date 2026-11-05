@@ -1,0 +1,6 @@
+# Core media forensics: metadata, pHash and keyframes. Works without a model.
+numpy>=1.26,<3.0
+opencv-python-headless>=4.9,<5.0
+pillow>=10.3,<13.0
+imagehash>=4.3,<5.0
+pydantic>=2.7,<3.0
