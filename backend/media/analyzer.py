@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import math
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from backend.media.classifier import ImageClassifier, default_classifier
 from backend.media.config import MediaConfig
+from backend.media.content_credentials import INVALID, SIGNED, declares_ai, read_credentials
 from backend.media.errors import ClassifierUnavailable, HashIndexUnavailable, MediaInputError
 from backend.media.keyframes import STRATEGY, Keyframe, extract_keyframes
 from backend.media.metadata import InputInfo, inspect_input, read_image
@@ -16,6 +20,10 @@ from backend.media.models import (
     Assessment,
     CheckStatus,
     ClassifierCheck,
+    ContentCredentialsCheck,
+    DetectorPanelCheck,
+    DetectorResult,
+    FingerprintCheck,
     FrameEvidence,
     HashMatch,
     KeyframeCheck,
@@ -27,7 +35,17 @@ from backend.media.models import (
     PHashCheck,
     empty_checks,
 )
+from backend.media.fingerprint import (
+    EXACT_COPY,
+    CaseFingerprintStore,
+    QueryFrame,
+    compute_fingerprints,
+    find_matches,
+)
+from backend.media.panel import PANEL_MODELS, build_classifier
 from backend.media.phash import HashIndex, JsonHashIndex, compute_phash
+
+ClassifierFactory = Callable[[MediaConfig], ImageClassifier]
 
 # File names and contents are never logged: uploads may be private.
 logger = logging.getLogger(__name__)
@@ -114,6 +132,168 @@ def _classifier_check(classifier: ImageClassifier, scores: list[float] | str, co
         items_scored=len(scores),
         limitations=limitations,
     )
+
+
+def _apply_size_limit(check: ClassifierCheck, image, config: MediaConfig) -> ClassifierCheck:
+    if check.status is CheckStatus.COMPLETE and min(image.size) < config.min_reliable_side:
+        check.band = ModelBand.INCONCLUSIVE
+        check.limitations.append(
+            f"The image is smaller than {config.min_reliable_side}px on one side, so the model score is unreliable."
+        )
+    return check
+
+
+def _detector_result(check: ClassifierCheck, model_id: str, revision: str, *, counted: bool) -> DetectorResult:
+    return DetectorResult(
+        model_id=model_id,
+        model_revision=revision,
+        status=check.status,
+        score=check.score,
+        band=check.band,
+        counted=counted,
+        limitations=check.limitations,
+    )
+
+
+def _detector_panel(
+    images: Sequence[object],
+    in_use: ClassifierCheck,
+    config: MediaConfig,
+    factory: ClassifierFactory,
+    *,
+    is_image: bool,
+) -> DetectorPanelCheck:
+    """Run each detector in turn, releasing it before the next, because all of them need over 2 GB together."""
+    started = time.monotonic()
+    detectors: list[DetectorResult] = []
+    for model_id, revision in PANEL_MODELS:
+        if model_id == in_use.model_id and revision == in_use.model_revision:
+            detectors.append(_detector_result(in_use, model_id, revision, counted=True))
+            continue
+        if time.monotonic() - started >= config.panel_time_budget_s:
+            check = ClassifierCheck(
+                status=CheckStatus.UNAVAILABLE,
+                limitations=[f"Not run: the panel's {config.panel_time_budget_s:.0f}-second limit was reached."],
+            )
+            detectors.append(_detector_result(check, model_id, revision, counted=False))
+            continue
+        try:
+            classifier = factory(replace(config, model_id=model_id, model_revision=revision))
+        except Exception as exc:
+            logger.warning("Media panel detector could not be built: %s", type(exc).__name__)
+            check = ClassifierCheck(status=CheckStatus.UNAVAILABLE, limitations=["The detector could not be set up."])
+        else:
+            check = _classifier_check(classifier, _predict(classifier, images), config)
+            del classifier
+            gc.collect()
+        if is_image:
+            check = _apply_size_limit(check, images[0], config)
+        detectors.append(_detector_result(check, model_id, revision, counted=False))
+
+    ran = any(detector.status is CheckStatus.COMPLETE for detector in detectors)
+    limitations = [SCORE_CAVEAT, "Only the detector in use affects the overall result."]
+    if not any(detector.counted for detector in detectors):
+        limitations.append("The detector in use is not on the panel, so no detector here affects the overall result.")
+    return DetectorPanelCheck(
+        status=CheckStatus.COMPLETE if ran else CheckStatus.UNAVAILABLE, detectors=detectors, limitations=limitations
+    )
+
+
+def _resolve_cases(config: MediaConfig, supplied: CaseFingerprintStore | None) -> tuple[list, str | None]:
+    if supplied is not None:
+        return supplied.entries, None
+    if config.case_fingerprints_path is None:
+        return [], "No earlier-case fingerprints are configured, so earlier cases were not compared."
+    try:
+        store = CaseFingerprintStore.load(config.case_fingerprints_path)
+    except HashIndexUnavailable as exc:
+        return [], f"{exc} Earlier cases were not compared."
+    if store.skipped:
+        return store.entries, f"{store.skipped} malformed earlier-case entries were ignored."
+    return store.entries, None
+
+
+def _safe_fingerprints(image) -> dict[str, str]:
+    try:
+        return compute_fingerprints(image)
+    except Exception as exc:
+        logger.warning("Media fingerprint failed: %s", type(exc).__name__)
+        return {}
+
+
+def _fingerprint_check(
+    sha256: str | None,
+    frames: Sequence[QueryFrame],
+    whole_image: dict[str, str],
+    index: HashIndex | None,
+    cases: CaseFingerprintStore | None,
+    config: MediaConfig,
+) -> FingerprintCheck:
+    """Compare only hashes, so nothing from the upload needs to be stored to do this."""
+    limitations = []
+    hashed = [frame for frame in frames if frame.hashes]
+    if frames and not hashed:
+        limitations.append("Image fingerprints could not be computed; check that imagehash is installed.")
+    if not sha256 and not hashed:
+        return FingerprintCheck(status=CheckStatus.UNAVAILABLE, limitations=limitations)
+    # Other index types only offer a pHash lookup, which the separate pHash check already reports.
+    references = list(getattr(index, "entries", []))
+    only_phash = sum(1 for entry in references if not (entry.dhash or entry.whash))
+    if only_phash:
+        limitations.append(
+            f"{only_phash} references have only a pHash, so they can't be matched here. "
+            "Add them again to compare them fully."
+        )
+    earlier, note = _resolve_cases(config, cases)
+    if note:
+        limitations.append(note)
+    if not references:
+        limitations.append("No reference list was available, so no references were compared.")
+    return FingerprintCheck(
+        status=CheckStatus.COMPLETE,
+        sha256=sha256,
+        hashes=whole_image,
+        frames_hashed=len(hashed),
+        compared=bool(references or earlier),
+        references_checked=len(references),
+        earlier_cases_checked=len(earlier),
+        matches=find_matches(sha256, hashed, references, earlier),
+        limitations=limitations,
+    )
+
+
+def _fingerprint_evidence(check: FingerprintCheck | None) -> list[str]:
+    if check is None:
+        return []
+    lines = []
+    for match in check.matches:
+        target = f"reference {match.label!r}" if match.found_in == "reference" else f"earlier case {match.case_id!r}"
+        line = (
+            f"Same file as {target}" if match.kind == EXACT_COPY else f"Fingerprints look like the same image as {target}"
+        )
+        if match.first_seen:
+            line += f", recorded {match.first_seen}"
+        if match.timestamp_s is not None:
+            line += f", at {match.timestamp_s:.1f}s"
+        lines.append(line + ".")
+    return lines
+
+
+def _credentials_evidence(check: ContentCredentialsCheck | None) -> list[str]:
+    """An unsigned file adds no line here, because having no credentials shows nothing."""
+    if check is None or check.status is not CheckStatus.COMPLETE:
+        return []
+    if check.state == INVALID:
+        lines = ["Content Credentials are present but did not validate."]
+        if declares_ai(check):
+            lines.append("Those unverified credentials claim AI-generated content.")
+        return lines
+    if check.state != SIGNED:
+        return []
+    lines = ["Content Credentials are present and valid: the file has not changed since it was signed."]
+    if declares_ai(check):
+        lines.append("The signed credentials declare AI-generated content.")
+    return lines
 
 
 def _lookup(index: HashIndex, phash: str, config: MediaConfig) -> list[HashMatch] | None:
@@ -258,11 +438,16 @@ def _finish(
     keyframes: KeyframeCheck,
     extra_limitations: Sequence[str],
     config: MediaConfig,
+    panel: DetectorPanelCheck | None = None,
+    fingerprint: FingerprintCheck | None = None,
+    credentials: ContentCredentialsCheck | None = None,
 ) -> MediaAnalysisResult:
     evidence = [
         *_classifier_evidence(classifier, keyframes.frames, config),
         *_phash_evidence(phash),
         *metadata.indicators,
+        *_fingerprint_evidence(fingerprint),
+        *_credentials_evidence(credentials),
     ]
     limitations = [*extra_limitations]
     if classifier.band is ModelBand.LOW and (phash.matches or metadata.generator_hint):
@@ -285,7 +470,15 @@ def _finish(
         limitations=_dedupe(limitations),
         sha256=info.sha256,
         size_bytes=info.size_bytes,
-        checks=MediaChecks(metadata=metadata, classifier=classifier, phash=phash, keyframes=keyframes),
+        checks=MediaChecks(
+            metadata=metadata,
+            classifier=classifier,
+            phash=phash,
+            keyframes=keyframes,
+            detector_panel=panel,
+            fingerprint=fingerprint,
+            content_credentials=credentials,
+        ),
     )
 
 
@@ -303,7 +496,7 @@ def _rejected(error: MediaInputError, info: InputInfo | None = None) -> MediaAna
     )
 
 
-def _analyze_image(path, info, classifier, index, note, config) -> MediaAnalysisResult:
+def _analyze_image(path, info, classifier, index, note, config, panel_factory=None, cases=None) -> MediaAnalysisResult:
     try:
         image, metadata, limitations = read_image(path, config)
     except ImportError:
@@ -311,12 +504,9 @@ def _analyze_image(path, info, classifier, index, note, config) -> MediaAnalysis
     except MediaInputError as exc:
         return _rejected(exc, info)
 
-    check = _classifier_check(classifier, _predict(classifier, [image]), config)
-    if check.status is CheckStatus.COMPLETE and min(image.size) < config.min_reliable_side:
-        check.band = ModelBand.INCONCLUSIVE
-        check.limitations.append(
-            f"The image is smaller than {config.min_reliable_side}px on one side, so the model score is unreliable."
-        )
+    check = _apply_size_limit(_classifier_check(classifier, _predict(classifier, [image]), config), image, config)
+    hashes = _safe_fingerprints(image)
+    fingerprint = _fingerprint_check(info.sha256, [QueryFrame(None, hashes)], hashes, index, cases, config)
     return _finish(
         info,
         metadata,
@@ -325,10 +515,13 @@ def _analyze_image(path, info, classifier, index, note, config) -> MediaAnalysis
         KeyframeCheck(status=CheckStatus.NOT_APPLICABLE),
         limitations,
         config,
+        _detector_panel([image], check, config, panel_factory, is_image=True) if panel_factory else None,
+        fingerprint,
+        read_credentials(path, config),
     )
 
 
-def _analyze_video(path, info, classifier, index, note, config) -> MediaAnalysisResult:
+def _analyze_video(path, info, classifier, index, note, config, panel_factory=None, cases=None) -> MediaAnalysisResult:
     try:
         video, frames, limitations = extract_keyframes(path, config)
     except ImportError:
@@ -339,6 +532,7 @@ def _analyze_video(path, info, classifier, index, note, config) -> MediaAnalysis
     scores = _predict(classifier, [frame.image for frame in frames])
     phash, hashes = _video_phash(frames, index, note, config)
     frame_scores: Sequence[float | None] = scores if isinstance(scores, list) else [None] * len(frames)
+    frame_hashes = [_safe_fingerprints(frame.image) for frame in frames]
     keyframes = KeyframeCheck(
         status=CheckStatus.COMPLETE,
         strategy=STRATEGY,
@@ -349,8 +543,11 @@ def _analyze_video(path, info, classifier, index, note, config) -> MediaAnalysis
                 scene_change_score=frame.scene_change_score,
                 phash=frame_hash,
                 model_score=round(score, 4) if score is not None else None,
+                fingerprints=frame_fingerprints,
             )
-            for frame, frame_hash, score in zip(frames, hashes, frame_scores, strict=True)
+            for frame, frame_hash, score, frame_fingerprints in zip(
+                frames, hashes, frame_scores, frame_hashes, strict=True
+            )
         ],
         limitations=limitations,
     )
@@ -364,7 +561,14 @@ def _analyze_video(path, info, classifier, index, note, config) -> MediaAnalysis
         duration_s=video.duration_s,
         limitations=["Only basic stream properties were read; container tags were not inspected."],
     )
-    return _finish(info, metadata, _classifier_check(classifier, scores, config), phash, keyframes, [], config)
+    check = _classifier_check(classifier, scores, config)
+    panel = None
+    if panel_factory:
+        panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False)
+    queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
+    fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
+    credentials = read_credentials(path, config)
+    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials)
 
 
 def analyze_media(
@@ -373,11 +577,17 @@ def analyze_media(
     classifier: ImageClassifier | None = None,
     hash_index: HashIndex | None = None,
     config: MediaConfig | None = None,
+    run_panel: bool = False,
+    panel_factory: ClassifierFactory = build_classifier,
+    case_store: CaseFingerprintStore | None = None,
 ) -> MediaAnalysisResult:
     """Analyze one image or video.
 
     Expected failures (bad input, missing weights, broken index) are reported in
     the result rather than raised, so the wider pipeline keeps working.
+
+    ``run_panel`` also runs every detector on the panel. It is slow on CPU, so it
+    is off by default, and it never changes the overall score or assessment.
     """
     config = config or MediaConfig.from_env()
     path = Path(path)
@@ -389,4 +599,4 @@ def analyze_media(
     classifier = classifier or default_classifier(config)
     index, note = _resolve_index(config, hash_index)
     analyze = _analyze_image if info.media_type is MediaType.IMAGE else _analyze_video
-    return analyze(path, info, classifier, index, note, config)
+    return analyze(path, info, classifier, index, note, config, panel_factory if run_panel else None, case_store)

@@ -35,6 +35,11 @@ class ReferenceEntry(BaseModel):
     label: str
     first_seen: str | None = None
     source: str | None = None
+    # Older index files have only phash, so these stay optional.
+    sha256: str | None = None
+    dhash: str | None = None
+    whash: str | None = None
+    colorhash: str | None = None
 
 
 class HashIndex(Protocol):

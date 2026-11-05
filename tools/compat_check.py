@@ -29,6 +29,7 @@ BASE_REF = "origin/main"
 TEST_SUITES = {
     "T1 media": "backend/media/tests",
     "T2 network": "backend/network/tests",
+    "T1 provenance": "backend/provenance/tests",
     "T3 API": "backend/api/tests",
     "T1 source search": "backend/provenance/tests",
     "Coordination tools": "tools",

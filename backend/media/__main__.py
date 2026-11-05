@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from dataclasses import replace
@@ -12,9 +13,11 @@ from backend.media.analyzer import analyze_media
 from backend.media.classifier import default_classifier, download_model
 from backend.media.config import MediaConfig
 from backend.media.errors import HashIndexUnavailable, MediaInputError
+from backend.media.fingerprint import compute_fingerprints, remember_fingerprints
 from backend.media.heatmap import occlusion_heatmap, render_overlay
 from backend.media.metadata import read_image
 from backend.media.models import CheckStatus
+from backend.media.panel import download_panel
 from backend.media.phash import JsonHashIndex, ReferenceEntry, compute_phash
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -28,6 +31,9 @@ def _parser() -> argparse.ArgumentParser:
     analyze.add_argument("file", type=Path)
     analyze.add_argument("--index", type=Path, help="pHash reference index (JSON)")
     analyze.add_argument("--module-only", action="store_true", help="print only the contract-shaped result")
+    analyze.add_argument("--panel", action="store_true", help="also run every detector on the panel (slow on CPU)")
+    analyze.add_argument("--cases", type=Path, help="earlier cases' fingerprints (JSON). Holds hashes, never images.")
+    analyze.add_argument("--remember", metavar="CASE_ID", help="keep this media's hashes in --cases under this case ID")
 
     add = commands.add_parser("index-add", help="add an image to a pHash reference index")
     add.add_argument("file", type=Path)
@@ -41,6 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     heatmap.add_argument("--out", type=Path, required=True, help="PNG holding the image, outside the repository")
 
     commands.add_parser("download-model", help="download the classifier's safetensors weights")
+    commands.add_parser("download-panel", help="download every panel detector's safetensors weights (about 2.3 GB)")
     return parser
 
 
@@ -62,9 +69,16 @@ def _heatmap(args: argparse.Namespace, config: MediaConfig) -> int:
 
 
 def _analyze(args: argparse.Namespace, config: MediaConfig) -> int:
+    if args.remember and not args.cases:
+        print("error: --remember needs --cases.", file=sys.stderr)
+        return 2
     if args.index:
         config = replace(config, phash_index_path=args.index)
-    result = analyze_media(args.file, config=config)
+    if args.cases:
+        config = replace(config, case_fingerprints_path=args.cases)
+    result = analyze_media(args.file, config=config, run_panel=args.panel)
+    if args.remember and not result.failure_code:
+        remember_fingerprints(result, args.remember, args.cases)
     output = result.to_module_result() if args.module_only else result.model_dump(mode="json")
     print(json.dumps(output, indent=2))
     return 2 if result.failure_code else 0
@@ -78,7 +92,19 @@ def _index_add(args: argparse.Namespace, config: MediaConfig) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     phash = compute_phash(image)
-    index.add(ReferenceEntry(phash=phash, label=args.label, first_seen=args.first_seen, source=args.source))
+    hashes = compute_fingerprints(image)
+    index.add(
+        ReferenceEntry(
+            phash=phash,
+            label=args.label,
+            first_seen=args.first_seen,
+            source=args.source,
+            sha256=hashlib.sha256(args.file.read_bytes()).hexdigest(),
+            dhash=hashes["dhash"],
+            whash=hashes["whash"],
+            colorhash=hashes["colorhash"],
+        )
+    )
     index.save(args.index)
     print(f"added {phash} ({len(index)} references)")
     return 0
@@ -94,9 +120,21 @@ def _download_model(config: MediaConfig) -> int:
     return 0
 
 
+def _download_panel(config: MediaConfig) -> int:
+    try:
+        locations = download_panel(config)
+    except Exception as exc:
+        print(f"error: model download failed ({type(exc).__name__})", file=sys.stderr)
+        return 1
+    print(f"{len(locations)} models ready")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     config = MediaConfig.from_env()
+    if args.command == "download-panel":
+        return _download_panel(config)
     if args.command == "analyze":
         return _analyze(args, config)
     if args.command == "index-add":

@@ -65,7 +65,8 @@ class HuggingFaceClassifier:
                 model = AutoModelForImageClassification.from_pretrained(self.model_id, use_safetensors=True, **options)
             except Exception as exc:
                 raise ClassifierUnavailable(
-                    "Model weights are not available locally. Run: python -m backend.media download-model"
+                    "Model weights are not available locally. "
+                    "Run: python -m backend.media download-model (or download-panel for every panel detector)"
                 ) from exc
             target = synthetic_class_index(model.config.id2label)
             device = self._device_setting

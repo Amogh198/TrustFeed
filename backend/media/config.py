@@ -23,6 +23,8 @@ class MediaConfig:
 
     phash_index_path: Path | None = None
     phash_max_distance: int = 5
+    # Hashes of earlier cases, never the uploads. Not set means no comparison with earlier cases.
+    case_fingerprints_path: Path | None = None
 
     max_image_bytes: int = 25 * _MB
     max_video_bytes: int = 200 * _MB
@@ -43,12 +45,22 @@ class MediaConfig:
     # Keyframes further apart than this make a video's model result inconclusive.
     frame_disagreement: float = 0.5
 
+    # No further panel detector starts after this long. One already running finishes.
+    panel_time_budget_s: float = 180.0
+
+    # Reading a file's Content Credentials stops after this long, and the check says so.
+    c2pa_time_limit_s: float = 30.0
+    # A PEM file of certificate authorities. Not set means signers are not checked against a list.
+    c2pa_trust_list_path: Path | None = None
+
     @classmethod
     def from_env(cls) -> MediaConfig:
         model_id = os.environ.get("MEDIA_MODEL_ID", "").strip()
         revision = os.environ.get("MEDIA_MODEL_REVISION", "").strip()
         index = os.environ.get("MEDIA_PHASH_INDEX", "").strip()
         allow = os.environ.get("MEDIA_ALLOW_MODEL_DOWNLOAD", "").strip().casefold()
+        cases = os.environ.get("MEDIA_CASE_FINGERPRINTS", "").strip()
+        trust_list = os.environ.get("MEDIA_C2PA_TRUST_LIST", "").strip()
         return cls(
             model_id=model_id or DEFAULT_MODEL_ID,
             # The pinned revision only applies to the default model.
@@ -56,4 +68,6 @@ class MediaConfig:
             allow_model_download=allow in _TRUTHY,
             device=os.environ.get("MEDIA_DEVICE", "").strip() or "auto",
             phash_index_path=Path(index) if index else None,
+            case_fingerprints_path=Path(cases) if cases else None,
+            c2pa_trust_list_path=Path(trust_list) if trust_list else None,
         )

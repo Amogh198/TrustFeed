@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 
 
 class CheckStatus(StrEnum):
@@ -92,6 +92,33 @@ class FrameEvidence(BaseModel):
     scene_change_score: float
     phash: str | None = None
     model_score: float | None = None
+    fingerprints: dict[str, str] = Field(default_factory=dict)
+
+
+class FingerprintMatch(BaseModel):
+    # "exact_copy" means the same file. "likely_same_image" means the same picture, possibly changed.
+    kind: str
+    # "reference" or "earlier_case".
+    found_in: str
+    label: str | None = None
+    case_id: str | None = None
+    # The earliest date recorded for this entry, not when the image first existed.
+    first_seen: str | None = None
+    source: str | None = None
+    distances: dict[str, int] = Field(default_factory=dict)
+    timestamp_s: float | None = None
+
+
+class FingerprintCheck(BaseModel):
+    status: CheckStatus
+    sha256: str | None = None
+    hashes: dict[str, str] = Field(default_factory=dict)
+    frames_hashed: int = 0
+    compared: bool = False
+    references_checked: int = 0
+    earlier_cases_checked: int = 0
+    matches: list[FingerprintMatch] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
 
 
 class KeyframeCheck(BaseModel):
@@ -101,11 +128,61 @@ class KeyframeCheck(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class DetectorResult(BaseModel):
+    """One detector's own result. Only the detector in use affects the overall score."""
+
+    model_id: str
+    model_revision: str | None = None
+    status: CheckStatus
+    score: float | None = None
+    band: ModelBand | None = None
+    counted: bool = False
+    limitations: list[str] = Field(default_factory=list)
+
+
+class DetectorPanelCheck(BaseModel):
+    status: CheckStatus
+    detectors: list[DetectorResult] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ContentCredentialsCheck(BaseModel):
+    """What a file's Content Credentials show. Manifest text is written by whoever made the file."""
+
+    status: CheckStatus
+    # "signed", "unsigned" or "invalid". Null when it could not be told, with the reason in limitations.
+    state: str | None = None
+    # "on_trust_list", "not_on_trust_list" or "not_checked". Null unless signed.
+    signer_trust: str | None = None
+    # "content_changed", "rules_failed" or "credentials_failed". Null unless invalid.
+    invalid_reason: str | None = None
+    signer_organisation: str | None = None
+    claim_generator: str | None = None
+    signed_at: str | None = None
+    # How the newest manifest says the media was made, then what earlier steps in its history say.
+    declared_sources: list[str] = Field(default_factory=list)
+    declared_in_history: list[str] = Field(default_factory=list)
+    failure_codes: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class MediaChecks(BaseModel):
     metadata: MetadataCheck
     classifier: ClassifierCheck
     phash: PHashCheck
     keyframes: KeyframeCheck
+    # Only present when requested, because running every detector is slow on CPU.
+    detector_panel: DetectorPanelCheck | None = None
+    fingerprint: FingerprintCheck | None = None
+    content_credentials: ContentCredentialsCheck | None = None
+
+    @model_serializer(mode="wrap")
+    def _leave_out_checks_that_did_not_run(self, handler: Any) -> dict[str, Any]:
+        data = handler(self)
+        for name in ("detector_panel", "fingerprint", "content_credentials"):
+            if data.get(name) is None:
+                data.pop(name, None)
+        return data
 
 
 def _not_run(reason: str) -> dict[str, Any]:
@@ -118,6 +195,8 @@ def empty_checks(reason: str) -> MediaChecks:
         classifier=ClassifierCheck(**_not_run(reason)),
         phash=PHashCheck(**_not_run(reason)),
         keyframes=KeyframeCheck(**_not_run(reason)),
+        fingerprint=FingerprintCheck(**_not_run(reason)),
+        content_credentials=ContentCredentialsCheck(**_not_run(reason)),
     )
 
 

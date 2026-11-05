@@ -4,3 +4,6 @@ opencv-python-headless>=4.9,<5.0
 pillow>=10.3,<13.0
 imagehash>=4.3,<5.0
 pydantic>=2.7,<3.0
+# Content Credentials signature check. A 92 MB download, about 310 MB installed. Without it the check reports unavailable.
+# Kept to one minor version because reading files safely relies on its setting names, and tests check they still work.
+c2pa-python>=0.38,<0.39
