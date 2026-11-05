@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
@@ -80,24 +81,48 @@ class TimelineResponse(BaseModel):
 
 class ExplanationArtifact(BaseModel):
     kind: str
-    label: str
+    label: str = "Supporting evidence"
     url: str | None = None
+    route: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_artifact(cls, value: Any) -> Any:
+        """Accept artifacts emitted by the media, provenance and network lanes."""
+        if not isinstance(value, dict):
+            return value
+        artifact = dict(value)
+        artifact.setdefault("kind", artifact.get("type", "evidence"))
+        artifact.setdefault("label", {
+            "network_graph": "Network graph",
+            "fingerprints": "Media fingerprints",
+        }.get(artifact["kind"], "Supporting evidence"))
+        return artifact
 
 
 class ExplanationCheck(BaseModel):
     check_id: str
     module: str
     label: str
+    legacy_alias: bool = False
+    status: str | None = None
     result: str
-    reasoning: str
-    benchmark: dict[str, object] | None = None
+    reasoning: str | list[str]
+    benchmark: dict[str, Any] | None = None
     artifacts: list[ExplanationArtifact] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+
+
+class MissingCheck(BaseModel):
+    module: str
+    status: str
+    reason: str
 
 
 class ExplanationResponse(BaseModel):
     case_id: str
     checks: list[ExplanationCheck]
+    missing_checks: list[MissingCheck] = Field(default_factory=list)
     what_was_submitted: list[str]
     what_was_detected: list[str]
     supports: list[str]
@@ -140,6 +165,27 @@ class CaseSummary(BaseModel):
 class CaseHistoryResponse(BaseModel):
     cases: list[CaseSummary]
     total: int
+
+
+class MonitorStartRequest(BaseModel):
+    # Polling sends these terms to outside services, so it must be asked for explicitly.
+    opted_in: bool
+    text: str | None = Field(default=None, max_length=2_000)
+    urls: list[HttpUrl] = Field(default_factory=list, max_length=5)
+    hashtags: list[str] = Field(default_factory=list, max_length=5)
+
+
+class HeatmapResponse(BaseModel):
+    status: str
+    label: str
+    grid_size: int
+    base_score: float | None = None
+    max_change: float | None = None
+    notable: bool = False
+    reasoning: str
+    limitations: list[str] = Field(default_factory=list)
+    # A transparent colour grid with none of the image's pixels, to lay over its preview.
+    png_base64: str | None = None
 
 
 class ReplayScenario(BaseModel):

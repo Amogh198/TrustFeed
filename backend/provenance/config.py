@@ -35,7 +35,7 @@ class ProvenanceConfig:
     # Above this, a result the provider called exact looks like a different picture.
     related_image_distance: int = 12
 
-    user_agent: str = "TruthTraceAI-Provenance/0.1 (research prototype)"
+    user_agent: str = "TrustFeed-Provenance/0.1 (research prototype)"
 
     # Each web search with visual matches spends a second SerpApi search.
     serpapi_visual_matches: bool = True

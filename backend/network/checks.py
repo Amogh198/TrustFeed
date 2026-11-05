@@ -65,8 +65,10 @@ def _search_check(coverage: dict[str, Any] | None, synthetic: bool) -> dict[str,
     read = [item["label"] for item in platforms if item["status"] in ("searched", "partial")]
     prefix = "Replayed synthetic posts from" if coverage.get("synthetic") else "Searched"
     result = f"{prefix} {len(read)} of {len(platforms)} connected platforms: {', '.join(read) or 'none'}."
-    notes = [f"{item['label']}: {note}" for item in platforms for note in item["notes"]]
-    not_connected = [f"Not connected, {item['platform']}: {item['reason']}" for item in coverage["not_connected"]]
+    notes = [f"{item['label']}: {note}" for item in platforms for note in item.get("notes", [])]
+    not_connected = [
+        f"Not connected, {item['platform']}: {item['reason']}" for item in coverage.get("not_connected", [])
+    ]
     return _check(
         "network.platform_search",
         label,
@@ -94,9 +96,9 @@ def _posts_check(coverage: dict[str, Any] | None) -> dict[str, Any] | None:
             ["This is inconclusive. The content may exist on these platforms or elsewhere without being found."],
         )
 
-    counts = Counter(item["matched_on"] for item in spread)
+    counts = Counter(item.get("matched_on", "unspecified") for item in spread)
     first = spread[0]
-    parts = [f"{count} {_MATCH_WORDING.get(kind, kind)}" for kind, count in sorted(counts.items())]
+    parts = [f"{count} {_MATCH_WORDING.get(kind, kind + ' match')}" for kind, count in sorted(counts.items())]
     limitations = [_EARLIEST]
     if counts["hashtag"]:
         limitations.append("A hashtag shows a shared topic, not shared content, so these posts may concern other events.")
@@ -105,7 +107,8 @@ def _posts_check(coverage: dict[str, Any] | None) -> dict[str, Any] | None:
     return _check(
         "network.matching_posts",
         label,
-        f"{len(spread)} matching posts. The earliest found is from {first['posted_at']} on {first['platform']}.",
+        f"{len(spread)} matching posts. The earliest found is from "
+        f"{first.get('posted_at') or 'an undated post'} on {first.get('platform') or 'an unspecified platform'}.",
         f"Of these: {'; '.join(parts)}.",
         limitations,
     )

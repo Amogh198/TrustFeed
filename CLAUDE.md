@@ -1,10 +1,10 @@
-# CLAUDE.md — TruthTrace AI Shared Agent Instructions
+# CLAUDE.md — TrustFeed Shared Agent Instructions
 
 Applies to every coding agent in this repository, whichever AI tool operates the lane.
 
-Build TruthTrace AI for LAKSHYA 2026: a hackathon MVP that ingests sample text and media, analyzes claims/media, maps a synthetic coordination campaign, and presents evidence with uncertainty. Prioritize a working, explainable offline demo over attempting every blueprint feature.
+Build TrustFeed for LAKSHYA 2026: a hackathon MVP that ingests sample text and media, analyzes claims/media, maps a synthetic coordination campaign, and presents evidence with uncertainty. Prioritize a working, explainable offline demo over attempting every blueprint feature.
 
-`AGENT_COORDINATION.md` holds the exact official problem statement and says which file is authoritative for each topic. The repository is named TrustFeed, and the product is TruthTrace AI.
+`AGENT_COORDINATION.md` holds the exact official problem statement and says which file is authoritative for each topic. The repository and the product are both named TrustFeed.
 
 ## Mandatory protocol
 
