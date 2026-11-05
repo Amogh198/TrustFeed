@@ -117,7 +117,7 @@ Both refuse to write inside the repository. Commons labels come from human-curat
 
 ### Results from 2026-11-05
 
-**At its current settings, the detector almost never flags a fake.** Across all 301 fake images it flagged 3, and it scored 236 of them `low`, so a `low` result says very little. The model's scores do separate fake from real, but nearly all of them are tiny, so they rarely reach the current bands of 0.25 and 0.75.
+**At its current settings, the detector almost never flags a fake.** Across all 301 fake images it flagged 3, and it scored 236 of them `low`, so a `low` result says very little. The model's scores do separate fake from real, but they run low: 78% of fake images score under 0.25, the top of the `low` band, and only 3 reach 0.75, the start of the flagged band.
 
 The set has 452 images from Wikimedia Commons: 150 AI-generated, 150 edited and 150 real photos of people, plus one labelled face-swap pair. These figures come from the test split only, which has 157 fake and 75 real images. Brackets show the 95% interval.
 
