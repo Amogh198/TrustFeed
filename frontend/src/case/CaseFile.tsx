@@ -13,6 +13,7 @@ import SourceTab from './SourceTab';
 import SpreadTab from './SpreadTab';
 import TextLinkTab from './TextLinkTab';
 import TimelineTab from './TimelineTab';
+import TrustPanel from './TrustPanel';
 
 export interface CaseDetails {
   explanation?: Explanation;
@@ -171,6 +172,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
           </div>
         </div>
       </header>
+      <TrustPanel report={report} explanation={details.explanation} />
       <SignalStrip report={report} />
       {partial && <div className="page-inner"><Problem>{partial}</Problem></div>}
       <div className="tabs no-print" role="tablist" aria-label="Report sections" onKeyDown={onTabKey}>

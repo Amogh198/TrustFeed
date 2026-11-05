@@ -3,7 +3,7 @@ RESPONSIBILITY: T2 network tracing; also rebuilding the T4 dashboard at Bhuvan's
 BRANCH: feat/dashboard-rebuild
 CURRENT TASK: Dashboard rebuild against the published API, stacked on fix/full-project-audit
 STATUS: Validated
-COMPLETED: New dashboard: spread replay, findings, media with benchmark and heatmap, source, timeline, action packet, cases, watch, walkthrough, limits
+COMPLETED: Trust score and visible reasoning; tools/start_demo.py; new dashboard: spread replay, findings, media with benchmark and heatmap, source, timeline, action packet, cases, watch, walkthrough, limits
 IN PROGRESS: none
 NEXT ACTION: Merge PR #24 and resolve its conflict with PR #25, then this branch. T1 band decision is the biggest gap in the demo
 FILES OWNED: backend/network/**, data/demo/network_demo*, data/demo/README.md; frontend/** for this rebuild

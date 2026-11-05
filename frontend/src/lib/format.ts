@@ -147,3 +147,31 @@ export function downloadFile(name: string, content: string, type: string): void 
 export function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
+
+const TRUST_MODULES = ['media', 'text', 'url'] as const;
+
+export interface Trust {
+  score: number | null;
+  words: string;
+  strongest: { name: string; value: number } | null;
+  counted: { name: string; value: number }[];
+  mediaMissing: boolean;
+}
+
+/**
+ * 100 minus the strongest warning signal from the checks that looked at the content itself.
+ * Spread and source search aren't counted: where content went doesn't say whether it's true.
+ * It's null when nothing was measured, and is never filled in.
+ */
+export function trustScore(report: AnalysisResponse): Trust {
+  const counted = TRUST_MODULES.flatMap(key => {
+    const module = report.modules?.[key];
+    return module?.status === 'complete' && module.score != null ? [{ name: MODULE_NAMES[key], value: module.score }] : [];
+  });
+  const mediaMissing = report.modules?.media?.status === 'unavailable';
+  if (!counted.length) return { score: null, words: 'No trust score', strongest: null, counted, mediaMissing };
+  const strongest = counted.reduce((top, item) => (item.value > top.value ? item : top));
+  const score = Math.round((1 - strongest.value) * 100);
+  const words = score > 75 ? 'No strong warning signs' : score > 25 ? 'Some warning signs' : 'Strong warning signs';
+  return { score, words, strongest, counted, mediaMissing };
+}

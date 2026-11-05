@@ -52,17 +52,26 @@ The model separates fakes from real images better than these bands show, so the 
 
 ## Run it
 
-Needs Python 3.11 or later. Run these from the repository root.
+Needs Python 3.11 or later and Node 18 or later. **The dashboard with the trust score is on `feat/dashboard-rebuild` until it's merged. `main` still has the older one.** Run these from the repository root, inside a virtual environment:
 
 ```bash
 pip install -r backend/api/requirements-dev.txt
-python -m uvicorn backend.api.app.main:app --env-file .env
 ```
-
-Copy `.env.example` to `.env` first, and never commit `.env`. The image model is optional, and without it the media check reports `unavailable`:
 
 ```bash
 pip install -r backend/media/requirements-model.txt
+```
+
+The second install is the image model. Without it, uploads have no media score and no trust score. Then start everything. It uses `.venv` if there is one, and warns if the model can't run:
+
+```bash
+python tools/start_demo.py
+```
+
+To use source search keys, copy `.env.example` to `.env`, and never commit `.env`. To start the parts separately:
+
+```bash
+python -m uvicorn backend.api.app.main:app
 ```
 
 Then start the dashboard, which reads the API at `http://localhost:8000`:

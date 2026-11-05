@@ -9,56 +9,51 @@ export default function FindingsTab({ report, explanation, loading }: {
     if (loading) return <Loading>Working out why this result came out this way</Loading>;
     return <Unknown title="The explanation didn't load">The rest of the report still holds each check's own evidence and limits.</Unknown>;
   }
+  const ran = explanation.checks.filter(check => check.status !== 'not_applicable');
   const uncertain = explanation.uncertainties.length ? explanation.uncertainties : report.uncertainties;
   return (
     <>
-      <div className="key" role="note">
-        <span>How to read this report:</span>
-        <span><KindTag kind="observed" /> a record in the data</span>
-        <span><KindTag kind="estimate" /> a score from a model or rule</span>
-        <span><KindTag kind="unknown" /> a check or fact that's missing</span>
-      </div>
+      <Section title="Why it got this result" lead="What each check did and what it found, for this content.">
+        <div className="reasons">
+          {ran.map(check => (
+            <article key={check.check_id}>
+              <h3>{check.label}</h3>
+              <p className="reason-result">{check.result}</p>
+              <Lines items={asLines(check.reasoning)} />
+              <p className="fineprint"><strong>How far to trust it: </strong>{benchmarkSentence(check.benchmark)}</p>
+              <Limits items={check.limitations} />
+            </article>
+          ))}
+        </div>
+      </Section>
 
       <div className="findings-grid">
         <Section title="What was submitted" kind="observed">
           <Lines items={explanation.what_was_submitted} />
         </Section>
-        <Section title="What was detected" kind="estimate">
+        <Section title="Overall result" kind="estimate">
           <Lines items={explanation.what_was_detected} />
         </Section>
         <Section title="Raises concern" kind="observed">
           {explanation.supports.length
             ? <Lines items={explanation.supports} className="lines lines-concern" />
-            : <Unknown>No check raised concern. That doesn't show the content is genuine.</Unknown>}
+            : <p>No check crossed its warning level. That doesn't show the content is genuine.</p>}
         </Section>
-        <Section title="Found nothing" kind="observed">
-          {explanation.refutes.length
-            ? <Lines items={explanation.refutes} />
-            : <Unknown>No check gave a clean result. A quiet media detector doesn't count here, because it isn't reassuring.</Unknown>}
-        </Section>
+        {explanation.refutes.length > 0 && (
+          <Section title="Found nothing" kind="observed"><Lines items={explanation.refutes} /></Section>
+        )}
       </div>
 
       <Section title="What remains uncertain" kind="unknown">
         <Unknown><Lines items={uncertain.length ? uncertain : ['No extra uncertainty was recorded, which is not the same as certainty.']} /></Unknown>
       </Section>
 
-      <Section title="Each check, and how far to trust it" lead="Open a check to see its reasoning and its limits.">
-        <div className="checks">
-          {explanation.checks.map(check => (
-            <details key={check.check_id} className="check-row">
-              <summary>
-                <span className="check-name">{check.label}</span>
-                <span className="check-result">{check.result}</span>
-              </summary>
-              <div className="check-body">
-                <Lines items={asLines(check.reasoning)} />
-                <p><strong>How far to trust it: </strong>{benchmarkSentence(check.benchmark)}</p>
-                <Limits items={check.limitations} open />
-              </div>
-            </details>
-          ))}
-        </div>
-      </Section>
+      <div className="key" role="note">
+        <span>How to read this report:</span>
+        <span><KindTag kind="observed" /> a record in the data</span>
+        <span><KindTag kind="estimate" /> a score from a model or rule</span>
+        <span><KindTag kind="unknown" /> a check or fact that's missing</span>
+      </div>
 
       {explanation.missing_checks.length > 0 && (
         <Section title="Not run for this case" kind="unknown">

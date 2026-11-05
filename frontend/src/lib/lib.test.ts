@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { safeHttpUrl } from '../api.js';
-import type { NetworkPayload } from '../types';
-import { benchmarkSentence, markPhrases, quotedPhrases, scoreText, uploadProblem, utc } from './format';
+import type { AnalysisResponse, NetworkPayload } from '../types';
+import { benchmarkSentence, markPhrases, quotedPhrases, scoreText, trustScore, uploadProblem, utc } from './format';
 import { buildView, revealedAt } from './graph';
 import { caseHref, parseRoute } from './route';
 
@@ -108,5 +108,27 @@ describe('spread graph', () => {
   it('returns nothing rather than an empty picture', () => {
     expect(buildView({ nodes: [], edges: [], timeline: [] })).toBeNull();
     expect(buildView(null)).toBeNull();
+  });
+});
+
+describe('trust score', () => {
+  const report = (modules: Record<string, [string, number | null]>) => ({
+    modules: Object.fromEntries(Object.entries(modules).map(([key, [status, score]]) => [key, { status, score, confidence: null, evidence: [], limitations: [] }])),
+  }) as unknown as AnalysisResponse;
+
+  it('uses the strongest warning from checks on the content', () => {
+    const trust = trustScore(report({ media: ['complete', 0.28], text: ['complete', 0.45], network: ['complete', 0.99] }));
+    expect(trust.score).toBe(55);
+    expect(trust.strongest?.name).toBe('Text');
+  });
+
+  it('gives no score rather than a high one when nothing measured the content', () => {
+    const trust = trustScore(report({ media: ['unavailable', null], network: ['complete', 0.87] }));
+    expect(trust.score).toBeNull();
+    expect(trust.mediaMissing).toBe(true);
+  });
+
+  it('counts a real zero', () => {
+    expect(trustScore(report({ url: ['complete', 0] })).score).toBe(100);
   });
 });

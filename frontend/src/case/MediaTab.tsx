@@ -120,6 +120,19 @@ export default function MediaTab({ report, explanation }: { report: AnalysisResp
 
   useEffect(() => setFile(uploadFor(report.case_id) || null), [report.case_id]);
 
+  if (media?.status === 'unavailable') {
+    return (
+      <>
+        <Caveat>
+          <strong>The media check didn't run, so this file has no result.</strong>
+          <Lines items={media.limitations} />
+          <p>If the image model isn't installed on the server, stop the API, run <code>pip install -r backend/media/requirements-model.txt</code>, start it again and upload the file again.</p>
+        </Caveat>
+        {media.evidence.length > 0 && <Section title="Evidence from this file" kind="observed"><Lines items={media.evidence} /></Section>}
+      </>
+    );
+  }
+
   if (!media || media.status === 'not_applicable') {
     return <Unknown title="No media was checked">{media?.limitations?.[0] || 'This case has no image or video.'} A missing check says nothing about the content.</Unknown>;
   }
