@@ -208,6 +208,19 @@ def expand_shortener(url: str, request: Callable[..., HttpResponse] = safe_reque
     for _ in range(_MAX_SHORTENER_HOPS):
         if (urlsplit(current).hostname or "").casefold() not in SHORTENER_HOSTS:
             return current if current != url else None
+
+
+def expand_short_url(url: str) -> tuple[str | None, str | None]:
+    """Return the final URL and an explanatory limit after a safe, opted-in request."""
+    if (urlsplit(url).hostname or "").casefold().rstrip(".") not in SHORTENER_HOSTS:
+        return None, None
+    try:
+        response = safe_request(url, method="HEAD", timeout_s=5, max_bytes=0, max_redirects=3)
+    except HttpBlocked as error:
+        return None, str(error)
+    except HttpFailed as error:
+        return None, f"Short URL expansion was unavailable ({error.kind})."
+    return response.url, None
         try:
             response = request(current, method="GET", timeout_s=_EXPAND_TIMEOUT_SECONDS, max_bytes=_MAX_REDIRECT_BODY, max_redirects=0)
         except (HttpBlocked, HttpFailed):
