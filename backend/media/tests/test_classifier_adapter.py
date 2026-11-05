@@ -3,12 +3,12 @@ from __future__ import annotations
 import sys
 
 import pytest
-from conftest import patterned_image
 
 from backend.media import MediaConfig, analyze_media
 from backend.media.classifier import HuggingFaceClassifier, synthetic_class_index
 from backend.media.errors import ClassifierUnavailable
 from backend.media.models import CheckStatus
+from backend.media.tests.helpers import patterned_image
 
 
 @pytest.mark.parametrize(

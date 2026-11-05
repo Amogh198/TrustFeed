@@ -5,13 +5,13 @@ import types
 
 import numpy as np
 import pytest
-from conftest import FakeClassifier, patterned_image
 
 from backend.media import MediaConfig, analyze_media
 from backend.media.classifier import HuggingFaceClassifier
 from backend.media.errors import ClassifierUnavailable
 from backend.media.models import CheckStatus, MediaType
 from backend.media.phash import JsonHashIndex, ReferenceEntry
+from backend.media.tests.helpers import FakeClassifier, patterned_image
 
 
 @pytest.mark.parametrize(("name", "pillow_format"), [("a.jpg", "JPEG"), ("a.png", "PNG"), ("a.webp", "WEBP")])

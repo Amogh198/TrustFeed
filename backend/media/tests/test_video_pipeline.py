@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import sys
 
-from conftest import FakeClassifier, patterned_image, write_video
-
 from backend.media import MediaConfig, analyze_media
 from backend.media.errors import ClassifierUnavailable
 from backend.media.models import Assessment, CheckStatus, MediaType, ModelBand
 from backend.media.phash import JsonHashIndex, ReferenceEntry, compute_phash
+from backend.media.tests.helpers import FakeClassifier, patterned_image, write_video
 
 RED, GREEN, BLUE = (0, 0, 255), (0, 255, 0), (255, 0, 0)
 

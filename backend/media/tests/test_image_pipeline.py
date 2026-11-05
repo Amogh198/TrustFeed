@@ -4,13 +4,13 @@ import json
 import sys
 
 import pytest
-from conftest import FakeClassifier, patterned_image
 from PIL import Image
 
 from backend.media import MediaConfig, analyze_media
 from backend.media.errors import ClassifierUnavailable
 from backend.media.models import Assessment, CheckStatus, MediaType, ModelBand
 from backend.media.phash import JsonHashIndex, ReferenceEntry, compute_phash, hamming_distance
+from backend.media.tests.helpers import FakeClassifier, patterned_image
 
 
 def test_image_success_is_explainable(image_file):

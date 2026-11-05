@@ -6,12 +6,12 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import FakeClassifier, patterned_image
 
 from backend.media import MediaConfig, analyze_media
 from backend.media.__main__ import main
 from backend.media.config import DEFAULT_MODEL_ID, DEFAULT_MODEL_REVISION
 from backend.media.errors import ClassifierUnavailable
+from backend.media.tests.helpers import FakeClassifier, patterned_image
 
 MODULE_KEYS = {"status", "score", "confidence", "evidence", "limitations"}
 REPO_ROOT = Path(__file__).resolve().parents[3]
