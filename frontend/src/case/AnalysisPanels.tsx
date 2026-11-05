@@ -121,7 +121,7 @@ export function CoordinationTests({ caseId }: { caseId: string }) {
 }
 
 /** Say plainly what really ran for this case, so nothing looks like more than it was. */
-export function WhatRan({ report, sourceProviders }: { report: AnalysisResponse; sourceProviders?: { name: string; status: string; result_count: number; limitation?: string | null }[] }) {
+export function WhatRan({ report, sourceProviders }: { report: AnalysisResponse; sourceProviders?: { name: string; status: string; result_count: number | null; limitation?: string | null }[] }) {
   const claims = report.claim_analysis;
   const verification = claims?.verification;
   const media = report.modules?.media;

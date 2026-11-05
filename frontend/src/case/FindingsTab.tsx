@@ -4,7 +4,7 @@ import type { AnalysisResponse, Explanation } from '../types';
 import { KindTag, Limits, Lines, Loading, Section, Unknown } from '../ui/ui';
 
 export default function FindingsTab({ report, explanation, loading, sourceProviders }: {
-  sourceProviders?: { name: string; status: string; result_count: number; limitation?: string | null }[];
+  sourceProviders?: { name: string; status: string; result_count: number | null; limitation?: string | null }[];
   report: AnalysisResponse; explanation?: Explanation; loading: boolean;
 }) {
   if (!explanation) {
