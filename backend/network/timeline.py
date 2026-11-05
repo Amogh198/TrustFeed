@@ -11,20 +11,18 @@ from backend.network.dataset import Dataset, Post, format_timestamp
 def build_timeline(
     dataset: Dataset, clusters: list[Cluster], config: CoordinationConfig
 ) -> list[dict[str, Any]]:
-    """Group posts of flagged clusters' items into fixed time buckets.
+    """Group posts of flagged clusters' items, and traced posts, into fixed time buckets.
 
     Buckets with no posts are left out, so frame numbers can skip ahead. Use
     ``offset_seconds`` to position a frame on the slider.
     """
     flagged = [cluster for cluster in clusters if cluster.flagged]
-    if not flagged:
-        return []
 
     posts_with_clusters: list[tuple[Post, list[Cluster]]] = []
     for post in dataset.posts:
         signals = set(post_signals(post, config))
         matched = [cluster for cluster in flagged if signals & cluster.item_keys]
-        if matched:
+        if matched or post.on_topic:
             posts_with_clusters.append((post, matched))
     if not posts_with_clusters:
         return []

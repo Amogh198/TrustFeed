@@ -9,39 +9,59 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+import networkx as nx
+
 from backend.network.config import CoordinationConfig
 from backend.network.dataset import Post
 
 SIGNALS = ("url", "media", "text")
 
 _URL_PATTERN = re.compile(r"https?://\S+")
-_NON_WORD_PATTERN = re.compile(r"[^\w\s]")
+_TRACKING_PARAMETERS = frozenset({"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "ref_src"})
+
+
+def _normalize_character(character: str) -> str:
+    category = unicodedata.category(character)
+    # Letters, numbers and combining marks stay: Indic vowels are marks, so removing
+    # them would make पानी and पीना look identical.
+    if category[0] in "LMN":
+        return character
+    # Format characters such as zero-width joiners sit inside words.
+    return "" if category == "Cf" else " "
 
 
 def normalize_text(text: str) -> str:
     """Remove the case, punctuation and link differences used to disguise copies."""
     folded = unicodedata.normalize("NFKC", text).casefold()
     without_urls = _URL_PATTERN.sub(" ", folded)
-    return " ".join(_NON_WORD_PATTERN.sub(" ", without_urls).split())
+    return " ".join("".join(map(_normalize_character, without_urls)).split())
 
 
-def normalize_url(url: str) -> str:
-    """Make one link compare equal regardless of tracking parameters or fragments."""
-    parts = urlsplit(url.strip())
+def normalize_url(url: str) -> str | None:
+    """Make one link compare equal whatever its tracking, fragment, scheme or ``www.``.
+
+    Returns None for text that isn't a usable link, which then gives no signal.
+    """
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError:
+        return None
+    if not parts.netloc:
+        return None
     query = sorted(
         (key, value)
         for key, value in parse_qsl(parts.query, keep_blank_values=True)
-        if not key.lower().startswith("utm_")
+        if not key.lower().startswith("utm_") and key.lower() not in _TRACKING_PARAMETERS
     )
-    return urlunsplit(
-        (parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), urlencode(query), "")
-    )
+    host = parts.netloc.lower().removeprefix("www.")
+    return urlunsplit(("https", host, parts.path.rstrip("/"), urlencode(query), ""))
 
 
 def post_signals(post: Post, config: CoordinationConfig) -> Iterator[tuple[str, str]]:
     """Yield every (signal, value) that can link this post to another account's post."""
-    if post.url:
-        yield "url", normalize_url(post.url)
+    normalized_url = normalize_url(post.url) if post.url else None
+    if normalized_url:
+        yield "url", normalized_url
     if post.media_hash:
         yield "media", post.media_hash.lower()
     normalized = normalize_text(post.text)
@@ -60,12 +80,19 @@ class CoShare:
     # One post pair can match on several signals, so it is keyed to count its delay once.
     delays: dict[tuple[str, str], float] = field(default_factory=dict)
     platforms: set[str] = field(default_factory=set)
+    # The matched (signal, value) keys on each post, which show which keys are one item.
+    keys_by_post: dict[str, set[tuple[str, str]]] = field(default_factory=lambda: defaultdict(set))
 
     @property
     def distinct_items(self) -> int:
-        # One post usually matches on URL, media and text together. Taking the
-        # maximum, not the sum, stops that being counted as three items.
-        return max(len(values) for values in self.items.values())
+        # Keys carried by the same post are one item, so a post matching on URL, media
+        # and text counts once. Separate posts matching on different signals are separate
+        # items. Two different links stay two items even if a shared logo connects them.
+        linked = nx.Graph()
+        for keys in self.keys_by_post.values():
+            linked.add_nodes_from(keys)
+            nx.add_path(linked, sorted(keys))
+        return max(nx.number_connected_components(linked), *(len(values) for values in self.items.values()))
 
     @property
     def signal_counts(self) -> dict[str, int]:
@@ -111,6 +138,8 @@ def find_co_shares(
                     pair = CoShare(source, target, later.created_at)
                     pairs[(source, target)] = pair
                 pair.items[signal].add(value)
+                pair.keys_by_post[earlier.id].add((signal, value))
+                pair.keys_by_post[later.id].add((signal, value))
                 pair.delays[(earlier.id, later.id)] = delay
                 pair.platforms.update(post.platform for post in (earlier, later) if post.platform)
                 pair.first_seen_at = min(pair.first_seen_at, later.created_at)
