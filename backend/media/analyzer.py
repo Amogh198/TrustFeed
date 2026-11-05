@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import math
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from backend.media.classifier import ImageClassifier, default_classifier
@@ -16,6 +19,8 @@ from backend.media.models import (
     Assessment,
     CheckStatus,
     ClassifierCheck,
+    DetectorPanelCheck,
+    DetectorResult,
     FrameEvidence,
     HashMatch,
     KeyframeCheck,
@@ -27,7 +32,10 @@ from backend.media.models import (
     PHashCheck,
     empty_checks,
 )
+from backend.media.panel import PANEL_MODELS, build_classifier
 from backend.media.phash import HashIndex, JsonHashIndex, compute_phash
+
+ClassifierFactory = Callable[[MediaConfig], ImageClassifier]
 
 # File names and contents are never logged: uploads may be private.
 logger = logging.getLogger(__name__)
@@ -113,6 +121,71 @@ def _classifier_check(classifier: ImageClassifier, scores: list[float] | str, co
         band=band,
         items_scored=len(scores),
         limitations=limitations,
+    )
+
+
+def _apply_size_limit(check: ClassifierCheck, image, config: MediaConfig) -> ClassifierCheck:
+    if check.status is CheckStatus.COMPLETE and min(image.size) < config.min_reliable_side:
+        check.band = ModelBand.INCONCLUSIVE
+        check.limitations.append(
+            f"The image is smaller than {config.min_reliable_side}px on one side, so the model score is unreliable."
+        )
+    return check
+
+
+def _detector_result(check: ClassifierCheck, model_id: str, revision: str, *, counted: bool) -> DetectorResult:
+    return DetectorResult(
+        model_id=model_id,
+        model_revision=revision,
+        status=check.status,
+        score=check.score,
+        band=check.band,
+        counted=counted,
+        limitations=check.limitations,
+    )
+
+
+def _detector_panel(
+    images: Sequence[object],
+    in_use: ClassifierCheck,
+    config: MediaConfig,
+    factory: ClassifierFactory,
+    *,
+    is_image: bool,
+) -> DetectorPanelCheck:
+    """Run each detector in turn, releasing it before the next, because all of them need over 2 GB together."""
+    started = time.monotonic()
+    detectors: list[DetectorResult] = []
+    for model_id, revision in PANEL_MODELS:
+        if model_id == in_use.model_id and revision == in_use.model_revision:
+            detectors.append(_detector_result(in_use, model_id, revision, counted=True))
+            continue
+        if time.monotonic() - started >= config.panel_time_budget_s:
+            check = ClassifierCheck(
+                status=CheckStatus.UNAVAILABLE,
+                limitations=[f"Not run: the panel's {config.panel_time_budget_s:.0f}-second limit was reached."],
+            )
+            detectors.append(_detector_result(check, model_id, revision, counted=False))
+            continue
+        try:
+            classifier = factory(replace(config, model_id=model_id, model_revision=revision))
+        except Exception as exc:
+            logger.warning("Media panel detector could not be built: %s", type(exc).__name__)
+            check = ClassifierCheck(status=CheckStatus.UNAVAILABLE, limitations=["The detector could not be set up."])
+        else:
+            check = _classifier_check(classifier, _predict(classifier, images), config)
+            del classifier
+            gc.collect()
+        if is_image:
+            check = _apply_size_limit(check, images[0], config)
+        detectors.append(_detector_result(check, model_id, revision, counted=False))
+
+    ran = any(detector.status is CheckStatus.COMPLETE for detector in detectors)
+    limitations = [SCORE_CAVEAT, "Only the detector in use affects the overall result."]
+    if not any(detector.counted for detector in detectors):
+        limitations.append("The detector in use is not on the panel, so no detector here affects the overall result.")
+    return DetectorPanelCheck(
+        status=CheckStatus.COMPLETE if ran else CheckStatus.UNAVAILABLE, detectors=detectors, limitations=limitations
     )
 
 
@@ -258,6 +331,7 @@ def _finish(
     keyframes: KeyframeCheck,
     extra_limitations: Sequence[str],
     config: MediaConfig,
+    panel: DetectorPanelCheck | None = None,
 ) -> MediaAnalysisResult:
     evidence = [
         *_classifier_evidence(classifier, keyframes.frames, config),
@@ -285,7 +359,9 @@ def _finish(
         limitations=_dedupe(limitations),
         sha256=info.sha256,
         size_bytes=info.size_bytes,
-        checks=MediaChecks(metadata=metadata, classifier=classifier, phash=phash, keyframes=keyframes),
+        checks=MediaChecks(
+            metadata=metadata, classifier=classifier, phash=phash, keyframes=keyframes, detector_panel=panel
+        ),
     )
 
 
@@ -303,7 +379,7 @@ def _rejected(error: MediaInputError, info: InputInfo | None = None) -> MediaAna
     )
 
 
-def _analyze_image(path, info, classifier, index, note, config) -> MediaAnalysisResult:
+def _analyze_image(path, info, classifier, index, note, config, panel_factory=None) -> MediaAnalysisResult:
     try:
         image, metadata, limitations = read_image(path, config)
     except ImportError:
@@ -311,12 +387,7 @@ def _analyze_image(path, info, classifier, index, note, config) -> MediaAnalysis
     except MediaInputError as exc:
         return _rejected(exc, info)
 
-    check = _classifier_check(classifier, _predict(classifier, [image]), config)
-    if check.status is CheckStatus.COMPLETE and min(image.size) < config.min_reliable_side:
-        check.band = ModelBand.INCONCLUSIVE
-        check.limitations.append(
-            f"The image is smaller than {config.min_reliable_side}px on one side, so the model score is unreliable."
-        )
+    check = _apply_size_limit(_classifier_check(classifier, _predict(classifier, [image]), config), image, config)
     return _finish(
         info,
         metadata,
@@ -325,10 +396,11 @@ def _analyze_image(path, info, classifier, index, note, config) -> MediaAnalysis
         KeyframeCheck(status=CheckStatus.NOT_APPLICABLE),
         limitations,
         config,
+        _detector_panel([image], check, config, panel_factory, is_image=True) if panel_factory else None,
     )
 
 
-def _analyze_video(path, info, classifier, index, note, config) -> MediaAnalysisResult:
+def _analyze_video(path, info, classifier, index, note, config, panel_factory=None) -> MediaAnalysisResult:
     try:
         video, frames, limitations = extract_keyframes(path, config)
     except ImportError:
@@ -364,7 +436,11 @@ def _analyze_video(path, info, classifier, index, note, config) -> MediaAnalysis
         duration_s=video.duration_s,
         limitations=["Only basic stream properties were read; container tags were not inspected."],
     )
-    return _finish(info, metadata, _classifier_check(classifier, scores, config), phash, keyframes, [], config)
+    check = _classifier_check(classifier, scores, config)
+    panel = None
+    if panel_factory:
+        panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False)
+    return _finish(info, metadata, check, phash, keyframes, [], config, panel)
 
 
 def analyze_media(
@@ -373,11 +449,16 @@ def analyze_media(
     classifier: ImageClassifier | None = None,
     hash_index: HashIndex | None = None,
     config: MediaConfig | None = None,
+    run_panel: bool = False,
+    panel_factory: ClassifierFactory = build_classifier,
 ) -> MediaAnalysisResult:
     """Analyze one image or video.
 
     Expected failures (bad input, missing weights, broken index) are reported in
     the result rather than raised, so the wider pipeline keeps working.
+
+    ``run_panel`` also runs every detector on the panel. It is slow on CPU, so it
+    is off by default, and it never changes the overall score or assessment.
     """
     config = config or MediaConfig.from_env()
     path = Path(path)
@@ -389,4 +470,4 @@ def analyze_media(
     classifier = classifier or default_classifier(config)
     index, note = _resolve_index(config, hash_index)
     analyze = _analyze_image if info.media_type is MediaType.IMAGE else _analyze_video
-    return analyze(path, info, classifier, index, note, config)
+    return analyze(path, info, classifier, index, note, config, panel_factory if run_panel else None)

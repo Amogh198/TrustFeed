@@ -15,6 +15,8 @@ from backend.media.config import MediaConfig
 from backend.media.models import (
     CheckStatus,
     ClassifierCheck,
+    DetectorPanelCheck,
+    DetectorResult,
     KeyframeCheck,
     MediaAnalysisResult,
     MediaType,
@@ -23,13 +25,14 @@ from backend.media.models import (
     PHashCheck,
 )
 
-BENCHMARK_PATH = Path(__file__).resolve().parents[2] / "data" / "eval" / "commons_2026-11-05.json"
+BENCHMARK_PATH = Path(__file__).resolve().parents[2] / "data" / "eval" / "commons_licensed_2026-11-05.json"
 BENCHMARK_APPLIES_TO = (
-    "Whole images from Wikimedia Commons: AI-generated and edited fakes, and real photos of people."
+    "Whole images from Wikimedia Commons: AI-generated and edited fakes, and real photos of people, landscapes, "
+    "animals and architecture."
 )
-BENCHMARK_GAPS = (
-    "The benchmark did not measure face swaps, real images other than people, or images re-saved by social media."
-)
+BENCHMARK_GAPS = "The benchmark did not measure face swaps, video, or images re-saved by social media."
+# Below this AUC, fake and real images are barely separated, and the result should say so.
+NEAR_GUESSING_AUC = 0.6
 METADATA_UNTRUSTED = "Metadata comes from the file, so it can be missing, removed or false."
 PHASH_MEANING = "A perceptual match shows visual similarity to a reference, not who made the media or if a claim is true."
 
@@ -153,6 +156,11 @@ def _classifier(
             f"At the current bands this detector flags very few fakes: {benchmark['flagged_fake']} of "
             f"{benchmark['n_fake']} when measured."
         )
+        if benchmark["auc"] is not None and benchmark["auc"] < NEAR_GUESSING_AUC:
+            limitations.append(
+                f"When measured, this detector separated fake from real images little better than guessing "
+                f"(AUC {benchmark['auc']:.2f}, where 0.50 is guessing)."
+            )
         limitations.append(BENCHMARK_GAPS)
     band = check.band.value if check.band else "no"
     artifacts = [{"kind": "occlusion_heatmap", "url": heatmap_url}] if heatmap_url else []
@@ -227,13 +235,97 @@ def _keyframes(check: KeyframeCheck) -> dict[str, Any]:
     return _check("media.keyframes", label, check.status, result, reasoning, check.limitations)
 
 
+def load_comparison(path: Path = BENCHMARK_PATH) -> tuple[dict[str, dict[str, Any]], float | None]:
+    """Return each model's measured comparison by "id@revision", and the baseline's test AUC."""
+    raw = _read_results(path)
+    if raw is None:
+        return {}, None
+    try:
+        comparison = json.loads(raw)["comparison"]
+        models = {entry["model"]: entry for entry in comparison["models"]}
+        return models, models[comparison["baseline"]]["test_split"]["auc"]
+    except (KeyError, TypeError, ValueError):
+        return {}, None
+
+
+def _why_counted(detector: DetectorResult, models: dict[str, dict[str, Any]], baseline_auc: float | None) -> str:
+    if detector.counted:
+        return "Counted: this is the detector behind the overall model score."
+    entry = models.get(f"{detector.model_id}@{detector.model_revision}")
+    measured = entry["test_split"]["auc"] if entry else None
+    if measured is None or baseline_auc is None:
+        return "Shown, not counted: it has not been measured."
+    figures = f"AUC {measured:.2f}, against {baseline_auc:.2f} for the detector in use"
+    if entry["difference_from_baseline"]["adds_value"]:
+        return f"Shown, not counted: it measured better ({figures}), but counting it has not been decided."
+    return f"Shown, not counted: it did not measure better ({figures})."
+
+
+def _describe_detector(detector: DetectorResult, why: str) -> str:
+    if detector.status is not CheckStatus.COMPLETE or detector.score is None:
+        return f"{detector.model_id}: no result. {why}"
+    band = detector.band.value if detector.band else "no"
+    return f"{detector.model_id}: {detector.score:.4f}, {band} band. {why}"
+
+
+def _detector_artifact(detector: DetectorResult, why: str) -> dict[str, str]:
+    artifact = {
+        "kind": "detector_result",
+        "model_id": detector.model_id,
+        "status": detector.status.value,
+        "counted": "true" if detector.counted else "false",
+        "why": why,
+    }
+    if detector.model_revision:
+        artifact["model_revision"] = detector.model_revision
+    if detector.score is not None:
+        artifact["score"] = f"{detector.score:.4f}"
+    if detector.band is not None:
+        artifact["band"] = detector.band.value
+    return artifact
+
+
+def _detector_panel(check: DetectorPanelCheck, media_type: MediaType) -> dict[str, Any]:
+    label = "All AI image detectors"
+    models, baseline_auc = load_comparison()
+    whys = [_why_counted(detector, models, baseline_auc) for detector in check.detectors]
+    ran = [detector for detector in check.detectors if detector.status is CheckStatus.COMPLETE]
+    bands = {band: sum(detector.band is band for detector in ran) for band in ModelBand}
+    result = (
+        f"{len(ran)} of {len(check.detectors)} detectors ran: {bands[ModelBand.ELEVATED]} elevated, "
+        f"{bands[ModelBand.INCONCLUSIVE]} inconclusive, {bands[ModelBand.LOW]} low"
+    )
+    lines = [_describe_detector(detector, why) for detector, why in zip(check.detectors, whys, strict=True)]
+    opening = "Each detector gave its own signal, and they are not votes."
+    if bands[ModelBand.ELEVATED] and bands[ModelBand.LOW]:
+        opening += " They disagree on this media, so read none of them as settled."
+    if media_type is MediaType.VIDEO:
+        opening += " Accuracy on video has not been measured."
+    limitations = list(check.limitations)
+    for detector in check.detectors:
+        limitations.extend(detector.limitations)
+    return _check(
+        "media.detector_panel",
+        label,
+        check.status,
+        result,
+        " ".join([opening, *lines]),
+        limitations,
+        # Figures for several models don't fit one benchmark entry, and the dashboard reads that field as one model.
+        artifacts=[_detector_artifact(d, why) for d, why in zip(check.detectors, whys, strict=True)],
+    )
+
+
 def build_checks(
     result: MediaAnalysisResult, *, config: MediaConfig | None = None, heatmap_url: str | None = None
 ) -> list[dict[str, Any]]:
     config = config or MediaConfig.from_env()
-    return [
+    checks = [
         _classifier(result.checks.classifier, result.media_type, config, heatmap_url),
         _metadata(result.checks.metadata),
         _phash(result.checks.phash),
         _keyframes(result.checks.keyframes),
     ]
+    if result.checks.detector_panel is not None:
+        checks.append(_detector_panel(result.checks.detector_panel, result.media_type))
+    return checks

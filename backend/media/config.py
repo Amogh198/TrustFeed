@@ -43,6 +43,9 @@ class MediaConfig:
     # Keyframes further apart than this make a video's model result inconclusive.
     frame_disagreement: float = 0.5
 
+    # No further panel detector starts after this long. One already running finishes.
+    panel_time_budget_s: float = 180.0
+
     @classmethod
     def from_env(cls) -> MediaConfig:
         model_id = os.environ.get("MEDIA_MODEL_ID", "").strip()

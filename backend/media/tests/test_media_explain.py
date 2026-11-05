@@ -62,8 +62,8 @@ def test_benchmark_figures_come_from_the_published_test_split():
     document = json.loads(BENCHMARK_PATH.read_text(encoding="utf-8"))
     split = next(m for m in document["models"] if m["model_id"] == MODEL)["current_bands"]["test_split"]
     figures = load_benchmark(MODEL, REVISION, CONFIG)
-    assert figures["n_fake"] == split["n"]["fake"] == 157
-    assert figures["n_real"] == split["n"]["real"] == 75
+    assert figures["n_fake"] == split["n"]["fake"] == 137
+    assert figures["n_real"] == split["n"]["real"] == 148
     assert figures["recall"] == split["recall"]["value"]
     assert figures["recall_ci95"] == split["recall"]["ci95"]
     assert figures["false_positive_rate"] == split["false_positive_rate"]["value"]
@@ -117,18 +117,23 @@ def test_low_score_is_not_reassuring_and_says_how_often_fakes_score_low(tmp_path
     check = by_id(build_checks(analyzed(tmp_path, 0.1), config=CONFIG))["media.classifier"]
     assert check["result"] == "0.1000, low band"
     assert "does not show the image is authentic" in check["reasoning"]
-    assert "128 of 157 fake images also scored low" in check["reasoning"]
+    assert "100 of 137 fake images also scored low" in check["reasoning"]
     assert "a low score is weak evidence" in check["reasoning"]
     assert any("did not measure face swaps" in line for line in check["limitations"])
-    assert "flags very few fakes: 1 of 157 when measured." in " ".join(check["limitations"])
+    assert "flags very few fakes: 3 of 137 when measured." in " ".join(check["limitations"])
+
+
+def test_says_plainly_when_the_detector_barely_beats_guessing(tmp_path):
+    check = by_id(build_checks(analyzed(tmp_path, 0.1), config=CONFIG))["media.classifier"]
+    assert f"little better than guessing (AUC {check['benchmark']['auc']:.2f}" in " ".join(check["limitations"])
 
 
 def test_elevated_score_reports_measured_misses_and_false_flags(tmp_path):
     check = by_id(build_checks(analyzed(tmp_path, 0.9), config=CONFIG))["media.classifier"]
     assert check["result"] == "0.9000, elevated band"
     assert "It is not proof" in check["reasoning"]
-    assert "caught 1 of 157 fake images" in check["reasoning"]
-    assert "wrongly flagged 1 of 75 real ones" in check["reasoning"]
+    assert "caught 3 of 137 fake images" in check["reasoning"]
+    assert "wrongly flagged 3 of 148 real ones" in check["reasoning"]
 
 
 def test_middle_score_is_inconclusive(tmp_path):
@@ -140,7 +145,7 @@ def test_middle_score_is_inconclusive(tmp_path):
 def test_unmeasured_model_has_a_null_benchmark(tmp_path):
     check = by_id(build_checks(analyzed(tmp_path, classifier=FakeClassifier(0.1)), config=CONFIG))["media.classifier"]
     assert check["benchmark"] is None
-    assert "of 157" not in check["reasoning"]
+    assert "of 137" not in check["reasoning"]
 
 
 def test_unavailable_model_invents_no_figures(tmp_path):
