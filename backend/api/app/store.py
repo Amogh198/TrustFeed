@@ -1,12 +1,15 @@
 """Small local SQLite store for API case history.
 
 Only rendered analysis results are persisted. Raw uploads are deleted by the
-route, and original media files are never saved here.
+route, and original media files are never saved here. A traced case's details
+include public account handles and post links, so this file stays out of Git.
 """
 
+import json
 import os
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from backend.api.app.models import AnalysisResponse, CaseSummary, RiskLevel
 
@@ -39,6 +42,16 @@ class CaseStore:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS cases_created_at_idx ON cases (created_at DESC)"
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS case_details (
+                    case_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    detail_json TEXT NOT NULL,
+                    PRIMARY KEY (case_id, kind)
+                )
+                """
+            )
 
     def save(self, case: AnalysisResponse) -> None:
         payload = case.model_dump_json()
@@ -66,6 +79,21 @@ class CaseStore:
                 "SELECT response_json FROM cases WHERE case_id = ?", (case_id,)
             ).fetchone()
         return AnalysisResponse.model_validate_json(row["response_json"]) if row else None
+
+    def save_detail(self, case_id: str, kind: str, detail: dict[str, Any]) -> None:
+        """Keep a module's full result, such as a source search, beside the case."""
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO case_details (case_id, kind, detail_json) VALUES (?, ?, ?)",
+                (case_id, kind, json.dumps(detail)),
+            )
+
+    def get_detail(self, case_id: str, kind: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT detail_json FROM case_details WHERE case_id = ? AND kind = ?", (case_id, kind)
+            ).fetchone()
+        return json.loads(row["detail_json"]) if row else None
 
     def list(self, limit: int, risk_level: RiskLevel | None = None) -> tuple[list[CaseSummary], int]:
         where = "WHERE overall_risk = ?" if risk_level else ""
@@ -100,6 +128,7 @@ class CaseStore:
         """Test helper; production code does not expose a deletion endpoint."""
         with self._connect() as connection:
             connection.execute("DELETE FROM cases")
+            connection.execute("DELETE FROM case_details")
 
 
 def default_store() -> CaseStore:
