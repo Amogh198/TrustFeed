@@ -39,7 +39,7 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 
 | Work | Reviewer | State, 2026-11-05 |
 |---|---|---|
-| T1 media (Akshay) | T2, `bhuvan_claude` | No T1 PR yet; nothing to review |
+| T1 media (Akshay) | T2, `bhuvan_claude` | Branch pushed, no PR yet; review starts when one opens |
 | T2 network (Bhuvan) | T1, `akshay_claude` | PR #3, requested from `Akshaynbhat` |
 | T3 API (Amogh) | T4 lane | PR #1 waiting; reviewer **UNRESOLVED** until T4's owner is confirmed |
 | T4 dashboard | T3 lane | No PR yet |
@@ -56,7 +56,7 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
-| T1 | none seen | Not started on GitHub | Nothing visible | Model adapter, metadata, keyframes, pHash | None known |
+| T1 | `feature/akshay-media-forensics` | Pushed, no PR yet | Adapter with tests, per its branch; not run by T2 | Open PR; agree T3 interface | None known |
 | T2 | `feat/network-coordination` | In review, PR #3 | Engine, multi-platform demo data, 61 tests | Support T3 wiring; review T1 when ready | Needs approval |
 | T3 | `feat/amogh-backend-api-text` | In review, PR #1 | API starter, heuristics, placeholders | Tests, fusion, replay, wiring | Needs approval |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
@@ -78,14 +78,14 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 | Component | Built | Tested alone | Integrated |
 |---|---|---|---|
-| T1 media | No | No | No |
+| T1 media | Pushed, no PR | Has tests, not verified by T2 | No |
 | T2 network | Yes, PR #3 | Yes | No |
-| T3 API and text | Starter, PR #1 | Not run, per PR #1 | No |
+| T3 API and text | Starter, PR #1 | Tests added; `/health` and analyze responded in a T2 smoke test | No |
 | T3 fusion | Text and URL only | Not run | No |
 | T4 dashboard | No | No | No |
 | T5 replay and demo | No | No | No |
 
-**Requirements not yet met:** deepfake and synthetic-media detection; media upload; the dashboard; generated countermeasures (T3 has a template only). Multi-platform coverage is synthetic demo data only, in PR #3.
+**Requirements not yet met:** deepfake and synthetic-media detection in `main` (T1's branch is unmerged); media upload; the dashboard; generated countermeasures (T3 has a template only). Multi-platform coverage is synthetic demo data only, in PR #3.
 
 **Open compatibility problems:**
 1. `get_network` returns 404 for `demo-001` because it checks `CASES` first. T3 fix; steps in PR #3.
@@ -156,6 +156,29 @@ Give the exact action needed in one or two lines.
 - Before investigating, check whether a status file, PR or README already has the answer. Record verified findings there, not only in chat.
 - Keep handoffs short. Don't send routine progress to humans.
 - Never skip tests or reasoning to save tokens.
+
+### Setup each agent does for itself
+
+**Arrives with `git pull`, once merged:** `CLAUDE.md`, this file, `agent-status/`, `tools/agent_sync.py`, and the session-start hook in `.claude/settings.json` (Claude Code asks you to trust the folder first).
+
+**Doesn't transfer, because each account or machine is separate.** Nobody inherits another agent's setup:
+
+| Scope | What | Exact step |
+|---|---|---|
+| Each machine | Git, GitHub CLI, Python 3.11+ | Install if missing. Node 18+ too for T4. |
+| Each person | GitHub login | `gh auth login --hostname github.com --git-protocol https --web`, then `gh auth setup-git` |
+| Each clone | Git identity from your own GitHub account | `git config --local user.name "<name>"`, `git config --local user.email "<email>"` |
+| Each clone | Virtual environment | `python -m venv .venv`, then install your lane's requirements below |
+| Each person | Claude account plugins and connectors | Plugins install per machine; connectors are per Claude account |
+
+| Lane | Dependencies | Recommended, all from `claude-plugins-official` |
+|---|---|---|
+| T1 | `backend/media/requirements-dev.txt`; `requirements-model.txt` for the classifier | `pyright-lsp`, `pr-review-toolkit`, `context7`; optionally `huggingface-skills` |
+| T2 | `backend/network/requirements-dev.txt` | `pyright-lsp`, `pr-review-toolkit`, `context7` |
+| T3 | `backend/api/requirements-dev.txt` | `pyright-lsp`, `pr-review-toolkit`, `context7` |
+| T4 | Set by T4's `frontend/` package | `typescript-lsp`, `pr-review-toolkit`, `context7`; optionally `frontend-design` |
+
+Install a plugin with `claude plugin install <name>@claude-plugins-official --scope local`. `pyright-lsp` also needs `npm install -g pyright`, and `typescript-lsp` needs `npm install -g typescript-language-server typescript`. Then start a new session. Only `pyright-lsp` has been installed and tested so far, on Bhuvan's machine.
 
 ### Adoption states
 

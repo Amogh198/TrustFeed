@@ -5,7 +5,7 @@ CURRENT TASK: Awaiting reviews on PR #3 (network engine) and PR #4 (coordination
 STATUS: In Review
 COMPLETED: Network engine, multi-platform demo data, 61 tests (PR #3); coordination system (PR #4)
 IN PROGRESS: none
-NEXT ACTION: Address reviews on PR #3; support T3 wiring; review T1's PR when opened (only assigned review, none open yet)
+NEXT ACTION: Address reviews on PR #3; support T3 wiring; review T1's PR when opened (only assigned review; branch pushed, no PR)
 FILES OWNED: backend/network/**, data/demo/network_demo*, data/demo/README.md
 LATEST COMMIT: 8bc92fc on feat/network-coordination
 INTERFACES CHANGED: none; adds get_network_payload, get_network_module_result (see backend/network/README.md)

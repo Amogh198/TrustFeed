@@ -1,13 +1,13 @@
 AGENT: Akshay (Akshaynbhat), lane akshay_claude; seeded by T2 agent from TASK_BOARD, owner to confirm
 RESPONSIBILITY: T1 image model, metadata, video keyframes, pHash match, explainable evidence JSON
-BRANCH: none seen on GitHub as of 2026-11-05
+BRANCH: feature/akshay-media-forensics
 CURRENT TASK: Unknown to the T2 agent; owner to update
-STATUS: Ready
-COMPLETED: none seen on GitHub
+STATUS: Doing
+COMPLETED: Media forensics adapter pushed, no PR yet (seen on GitHub; T2 agent did not run it)
 IN PROGRESS: Unknown to the T2 agent; owner to update
 NEXT ACTION: Pull main, adopt the protocol, publish status; review PR #3 (assigned as T2's reviewer lane)
 FILES OWNED: backend/media/**
-LATEST COMMIT: none
+LATEST COMMIT: 64f40c9 on feature/akshay-media-forensics
 INTERFACES CHANGED: none
 DEPENDENCIES: T3 ModuleResult shape (PR #1)
 BLOCKERS: none known
