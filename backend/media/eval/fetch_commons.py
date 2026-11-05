@@ -33,6 +33,9 @@ _ALLOWED_LICENCE = re.compile(r"^(cc0|public domain|pd\b|pd-|cc[ -]by(-sa)?[ -]\
 _REFUSED_LICENCE = re.compile(r"\b(nc|nd|non-?commercial|no derivatives|fair use)\b", re.IGNORECASE)
 _MIMES = {"image/jpeg", "image/png", "image/webp"}
 _REPO = Path(__file__).resolve().parents[3]
+_MAX_TITLES_PER_REQUEST = 50
+# Longer title lists are refused with HTTP 414, and Commons titles can be very long.
+_MAX_TITLES_LENGTH = 4000
 
 Fetch = Callable[[str], bytes]
 
@@ -123,12 +126,27 @@ def list_files(fetch: Fetch, roots: Iterable[str], *, limit: int, max_depth: int
     return list(titles)[:limit]
 
 
+def _title_batches(titles: Sequence[str]) -> Iterable[list[str]]:
+    """Split titles so that no request's URL grows too long once encoded."""
+    batch: list[str] = []
+    length = 0
+    for title in titles:
+        cost = len(urllib.parse.quote_plus(title + "|"))
+        if batch and (len(batch) == _MAX_TITLES_PER_REQUEST or length + cost > _MAX_TITLES_LENGTH):
+            yield batch
+            batch, length = [], 0
+        batch.append(title)
+        length += cost
+    if batch:
+        yield batch
+
+
 def describe_files(fetch: Fetch, titles: Sequence[str]) -> list[dict]:
     described = []
-    for start in range(0, len(titles), 50):
+    for batch in _title_batches(titles):
         data = _api(
             fetch,
-            titles="|".join(titles[start : start + 50]),
+            titles="|".join(batch),
             prop="imageinfo",
             iiprop="url|mime|timestamp|extmetadata",
             iiurlwidth=THUMBNAIL_WIDTH,
@@ -209,14 +227,15 @@ def main(argv: list[str] | None = None, fetch: Fetch = http_fetch) -> int:
         kept = fetch_plan(plan, args.out, args.per_category, fetch, args.seed, args.delay)
         print(f"{plan.label}/{plan.category}: {len(kept)} images")
         records.extend(kept)
-    manifest = {
-        "source": "Wikimedia Commons",
-        "url": "https://commons.wikimedia.org/",
-        "plans": [asdict(plan) for plan in PLANS],
-        "seed": args.seed,
-        "files": records,
-    }
-    (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        # Written after each category, so a later failure can't lose the record of these files.
+        manifest = {
+            "source": "Wikimedia Commons",
+            "url": "https://commons.wikimedia.org/",
+            "plans": [asdict(item) for item in PLANS],
+            "seed": args.seed,
+            "files": records,
+        }
+        (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return 0 if records else 1
 
 

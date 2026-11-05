@@ -40,7 +40,15 @@ The first command checks only the local reference list. The second sends the ima
 
 ## Providers
 
-Set any of these in `.env`. Each provider without a key is skipped. If one fails, the others still run.
+Each provider without a key is skipped. If one fails, the others still run.
+
+Keys are read from environment variables, and **`.env` is not loaded automatically**. Put keys in `.env`, which Git ignores, then start the API with:
+
+```bash
+python -m uvicorn backend.api.app.main:app --env-file .env
+```
+
+For the command-line tool, set the variable in your shell first.
 
 | Variable | Service | Gives | Dates |
 | --- | --- | --- | --- |
@@ -49,6 +57,10 @@ Set any of these in `.env`. Each provider without a key is skipped. If one fails
 | `SERPAPI_API_KEY` | [SerpApi Google Lens exact matches](https://serpapi.com/google-lens-exact-matches-api) | pages | only vague text such as "2 years ago", never used as a date |
 
 The local list from `MEDIA_PHASH_INDEX` also runs, and never uses the network.
+
+Only SerpApi has been run for real, on 2026-11-05, through the upload route with two openly licensed images. An AI-generated image found no pages. A historic postcard found 25 pages, 17 of them exact matches, with 8 usable dates, in 30 seconds. Google Vision and TinEye have only been tested against fakes.
+
+SerpApi's free plan allows 250 searches a month. Each uploaded image with `search_web` uses one.
 
 TinEye is called over REST directly. The official `pytineye` 3.0.0 client pins `urllib3==1.26.6`, `certifi==2021.5.30` and `future==0.18.2`, which are too old to install beside the API's dependencies.
 

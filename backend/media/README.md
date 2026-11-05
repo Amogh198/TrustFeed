@@ -134,15 +134,17 @@ The set has 452 images from Wikimedia Commons: 150 AI-generated, 150 edited and 
 What these figures can't show:
 
 - **Face swaps are unmeasured.** The set has one labelled pair, so the result is marked too few to conclude.
-- **False positives were measured only on photos of people.** Other kinds of real image are unmeasured.
+- **False positives were measured only on photos of people.** The downloader crashed on its last category, real landscapes, animals and architecture, so that category was never fetched. This bug is now fixed.
 - **Video and images re-saved by social media platforms are unmeasured.**
 - Results on this set don't predict results on other kinds of image, and no score proves that an image is authentic or false.
+
+**This run has no per-file licence list.** Each file's licence was checked before download, but the same crash stopped the manifest being written. The tool now writes it after each category. The next full run will produce one.
 
 Full results are in `data/eval/commons_2026-11-05.json` and `data/eval/commons_recompressed_2026-11-05.json`.
 
 ## Limitations
 
-- The classifier's accuracy has not been measured for this project. Recompressed media, images without faces and newer generators may be unreliable. On Windows stock wallpapers it scored between 0.20 and 0.73, so mid-range scores should not be read as a signal.
+- The classifier flags very few fakes at its current bands, as "Results from 2026-11-05" shows, so a `low` result is not reassuring. On Windows stock wallpapers it scored between 0.20 and 0.73, so mid-range scores should not be read as a signal.
 - Input limits: images up to 25 MB and 50 megapixels, videos up to 200 MB. Older QuickTime files without an `ftyp` header are rejected as unsupported.
 - Video analysis looks at keyframes only, up to 16 from the first 10 minutes. It does not check audio, lip sync or motion between frames.
 - Video metadata covers stream properties only, not container tags.
