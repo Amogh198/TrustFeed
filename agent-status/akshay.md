@@ -8,7 +8,7 @@ IN PROGRESS: One PR for items 4 to 10, waiting on Akshay's word to merge
 NEXT ACTION: Which detector drives the score, and whether a fingerprint match or a signed AI declaration counts as a signal, wait for Akshay's decision. Install Tesseract to run OCR for real
 FILES OWNED: backend/media/**, backend/provenance/**, data/demo/provenance_demo*, data/eval/**
 LATEST COMMIT: see my newest branch on GitHub
-INTERFACES CHANGED: to_checks() adds media.forensics, media.faces, media.ocr, media.speech, media.audio_synthetic, media.frames and provenance.similar, in the existing check shape. Provenance to_checks() now returns two entries. Media result adds extracted_text. No API routes or contracts change
+INTERFACES CHANGED: to_checks() adds media.forensics, faces, ocr, speech, audio_synthetic, frames and provenance.similar. Media result adds extracted_text. No API routes or contracts change
 DEPENDENCIES: PyAV and pytesseract in requirements-model.txt. Tesseract program is optional and installed separately
 BLOCKERS: none
 LAST UPDATED: 2026-11-06

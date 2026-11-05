@@ -240,7 +240,7 @@ python -m backend.media analyze clip.mp4 --heavy
 | Check | What it does | Time limit |
 |---|---|---|
 | `media.speech` | Speech to text with `openai/whisper-small`, with times. | 300 seconds |
-| `media.audio_synthetic` | Scores up to 8 windows of audio with `MelodyMachine/Deepfake-audio-detection-V2` and `motheecreator/Deepfake-audio-detection`, each reported separately. | 120 seconds |
+| `media.audio_synthetic` | Scores up to 6 windows of audio with `MelodyMachine/Deepfake-audio-detection-V2` and `motheecreator/Deepfake-audio-detection`, each reported separately. | 120 seconds |
 | `media.frames` | Scores one frame per second, up to 120 frames spread over the video. Reports suspicious sections, the largest changes between frames, and a video-level result, the mean of the strongest third of frames. | 120 seconds |
 
 - **Accuracy is unmeasured for all of them.** No labelled video or audio set has been tested, and each check says so. Scores from the two speech detectors are single readings, not results.
