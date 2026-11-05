@@ -1,15 +1,15 @@
 AGENT: Akshay (Akshaynbhat), lane akshay_claude
-RESPONSIBILITY: T1 image model, metadata, video keyframes, pHash match, explainable evidence JSON
-BRANCH: feat/wire-media-network-api
-CURRENT TASK: Wiring T1 and T2 into the T3 API, at Akshay's request; touches T3 files, so Amogh is notified on the PR
-STATUS: Validated
-COMPLETED: Media forensics adapter merged in PR #5; all open PRs merged in order #6, #1, #5, #3
-IN PROGRESS: PR for the upload route, demo network route and media fusion, not yet merged
-NEXT ACTION: Test the detector on known real and fake samples when Akshay provides them
-FILES OWNED: backend/media/**
-LATEST COMMIT: see feat/wire-media-network-api on GitHub
-INTERFACES CHANGED: POST /api/cases/analyze-media added; media is not_applicable on JSON cases; demo-001 served; see API_CONTRACTS.md
-DEPENDENCIES: T3 owns the changed API files; T4 consumes the new upload route
-BLOCKERS: none known
+RESPONSIBILITY: T1 media forensics and image provenance: detector, metadata, keyframes, pHash, web source search, benchmark, explanations
+BRANCH: feat/image-provenance
+CURRENT TASK: Web provenance module in backend/provenance, then the accuracy benchmark
+STATUS: Doing
+COMPLETED: Media adapter (PR #5); wiring of T1 and T2 into the API (PR #7); both merged to main
+IN PROGRESS: Provider interface, page date extraction and match verification, against draft contract v2
+NEXT ACTION: Open the provenance PR, then build backend/media/eval
+FILES OWNED: backend/media/**, backend/provenance/**, data/demo/provenance_demo*, data/eval/**
+LATEST COMMIT: see my newest branch on GitHub
+INTERFACES CHANGED: none yet; investigate_provenance will follow draft contract v2 once T3 publishes it
+DEPENDENCIES: T3 publishes contract v2 and calls investigate_provenance; T2 shares a media hash for the demo case
+BLOCKERS: none known; a real web search needs Akshay to create a provider key
 LAST UPDATED: 2026-11-05
 PROTOCOL: adopted 2026-11-05
