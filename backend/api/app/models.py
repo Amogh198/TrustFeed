@@ -30,11 +30,49 @@ class ModuleResult(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class ClaimEntity(BaseModel):
+    text: str
+    # date, number, person, organization, place or other.
+    type: str
+    # A date's ISO form, at the precision stated, or a number's value. Null if unclear.
+    value: str | None = None
+    # number only: what is being counted, and whether it was hedged ("at least 50").
+    unit: str | None = None
+    bound: str | None = None
+    # "rule" or "model". Only a model result has a score, and it is a signal, not a probability of truth.
+    source: str = "rule"
+    score: float | None = None
+
+
 class ClaimRecord(BaseModel):
     id: str
     text: str
     verdict: ClaimVerdict = ClaimVerdict.UNVERIFIED
     rationale: str = "No external evidence source was queried for this claim."
+    # factual, opinion, question, call_to_action or fragment. Only factual claims can be checked.
+    kind: str = "factual"
+    checkable: bool = True
+    entities: list[ClaimEntity] = Field(default_factory=list)
+
+
+class ClaimInconsistency(BaseModel):
+    id: str
+    # negation, figures, dates, places, impossible_date, weekday_mismatch, future_date,
+    # impossible_share or part_exceeds_whole. New kinds can appear, so show unknown ones as text.
+    kind: str
+    # "conflict": cannot both stand as written. "note": they differ but need not be wrong.
+    severity: str
+    claim_ids: list[str]
+    explanation: str
+
+
+class ClaimAnalysis(BaseModel):
+    # The entity model's state. Dates, numbers and the checks built on them do not need it.
+    entity_model_status: ModuleStatus
+    entity_model_reason: str | None = None
+    inconsistencies: list[ClaimInconsistency] = Field(default_factory=list)
+    omitted_claims: int = 0
+    limitations: list[str] = Field(default_factory=list)
 
 
 class AnalyzeRequest(BaseModel):
@@ -57,6 +95,8 @@ class AnalysisResponse(BaseModel):
     summary: str
     modules: dict[str, ModuleResult]
     claims: list[ClaimRecord] = Field(default_factory=list)
+    # Null when no text was submitted, and for cases saved before this field existed.
+    claim_analysis: ClaimAnalysis | None = None
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False

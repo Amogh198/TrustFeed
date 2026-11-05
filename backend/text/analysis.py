@@ -1,7 +1,7 @@
-import re
 from urllib.parse import urlsplit
 
 from backend.api.app.models import ModuleResult, ModuleStatus, RiskLevel
+from backend.text.claims import split_claims
 
 URGENT_PHRASES = (
     "act now", "urgent", "immediately", "limited time", "before it is deleted",
@@ -13,18 +13,11 @@ SCAM_PHRASES = (
 )
 SHORTENER_HOSTS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "ow.ly"}
 SUSPICIOUS_TLDS = {".zip", ".mov", ".click", ".top", ".work"}
-_CLAIM_BOUNDARY = re.compile(r"(?<=[.!?])\s+|\n+")
-_MAX_CLAIMS = 20
 
 
 def extract_claims(text: str) -> list[str]:
-    """Split input into sentence-like units for separate evidence follow-up.
-
-    This is deterministic atomization, not fact checking. A compact fallback keeps
-    an unpunctuated post visible as one claim instead of silently discarding it.
-    """
-    candidates = [part.strip() for part in _CLAIM_BOUNDARY.split(text) if part.strip()]
-    return (candidates or [text.strip()])[:_MAX_CLAIMS] if text.strip() else []
+    """Split input into separate statements for evidence follow-up. Not fact checking."""
+    return split_claims(text)
 
 
 def analyze_text(text: str) -> tuple[ModuleResult, list[str]]:

@@ -1,15 +1,15 @@
 AGENT: Bhuvan Bapat (bhuvanbapat), lane bhuvan_claude
 RESPONSIBILITY: T2 network tracing: dataset, co-sharing, graph scoring, role tags, timeline, real-post adapters, multi-platform monitoring
-BRANCH: feat/network-explanation-checks
-CURRENT TASK: Explanation checks, Bluesky, page-link matches and monitor interface ready for integration
+BRANCH: feat/text-claims
+CURRENT TASK: Text, link, report and dashboard work assigned by Bhuvan; item 1 of 10: split claims, entities, inconsistency flags
 STATUS: Validated
-COMPLETED: Leftover branch deleted; get_network_checks; Bluesky connected; page links separated; repost counts; watch limits; live traces and a small false-match check run
+COMPLETED: Claim splitting and kinds; rule-based dates and numbers; context-aware inconsistency flags; optional NER adapter tested with a fake only
 IN PROGRESS: none
-NEXT ACTION: T3 adds monitor routes and merges network checks into /explanation; T4 wording fixes; Reddit or YouTube only if keys exist
-FILES OWNED: backend/network/**, data/demo/network_demo*, data/demo/README.md
-LATEST COMMIT: see feat/network-explanation-checks
-INTERFACES CHANGED: Additive: get_network_checks, build_network_checks, watch functions, matched_on page_link, repost_count, Bluesky platform rows. Role label reworded. See backend/network/README.md
-DEPENDENCIES: T3 publishes the /explanation shape; this follows the draft
-BLOCKERS: none; development isn't blocked
+NEXT ACTION: Item 2, claim verification, once the model downloads are approved; real NER run needs the same approval
+FILES OWNED: Assigned by Bhuvan for this work: backend/text/**, backend/api/**, backend/network/**, frontend/**, API_CONTRACTS.md
+LATEST COMMIT: see feat/text-claims
+INTERFACES CHANGED: Additive: ClaimRecord gains kind, checkable, entities; AnalysisResponse gains claim_analysis. See API_CONTRACTS.md
+DEPENDENCIES: PR #30 changes the same text and API files; the merge is expected to need small conflict fixes
+BLOCKERS: Model downloads await Bhuvan's approval; rules work without them
 LAST UPDATED: 2026-11-05
 PROTOCOL: adopted 2026-11-05

@@ -28,7 +28,10 @@ Status: **initial implementation contract**. Any change requires a PR that names
 
 ## Claims, history and replay
 
-- Text submissions return `claims`: sentence-like units with `id`, `text`, `verdict`, and `rationale`. The current verdict is always `unverified`, because no external evidence source is queried.
+- Text submissions return `claims`: separate statements with `id`, `text`, `verdict`, and `rationale`. The current verdict is always `unverified`, because no external evidence source is queried.
+- Each claim also has `kind` (`factual`, `opinion`, `question`, `call_to_action` or `fragment`), `checkable` (true only for `factual`) and `entities`. An entity has `text`, `type` (`date`, `number`, `person`, `organization`, `place` or `other`), `value`, `unit`, `bound`, `source` (`rule` or `model`) and `score`. A date's `value` is ISO text at the precision stated, such as `2024-03` or `--03-05`, and is `null` for a relative or ambiguous date. Names and places need the optional `dslim/bert-base-NER` model.
+- `claim_analysis` is `null` when no text was submitted. Otherwise it has `entity_model_status` (a module status), `entity_model_reason`, `inconsistencies`, `omitted_claims` (statements past the limit of 20) and `limitations`.
+- An inconsistency has `id`, `kind`, `severity`, `claim_ids` and `explanation`. `kind` is `negation`, `figures`, `dates`, `places`, `impossible_date`, `weekday_mismatch`, `future_date`, `impossible_share` or `part_exceeds_whole`, and the UI must show an unknown kind as text. `severity` is `conflict` (they cannot both stand as written) or `note` (they differ but need not be wrong). A flag never says which statement is wrong, and it does not change any score or `overall_risk`. Each one is also added to `modules.text.evidence`.
 - Every normal or replay analysis is retained in a local SQLite case store. The store saves the analysis result, not the original upload; uploaded media remains temporary and is deleted after analysis. A traced case also saves the public account handles and post links it found.
 - Replay scenarios are synthetic and offline. Their responses set `is_replay: true` and include `replay_label`; the UI must display that label.
 - `action-packet` returns structured `sections` alongside its readable draft. It is an evidence-based template, not an AI-generated or independently verified statement.

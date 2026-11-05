@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import HttpUrl
 
+from backend.api.app.claim_records import build_claims
 from backend.api.app.fusion import combine_risks, fused_summary, media_risk
 from backend.api.app.models import (
     ActionPacketRequest,
@@ -21,7 +22,6 @@ from backend.api.app.models import (
     AnalysisResponse,
     AnalyzeRequest,
     CaseHistoryResponse,
-    ClaimRecord,
     HealthResponse,
     ModuleResult,
     ModuleStatus,
@@ -210,6 +210,14 @@ def _store_case(
     if provenance is not None and provenance.replay:
         uncertainties.append("The source search results in this case were replayed from a recording.")
 
+    claim_records, claim_analysis = build_claims(claims or [])
+    if text_result and claim_analysis:
+        # Shown as evidence, but not scored: the unified risk step decides what counts.
+        text_result.evidence.extend(
+            f"Possible inconsistency between statements: {item.explanation}"
+            for item in claim_analysis.inconsistencies
+        )
+
     result = AnalysisResponse(
         case_id=case_id,
         overall_risk=risk,
@@ -232,7 +240,8 @@ def _store_case(
                 limitations=["No public-post trace was requested, so nothing was sent to outside platforms."],
             ),
         },
-        claims=[ClaimRecord(id=f"claim-{index}", text=claim) for index, claim in enumerate(claims or [], start=1)],
+        claims=claim_records,
+        claim_analysis=claim_analysis,
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
         is_replay=replay_label is not None,
