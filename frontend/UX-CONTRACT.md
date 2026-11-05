@@ -26,7 +26,7 @@ Every view has its own address, so a demo can be reloaded or bookmarked at any s
 | API not running | Show a banner with the command to start it, and reconnect by itself. |
 | A view fails to render | Show a message and a reload button. The rest of the app keeps working. |
 | `unavailable`, `not_applicable` | Look different from a real result. A null score reads "No score", never 0. |
-| Trust score | Shown on every case as 100 minus the strongest score from media, text and link, and never above 50, because no check can show content is genuine. 50 reads "Inconclusive: not enough evidence", and the page says it's a neutral midpoint, not a measurement. Moderate and high overall risk lower it to at most 40 and 25. Spread and source search aren't counted. With nothing measured it reads "No trust score" and never a number. |
+| Trust score | Comes from `unified_risk.trust_score` on the server, which counts only measured signals: the media detector when it shows signals, scam signs and the link address check. Never above 50, because no check can show content is genuine, and at most 40 at moderate and 25 at high or critical. 50 reads "Inconclusive: not enough evidence", and the page says it's a neutral midpoint, not a measurement. Spread and source search aren't counted. With nothing measured it reads "No trust score" and never a number. Cases saved earlier use the older calculation in `format.ts`. |
 | Reasoning | Each check's result and reasoning are visible on Findings without opening anything. |
 | Model not running | Say the media check didn't run, and give the install command. |
 | Low or inconclusive media | Say that this does not show the media is authentic. |

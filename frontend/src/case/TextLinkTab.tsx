@@ -1,4 +1,5 @@
 import { confidenceText, markPhrases, quotedPhrases, STATUS_WORDS } from '../lib/format';
+import { CrossModalPanel, LinkPanel, ScamPanel } from './AnalysisPanels';
 import type { AnalysisResponse, ModuleResult } from '../types';
 import { Limits, Lines, Meter, Section, Unknown } from '../ui/ui';
 
@@ -30,7 +31,7 @@ export default function TextLinkTab({ report }: { report: AnalysisResponse }) {
       <Section
         title="Claims found in the text"
         kind="unknown"
-        lead="The text is split into separate claims. Nothing here has been checked against an outside source, so every claim stays unverified. Marked words set off a language rule."
+        lead={report.claim_analysis?.verification?.status === 'complete' ? 'The text is split into separate claims, each compared with public sources. Results are signals, not proof. Marked words set off a language rule.' : 'The text is split into separate claims. They were not compared with outside sources, so each stays unverified. Marked words set off a language rule.'}
       >
         {report.claims?.length ? (
           <ol className="claims">
@@ -45,6 +46,9 @@ export default function TextLinkTab({ report }: { report: AnalysisResponse }) {
           </ol>
         ) : <Unknown>No text was submitted, so there are no claims to list.</Unknown>}
       </Section>
+      <ScamPanel report={report} />
+      <LinkPanel report={report} />
+      <CrossModalPanel report={report} />
       <div className="findings-grid">
         <RuleResult title="Language rules" module={report.modules?.text} none="No text was submitted." />
         <RuleResult title="Link rules" module={report.modules?.url} none="No link was submitted." />

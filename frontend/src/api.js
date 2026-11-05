@@ -99,8 +99,10 @@ export const api = {
    * @param {number} [limit]
    * @returns {Promise<import('./types').CaseHistory>}
    */
-  getHistory(riskLevel = '', limit = 100) {
+  getHistory(riskLevel = '', limit = 100, q = '', kind = '') {
     const params = new URLSearchParams({ limit: String(limit) });
+    if (q) params.set('q', q);
+    if (kind) params.set('kind', kind);
     if (riskLevel) params.set('risk_level', riskLevel);
     return request(`/api/cases?${params}`);
   },
@@ -114,6 +116,12 @@ export const api = {
   getNetwork(caseId) { return request(`/api/network/${id(caseId)}`); },
   /** @param {string} caseId @returns {Promise<import('./types').Coverage | null>} */
   getCoverage(caseId) { return request(`/api/network/${id(caseId)}/coverage`); },
+  /** @returns {Promise<import('./types').Overview>} */
+  getOverview() { return request('/api/overview'); },
+  /** @param {string} caseId */
+  reportPdfUrl(caseId) { return `${API_BASE_URL}/api/cases/${id(caseId)}/report.pdf`; },
+  /** @param {string} caseId @returns {Promise<import('./types').NetworkTests | null>} */
+  getNetworkTests(caseId) { return request(`/api/network/${id(caseId)}/tests`); },
   /** @param {string} caseId @returns {Promise<import('./types').Explanation>} */
   getExplanation(caseId) { return request(`/api/cases/${id(caseId)}/explanation`); },
   /** @param {File} file @returns {Promise<import('./types').Heatmap>} */

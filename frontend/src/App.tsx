@@ -5,12 +5,14 @@ import { useRoute } from './lib/route';
 import Cases from './pages/Cases';
 import Home from './pages/Home';
 import Limits from './pages/Limits';
+import Overview from './pages/Overview';
 import Walkthrough from './pages/Walkthrough';
 import Watch from './pages/Watch';
 import ErrorBoundary from './ui/ErrorBoundary';
 
 const NAV: [string, string, string][] = [
   ['home', '#/', 'Check'],
+  ['overview', '#/overview', 'Overview'],
   ['cases', '#/cases', 'Cases'],
   ['watch', '#/watch', 'Watch'],
   ['walkthrough', '#/walkthrough', 'Walkthrough'],
@@ -66,6 +68,7 @@ export default function App() {
       <main id="main">
         <ErrorBoundary resetKey={window.location.hash}>
           {route.page === 'home' && <Home />}
+          {route.page === 'overview' && <Overview />}
           {route.page === 'cases' && <Cases />}
           {route.page === 'watch' && <Watch />}
           {route.page === 'walkthrough' && <Walkthrough />}

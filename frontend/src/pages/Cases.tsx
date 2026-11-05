@@ -5,9 +5,13 @@ import { caseHref } from '../lib/route';
 import type { CaseHistory, RiskLevel } from '../types';
 import { Loading, Problem, Unknown } from '../ui/ui';
 
+const KINDS: [string, string][] = [['', 'Any'], ['media', 'Media'], ['link', 'Links'], ['text', 'Text'], ['scam', 'Scam signs'], ['campaign', 'Campaigns']];
+
 export default function Cases() {
   const [risk, setRisk] = useState<RiskLevel | ''>('');
   const [query, setQuery] = useState('');
+  const [searched, setSearched] = useState('');
+  const [kind, setKind] = useState('');
   const [history, setHistory] = useState<CaseHistory | null>(null);
   const [error, setError] = useState('');
 
@@ -15,17 +19,19 @@ export default function Cases() {
     let live = true;
     setHistory(null);
     setError('');
-    api.getHistory(risk, 100)
+    api.getHistory(risk, 100, searched, kind)
       .then(data => { if (live) setHistory(data); })
       .catch(problem => { if (live) setError(problem.message); });
     return () => { live = false; };
-  }, [risk]);
+  }, [risk, searched, kind]);
 
-  const shown = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const cases = history?.cases || [];
-    return needle ? cases.filter(item => `${item.case_id} ${item.summary}`.toLowerCase().includes(needle)) : cases;
-  }, [history, query]);
+  // The server searches whole reports, so wait for a pause in typing.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearched(query.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const shown = useMemo(() => history?.cases || [], [history]);
 
   return (
     <div className="page">
@@ -41,8 +47,13 @@ export default function Cases() {
           ))}
         </div>
         <label className="field field-inline">Search
-          <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Case id or summary" />
+          <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Words in a report" />
         </label>
+        <div className="chips" role="group" aria-label="Filter by what was found">
+          {KINDS.map(([value, name]) => (
+            <button key={value} type="button" aria-pressed={kind === value} onClick={() => setKind(value)}>{name}</button>
+          ))}
+        </div>
       </div>
       {error && <Problem>{error}</Problem>}
       {!history && !error && <Loading>Opening saved cases</Loading>}
