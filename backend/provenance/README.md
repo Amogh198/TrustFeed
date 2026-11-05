@@ -110,6 +110,10 @@ python -m backend.provenance record photo.jpg --licence "CC0" --attribution "Who
 
 This refuses to save anything unless a live search completed. Check the recording before committing it, because it holds real page links.
 
+## Explanation check
+
+`report.to_checks()` returns one `provenance.search` entry in the draft `/explanation` check shape. Its `benchmark` is always `null`, because search coverage has not been measured. It keeps the synthetic and replay labels and the "earliest found" caveat.
+
 ## Limits
 
 - A search covers only what these services have indexed. Private groups, deleted pages and much of social media are missing. Finding nothing does not show that an image is new or genuine.

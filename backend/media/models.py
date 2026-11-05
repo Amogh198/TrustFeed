@@ -148,3 +148,9 @@ class MediaAnalysisResult(BaseModel):
             "evidence": list(self.evidence),
             "limitations": list(self.limitations),
         }
+
+    def to_checks(self, *, heatmap_url: str | None = None) -> list[dict[str, Any]]:
+        """Return one explanation check for each media check, for the explanation route."""
+        from backend.media.explain import build_checks
+
+        return build_checks(self, heatmap_url=heatmap_url)

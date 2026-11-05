@@ -9,11 +9,15 @@ from dataclasses import replace
 from pathlib import Path
 
 from backend.media.analyzer import analyze_media
-from backend.media.classifier import download_model
+from backend.media.classifier import default_classifier, download_model
 from backend.media.config import MediaConfig
 from backend.media.errors import HashIndexUnavailable, MediaInputError
+from backend.media.heatmap import occlusion_heatmap, render_overlay
 from backend.media.metadata import read_image
+from backend.media.models import CheckStatus
 from backend.media.phash import JsonHashIndex, ReferenceEntry, compute_phash
+
+_REPO = Path(__file__).resolve().parents[2]
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -32,8 +36,29 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument("--first-seen")
     add.add_argument("--source")
 
+    heatmap = commands.add_parser("heatmap", help="show where the model's score changes across an image")
+    heatmap.add_argument("file", type=Path)
+    heatmap.add_argument("--out", type=Path, required=True, help="PNG holding the image, outside the repository")
+
     commands.add_parser("download-model", help="download the classifier's safetensors weights")
     return parser
+
+
+def _heatmap(args: argparse.Namespace, config: MediaConfig) -> int:
+    if args.out.resolve().is_relative_to(_REPO):
+        print("error: this picture holds the image, so it must stay outside the repository.", file=sys.stderr)
+        return 2
+    try:
+        image, _, _ = read_image(args.file, config)
+    except MediaInputError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result = occlusion_heatmap(image, default_classifier(config), batch_size=config.batch_size)
+    print(json.dumps(result.model_dump(mode="json", exclude={"changes"}), indent=2))
+    if result.status is not CheckStatus.COMPLETE:
+        return 1
+    args.out.write_bytes(render_overlay(image, result))
+    return 0
 
 
 def _analyze(args: argparse.Namespace, config: MediaConfig) -> int:
@@ -76,6 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         return _analyze(args, config)
     if args.command == "index-add":
         return _index_add(args, config)
+    if args.command == "heatmap":
+        return _heatmap(args, config)
     return _download_model(config)
 
 
