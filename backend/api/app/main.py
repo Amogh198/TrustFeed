@@ -44,6 +44,7 @@ from backend.api.app.models import (
     TimelineResponse,
 )
 from backend.api.app.replay import get_scenario, list_scenarios
+from backend.api.app.risk import build_unified_risk, summary_for
 from backend.api.app.scam_records import build_scam_analysis
 from backend.text.cross_modal import compare_channels
 from backend.text.links import investigate_link
@@ -347,6 +348,22 @@ def _store_case(
         # Shown as evidence, but not scored, as this hasn't been measured.
         text_result.evidence.extend(f"Media and caption differ: {item.explanation}" for item in cross_modal.conflicts)
 
+    media_module = ModuleResult(**media.to_module_result()) if media else None
+    unified = build_unified_risk(
+        text=text_result,
+        url=url_result,
+        media=media_module,
+        media_level=media_risk(media) if media else None,
+        network=network,
+        claims=claim_records,
+        claim_analysis=claim_analysis,
+        scam_analysis=scam_analysis,
+        link_analysis=link_analysis,
+        cross_modal=cross_modal,
+    )
+    risk = unified.level
+    summary = summary_for(unified)
+
     result = AnalysisResponse(
         case_id=case_id,
         overall_risk=risk,
@@ -374,6 +391,7 @@ def _store_case(
         scam_analysis=scam_analysis,
         link_analysis=link_analysis,
         cross_modal=cross_modal,
+        unified_risk=unified,
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
         is_replay=replay_label is not None,

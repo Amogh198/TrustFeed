@@ -166,6 +166,14 @@ Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live t
 
 Posts may carry `media_fingerprint`, a hex perceptual hash. Fingerprints within Hamming distance 5 count as one image.
 
+## Unified risk
+
+`overall_risk` now equals `unified_risk.level`, and is `low`, `moderate`, `high`, `critical` or `inconclusive`. `unified_risk.components` lists every component with `counted`, `score`, `weight`, `evidence`, `note` and `results_file`.
+
+Counted, because each has a results file: the media detector (only in its elevated band), scam warning signs and the link address check. Shown but not scored: language rules, other link signs, contradicted claims, inconsistencies, caption and media differences, and spread. If one of those raises concern, or the media detector is quiet or missing, a low score reads `inconclusive`.
+
+The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is at most 50, at most 40 at moderate and 25 at high or critical, and null when nothing was measured. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
+
 ## Common response sketch
 
 ```json

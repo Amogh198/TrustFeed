@@ -260,6 +260,33 @@ class CrossModalAnalysis(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class RiskComponent(BaseModel):
+    name: str
+    label: str
+    status: ModuleStatus
+    # Only measured signals are counted in the score. The rest are shown with a note saying why not.
+    counted: bool
+    # True when this stops the overall level reading Low, as it needs a person's review.
+    blocks_low: bool = False
+    score: float | None = Field(default=None, ge=0, le=1)
+    weight: float = 0.0
+    evidence: list[str] = Field(default_factory=list)
+    note: str | None = None
+    results_file: str | None = None
+
+
+class UnifiedRisk(BaseModel):
+    level: RiskLevel
+    # Null when nothing measured reached a result.
+    score: float | None = None
+    # At most 50, because no check can show content is genuine. Null means no score, never 0.
+    trust_score: int | None = None
+    trust_note: str
+    reason: str | None = None
+    components: list[RiskComponent] = Field(default_factory=list)
+    weights: dict[str, float] = Field(default_factory=dict)
+
+
 class AnalyzeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=20_000)
     url: HttpUrl | None = None
@@ -288,6 +315,8 @@ class AnalysisResponse(BaseModel):
     link_analysis: LinkAnalysis | None = None
     # Null when no media was submitted, and for cases saved before this field existed.
     cross_modal: CrossModalAnalysis | None = None
+    # Null for cases saved before this field existed.
+    unified_risk: UnifiedRisk | None = None
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False
