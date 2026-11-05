@@ -86,6 +86,35 @@ python -m pytest backend/media/tests
 
 Tests use generated media and a stub or tiny random model, so they need no downloaded weights. Scores from the tiny model mean nothing; it only exercises the loading code. `test_real_model.py` runs the pinned model when its weights are present and is skipped otherwise. It checks that the model runs, not how accurate it is.
 
+## Measuring accuracy
+
+```bash
+python -m backend.media.eval --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
+```
+
+Subfolders become categories, such as `DIR/face_swap`. Add `--compare org/name@<commit>` to measure another model on the same images, after downloading it with `MEDIA_MODEL_ID` and `MEDIA_MODEL_REVISION` set and `python -m backend.media download-model`.
+
+The results file holds only counts and scores, never images or file names. **Never commit images.** For each model and category it reports:
+
+- Recall, false positive rate and inconclusive rate, each with a 95% Wilson interval. An inconclusive result counts as not flagged.
+- The confusion matrix, score histogram and AUC.
+- `too_few_to_conclude`, when a class has under 30 images.
+- The best single threshold, chosen on the calibration split and measured only on the test split. Copies with the same pHash stay in one split.
+
+`--source` is required, because a result must say what its data is and what allows its use. The tool records this statement but can't verify it.
+
+To build a set from images with open licences, keeping a manifest of each file's page, licence and author:
+
+```bash
+python -m backend.media.eval.fetch_commons --out C:/Projects/samples --per-category 150
+```
+
+```bash
+python -m backend.media.eval.recompress --in C:/Projects/samples/real --out C:/Projects/samples/recompressed/real
+```
+
+Both refuse to write inside the repository. Commons labels come from human-curated categories, so some can be wrong. Real photos are limited to uploads before 2020 to reduce the chance of generated images among them.
+
 ## Limitations
 
 - The classifier's accuracy has not been measured for this project. Recompressed media, images without faces and newer generators may be unreliable. On Windows stock wallpapers it scored between 0.20 and 0.73, so mid-range scores should not be read as a signal.
