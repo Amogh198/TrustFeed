@@ -44,11 +44,59 @@ python -m backend.media analyze sample.jpg --index media_index.json
 
 ### Explanations
 
-`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash` and `media.keyframes`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
+`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes` and `media.fingerprint`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
 
 - **`benchmark`** holds test-split figures from `data/eval/commons_licensed_2026-11-05.json`, and adds `auc` and counts by band. It is `null` unless that file measured this model and revision at these bands, and it is always `null` for video.
 - **Plain statement:** the classifier check's limitations say how few fakes the current bands flag, and whether the detector barely beats guessing.
 - **GPS:** the check says GPS data exists but never shows coordinates.
+
+### Fingerprints
+
+Every analysis adds a `media.fingerprint` check. It makes four ImageHash fingerprints (pHash, dHash, wHash and colour hash) for an image or each video keyframe, and uses the file's SHA-256 for exact copies.
+
+**A fingerprint is not a signature.** It can't show who made a file or that it is unchanged. It only shows that pictures look alike. SHA-256 only shows that two files are byte-for-byte the same.
+
+```bash
+python -m backend.media index-add old_photo.jpg --index media_index.json --label "2019 flood photo" --first-seen 2019-08-10
+```
+
+```bash
+python -m backend.media analyze sample.jpg --index media_index.json --cases case_fingerprints.json --remember case-123
+```
+
+```python
+from backend.media.fingerprint import remember_fingerprints
+
+remember_fingerprints(result, "case-123", path)
+```
+
+- **Exact copy:** the SHA-256 is the same.
+- **Likely the same image:** at least two of these agree: pHash within 17, dHash within 16, wHash within 7. These limits were chosen on the calibration split, so that any one of them alone matches at most 0.1% of unrelated pairs.
+- **Colour hash** is reported but never decides a match. No distance met that target.
+- **Earlier cases:** set `MEDIA_CASE_FINGERPRINTS`, or pass `--cases`. The store holds a case ID, a date and hashes, never the image or file name. A hash can still show that someone holds the same file, so keep the store private. `CaseFingerprintStore.remove` deletes a case.
+- **Overall result:** a match adds evidence, but doesn't change the score or assessment. The separate `media.phash` check keeps its limit of 5.
+- **Blank pictures:** flat images and frames have almost no detail, so they are never matched by fingerprint.
+- **Older index files** still load. Entries with only a pHash can't reach two agreeing fingerprints, so add those images again.
+
+Measured on 285 test images, each with simulated changes, and 40,470 unrelated pairs from `data/eval/fingerprints_2026-11-05.json`:
+
+| Change | Two fingerprints agree | pHash at the old limit of 5 |
+|---|---|---|
+| Recompressed at low quality | 285 of 285 | 283 of 285 |
+| Resized to half | 285 of 285 | 283 of 285 |
+| Brightened 20% | 285 of 285 | 269 of 285 |
+| Cropped 5% each side | 266 of 285 | 13 of 285 |
+| Caption bar added | 264 of 285 | 14 of 285 |
+| Mirrored | 11 of 285 | 0 of 285 |
+| Unrelated pairs wrongly matched | 2 of 40,470 | 0 of 40,470 |
+
+The changes were simulated, not collected from real platforms. Mirrored copies are mostly missed. Some "unrelated" pairs may really be related, such as photos from one series.
+
+To measure again:
+
+```bash
+python -m backend.media.eval.fingerprints --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
+```
 
 ### Detector panel
 
@@ -128,6 +176,7 @@ The full result adds:
 | `MEDIA_ALLOW_MODEL_DOWNLOAD` | `false` | Lets analysis download missing weights. |
 | `MEDIA_DEVICE` | `auto` | `cuda`, `cpu` or `auto`. |
 | `MEDIA_PHASH_INDEX` | Not set | Path to the JSON reference index. |
+| `MEDIA_CASE_FINGERPRINTS` | Not set | Path to the JSON store of earlier cases' hashes. |
 
 ## Tests
 

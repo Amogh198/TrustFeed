@@ -92,6 +92,33 @@ class FrameEvidence(BaseModel):
     scene_change_score: float
     phash: str | None = None
     model_score: float | None = None
+    fingerprints: dict[str, str] = Field(default_factory=dict)
+
+
+class FingerprintMatch(BaseModel):
+    # "exact_copy" means the same file. "likely_same_image" means the same picture, possibly changed.
+    kind: str
+    # "reference" or "earlier_case".
+    found_in: str
+    label: str | None = None
+    case_id: str | None = None
+    # The earliest date recorded for this entry, not when the image first existed.
+    first_seen: str | None = None
+    source: str | None = None
+    distances: dict[str, int] = Field(default_factory=dict)
+    timestamp_s: float | None = None
+
+
+class FingerprintCheck(BaseModel):
+    status: CheckStatus
+    sha256: str | None = None
+    hashes: dict[str, str] = Field(default_factory=dict)
+    frames_hashed: int = 0
+    compared: bool = False
+    references_checked: int = 0
+    earlier_cases_checked: int = 0
+    matches: list[FingerprintMatch] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
 
 
 class KeyframeCheck(BaseModel):
@@ -126,12 +153,14 @@ class MediaChecks(BaseModel):
     keyframes: KeyframeCheck
     # Only present when requested, because running every detector is slow on CPU.
     detector_panel: DetectorPanelCheck | None = None
+    fingerprint: FingerprintCheck | None = None
 
     @model_serializer(mode="wrap")
-    def _leave_out_a_panel_that_did_not_run(self, handler: Any) -> dict[str, Any]:
+    def _leave_out_checks_that_did_not_run(self, handler: Any) -> dict[str, Any]:
         data = handler(self)
-        if data.get("detector_panel") is None:
-            data.pop("detector_panel", None)
+        for name in ("detector_panel", "fingerprint"):
+            if data.get(name) is None:
+                data.pop(name, None)
         return data
 
 
@@ -145,6 +174,7 @@ def empty_checks(reason: str) -> MediaChecks:
         classifier=ClassifierCheck(**_not_run(reason)),
         phash=PHashCheck(**_not_run(reason)),
         keyframes=KeyframeCheck(**_not_run(reason)),
+        fingerprint=FingerprintCheck(**_not_run(reason)),
     )
 
 
