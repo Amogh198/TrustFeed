@@ -18,6 +18,7 @@ Status: **initial implementation contract**. Any change requires a PR that names
 - `GET /api/cases/{case_id}` -> saved local case result. `demo-001` is always available: a synthetic case with network and source search results only.
 - `GET /api/cases/{case_id}/provenance` -> the full source search report. See "Source search and public-post trace".
 - `GET /api/cases/{case_id}/timeline` -> `{events: []}`, combining web appearances, matching posts and flagged co-sharing activity.
+- `GET /api/cases/{case_id}/explanation` -> recorded checks and an evidence summary for the dashboard. It never creates a new score or factual verdict.
 - `GET /api/cases` -> local case-history summaries. Optional `risk_level` filters by the triage label; `limit` is 1–100 and defaults to 25.
 - `GET /api/cases/{case_id}/export` -> the complete saved case report as JSON for local export or offline presentation.
 - `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI. Filled for `demo-001`, where every item has `synthetic: true`, which the UI must show. Empty for submitted cases unless a public-post trace ran for them; they never receive the demo network.
@@ -57,7 +58,7 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 | Step | Runs when | Sent to |
 |---|---|---|
 | Source search | A valid image is uploaded with `search_web` | The image, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
-| Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms. |
+| Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms. Known short links can also be followed through a public-address-only, redirect-limited request. |
 
 Both add to the request's time: the source search can take about 100 seconds with all three keys, and the trace up to about 25 seconds. With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
 
@@ -112,7 +113,9 @@ Every case has `modules.provenance`, a normal module result:
 
 `kind` is `web_appearance`, `social_post` or `cluster_activity`. `module` is `provenance` or `network`.
 
-Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live traces, so a replay stays offline. Submitting the demo story's exact text or link with `search_web` replays its labelled synthetic posts offline. The source search report and the trace are saved with the case, so they survive a restart. `GET /api/cases/{case_id}/explanation` is not built yet.
+Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live traces, so a replay stays offline. Submitting the demo story's exact text or link with `search_web` replays its labelled synthetic posts offline. The source search report and the trace are saved with the case, so they survive a restart.
+
+`GET /api/cases/{case_id}/explanation` returns `checks[]` plus `what_was_submitted`, `what_was_detected`, `supports`, `refutes` and `uncertainties`. Every check has `check_id`, `module`, `label`, `result`, `reasoning`, `benchmark`, `artifacts`, and `limitations`. `benchmark` is `null` unless a measured value is available. Missing recorded details are shown as unavailable checks, never fabricated values.
 
 ## Common response sketch
 

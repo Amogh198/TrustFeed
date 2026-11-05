@@ -1,15 +1,15 @@
 AGENT: Amogh (Amogh198), repo admin, T3 lane
 RESPONSIBILITY: T3 FastAPI API, text/URL rules, fusion, contracts, replay and local case history
-BRANCH: feat/amogh-replay-history
-CURRENT TASK: Offline replay/history/action-packet and backend CI milestone
+BRANCH: feat/amogh-explanation-ci
+CURRENT TASK: T3 explanation and CI milestone
 STATUS: Validated
-COMPLETED: API/media/network fusion is on main; this branch adds claims, local history, replay, export, structured action packets and CI
-IN PROGRESS: none
-NEXT ACTION: T4 can consume the published routes; final integration merges this branch after the other lanes are ready
+COMPLETED: Explanation route, CI repair, contracts, safe opt-in short-link expansion and tests
+IN PROGRESS: None
+NEXT ACTION: T4 may build the explanation view against the documented endpoint
 FILES OWNED: backend/api/**, backend/text/**, contracts/**, API_CONTRACTS.md, .github/workflows/backend-api.yml, pyrightconfig.json
-LATEST COMMIT: 5452228 replay/history feature code; this status update is the next commit
-INTERFACES CHANGED: Added claims, case-history, export and replay routes; existing response fields remain compatible
-DEPENDENCIES: T1 media result and T2 network functions already integrated on main
-BLOCKERS: none; this Windows runner cannot encode two existing MP4 fixtures, while the other 44 API checks pass
+LATEST COMMIT: db1052d explanation/CI milestone; status update follows
+INTERFACES CHANGED: GET /api/cases/{id}/explanation; safe opt-in short-link expansion
+DEPENDENCIES: T1 media/provenance and T2 network records already integrated on main
+BLOCKERS: No fact-check provider key; claims remain explicitly unverified
 LAST UPDATED: 2026-11-05
 PROTOCOL: adopted 2026-11-05

@@ -2,6 +2,7 @@ import re
 from urllib.parse import urlsplit
 
 from backend.api.app.models import ModuleResult, ModuleStatus, RiskLevel
+from backend.provenance.safe_http import HttpBlocked, HttpFailed, safe_request
 
 URGENT_PHRASES = (
     "act now", "urgent", "immediately", "limited time", "before it is deleted",
@@ -53,7 +54,25 @@ def analyze_text(text: str) -> tuple[ModuleResult, list[str]]:
     return result, claims
 
 
-def analyze_url(url: str) -> ModuleResult:
+def expand_short_url(url: str) -> tuple[str | None, str | None]:
+    """Follow a known shortener only after the caller has opted into web search.
+
+    The shared requester rejects private addresses and rechecks every redirect.
+    Failures are returned as an honest limitation rather than a guessed target.
+    """
+    host = (urlsplit(url).hostname or "").casefold().rstrip(".")
+    if host not in SHORTENER_HOSTS:
+        return None, None
+    try:
+        response = safe_request(url, method="HEAD", timeout_s=5, max_bytes=0, max_redirects=3)
+    except HttpBlocked as exc:
+        return None, str(exc)
+    except HttpFailed as exc:
+        return None, f"Short URL expansion was unavailable ({exc.kind})."
+    return response.url, None
+
+
+def analyze_url(url: str, expanded_url: str | None = None, expansion_limit: str | None = None) -> ModuleResult:
     parsed = urlsplit(url)
     host = (parsed.hostname or "").casefold().rstrip(".")
     evidence: list[str] = []
@@ -70,13 +89,28 @@ def analyze_url(url: str) -> ModuleResult:
     if host.count("-") >= 3:
         evidence.append("Domain contains several hyphens")
 
+    if expanded_url and expanded_url != url:
+        expanded = urlsplit(expanded_url)
+        evidence.append(f"Short URL resolved to {expanded.hostname or 'an unknown host'}")
+        destination = analyze_url(expanded_url)
+        evidence.extend(f"Destination: {item}" for item in destination.evidence)
+    elif expansion_limit:
+        evidence.append("Short URL destination was not expanded")
+
     score = min(1.0, 0.2 * len(evidence))
+    limitations = ["Static URL heuristics only; no domain reputation service was queried."]
+    if expanded_url and expanded_url != url:
+        limitations.append("The short URL was followed only after opt-in; no reputation service was queried.")
+    else:
+        limitations.append("No destination fetch was performed.")
+    if expansion_limit:
+        limitations.append(expansion_limit)
     return ModuleResult(
         status=ModuleStatus.COMPLETE,
         score=round(score, 2),
         confidence=None,
         evidence=evidence,
-        limitations=["Static URL heuristics only; no domain reputation or destination fetch was performed."],
+        limitations=limitations,
     )
 
 
