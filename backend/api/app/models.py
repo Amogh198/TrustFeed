@@ -89,16 +89,24 @@ class ExplanationCheck(BaseModel):
     check_id: str
     module: str
     label: str
+    status: str | None = None
     result: str
-    reasoning: str
-    benchmark: dict[str, object] | None = None
+    reasoning: str | list[str]
+    benchmark: dict[str, Any] | None = None
     artifacts: list[ExplanationArtifact] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+
+
+class MissingCheck(BaseModel):
+    module: str
+    status: str
+    reason: str
 
 
 class ExplanationResponse(BaseModel):
     case_id: str
     checks: list[ExplanationCheck]
+    missing_checks: list[MissingCheck] = Field(default_factory=list)
     what_was_submitted: list[str]
     what_was_detected: list[str]
     supports: list[str]
@@ -141,36 +149,6 @@ class CaseSummary(BaseModel):
 class CaseHistoryResponse(BaseModel):
     cases: list[CaseSummary]
     total: int
-
-
-class ExplanationCheck(BaseModel):
-    check_id: str
-    module: str
-    label: str
-    status: str | None = None
-    result: str
-    reasoning: str | list[str]
-    # Null means not measured. A figure is only ever read from a results file.
-    benchmark: dict[str, Any] | None = None
-    artifacts: list[dict[str, str]] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
-
-
-class MissingCheck(BaseModel):
-    module: str
-    status: str
-    reason: str
-
-
-class ExplanationResponse(BaseModel):
-    case_id: str
-    what_was_submitted: list[str]
-    what_was_detected: list[str]
-    supports: list[str]
-    refutes: list[str]
-    uncertainties: list[str]
-    checks: list[ExplanationCheck]
-    missing_checks: list[MissingCheck]
 
 
 class MonitorStartRequest(BaseModel):
