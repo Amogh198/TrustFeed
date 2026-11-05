@@ -56,7 +56,7 @@ class FakeComparer:
     def is_ready(self):
         return self.reason
 
-    def similarity(self, claim_text, passages):
+    def similarity(self, claim, passages):
         return [0.1 if "Mangoes" in passage else 0.8 for passage in passages]
 
     def entail(self, pairs):
@@ -254,7 +254,7 @@ def test_missing_models_list_sources_but_compare_nothing():
 
 
 class BrokenComparer(FakeComparer):
-    def similarity(self, claim_text, passages):
+    def similarity(self, claim, passages):
         raise ValueError("the submitted text")
 
 
@@ -271,7 +271,7 @@ class SlowComparer(FakeComparer):
         super().__init__()
         self.release = threading.Event()
 
-    def similarity(self, claim_text, passages):
+    def similarity(self, claim, passages):
         self.release.wait(10)
         return [0.8 for _ in passages]
 
@@ -351,16 +351,18 @@ def test_partial_failure_of_a_service_is_reported_even_though_it_worked_once():
 class Gate(FakeProvider):
     """Finishes only once another search is running too."""
 
-    barrier = None
+    def __init__(self, barrier, name):
+        super().__init__(name=name)
+        self.barrier = barrier
 
     def search(self, query, deadline):
-        type(self).barrier.wait(timeout=5)
+        self.barrier.wait(timeout=5)
         return ProviderResult(self.name, "complete")
 
 
 def test_searches_run_at_the_same_time():
-    Gate.barrier = threading.Barrier(2)
-    report = verify_claims([claim()], providers=[Gate(name="a"), Gate(name="b")], comparer=FakeComparer())
+    barrier = threading.Barrier(2)
+    report = verify_claims([claim()], providers=[Gate(barrier, "a"), Gate(barrier, "b")], comparer=FakeComparer())
     assert {row.status for row in report.providers} == {"complete"}
 
 
@@ -445,7 +447,12 @@ WIKI_PAGE = {
 }
 
 
-def test_wikipedia_gives_a_link_and_says_the_date_is_an_edit():
+@pytest.fixture
+def unpaced(monkeypatch):
+    monkeypatch.setattr(evidence_sources, "_WIKIPEDIA_PACER", evidence_sources._Pacer(0.0))
+
+
+def test_wikipedia_gives_a_link_and_says_the_date_is_an_edit(unpaced):
     http = FakeHttp([("list=search", json_reply(WIKI_SEARCH)), ("titles=", json_reply(WIKI_PAGE))])
     result = WikipediaProvider(http).search("eiffel tower", 10**12)
     assert result.status == "complete"
@@ -525,7 +532,7 @@ def test_fact_check_reads_ratings_and_keeps_the_key_out_of_errors():
     "reply",
     [json_reply({}, 500), HttpResponse("https://x", 200, {}, b"not json"), json_reply({"unexpected": 1}), json_reply(["list"])],
 )
-def test_bad_service_replies_become_unavailable(reply):
+def test_bad_service_replies_become_unavailable(reply, unpaced):
     assert WikipediaProvider(FakeHttp([("", reply)])).search("x", 10**12).status == "unavailable"
 
 

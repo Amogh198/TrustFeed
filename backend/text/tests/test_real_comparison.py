@@ -28,4 +28,4 @@ def test_related_passages_score_higher_than_unrelated_ones():
 def test_entailment_labels_are_read_correctly(premise, claim, strongest):
     score = comparer.entail([(premise, claim)])[0]
     values = {"entailment": score.entailment, "neutral": score.neutral, "contradiction": score.contradiction}
-    assert max(values, key=values.get) == strongest
+    assert max(values, key=lambda name: values[name]) == strongest

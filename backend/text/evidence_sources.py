@@ -28,7 +28,8 @@ from backend.provenance.safe_http import (
 Request = Callable[..., HttpResponse]
 
 # A generic client name, with nothing that identifies a user.
-_HEADERS = {"User-Agent": "TrustFeed/0.1 (claim evidence search)", "Accept": "application/json"}
+_USER_AGENT = "TrustFeed/0.1 (claim evidence search; https://github.com/Amogh198/TrustFeed)"
+_HEADERS = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
 _MAX_JSON_BYTES = 2 * 1024 * 1024
 _MAX_PAGE_BYTES = 1024 * 1024
 _MAX_DOCUMENT_CHARS = 20_000
@@ -105,8 +106,37 @@ def _failure_reason(name: str, error: Exception) -> str:
 _FAILURES = (_Refused, HttpFailed, HttpBlocked, ValueError, KeyError, TypeError, AttributeError)
 
 
+class _Pacer:
+    """Keep a service's rate limit across the whole process, since requests share one address."""
+
+    def __init__(self, interval_seconds: float) -> None:
+        self._interval = interval_seconds
+        self._lock = threading.Lock()
+        self._next_turn = 0.0
+
+    def wait_turn(self, deadline: float) -> bool:
+        """Wait for this caller's turn. False means the turn would come after the deadline."""
+        with self._lock:
+            now = time.monotonic()
+            turn = max(now, self._next_turn)
+            if turn >= deadline:
+                return False
+            self._next_turn = turn + self._interval
+        time.sleep(max(0.0, turn - now))
+        return True
+
+
+# Searching several claims at once otherwise trips Wikipedia's rate limit.
+_WIKIPEDIA_PACER = _Pacer(1.0)
+
+
 class WikipediaProvider:
     name = "wikipedia"
+
+    def _get(self, params: dict[str, str], deadline: float) -> Any:
+        if not _WIKIPEDIA_PACER.wait_turn(deadline):
+            raise HttpFailed("timeout")
+        return _get_json(self._request, f"{_WIKIPEDIA_API}?{urlencode(params)}", deadline)
 
     def __init__(self, request: Request = safe_request, max_pages: int = 3) -> None:
         self._request = request
@@ -117,7 +147,7 @@ class WikipediaProvider:
             "action": "query", "format": "json", "formatversion": "2", "prop": "extracts|info", "inprop": "url",
             "explaintext": "1", "redirects": "1", "titles": title,
         }
-        pages = _get_json(self._request, f"{_WIKIPEDIA_API}?{urlencode(params)}", deadline)["query"]["pages"]
+        pages = self._get(params, deadline)["query"]["pages"]
         page = pages[0]
         url = _public_https(page.get("fullurl"))
         text = page.get("extract")
@@ -134,7 +164,7 @@ class WikipediaProvider:
             "srsearch": query, "srlimit": str(self._max_pages),
         }
         try:
-            found = _get_json(self._request, f"{_WIKIPEDIA_API}?{urlencode(params)}", deadline)["query"]["search"]
+            found = self._get(params, deadline)["query"]["search"]
             pages = [self._page(str(item["title"]), deadline) for item in found[: self._max_pages]]
         except _FAILURES as error:
             return ProviderResult(self.name, "unavailable", _failure_reason("Wikipedia", error))
@@ -182,26 +212,6 @@ def _gdelt_date(value: object) -> str | None:
     return f"{value[:4]}-{value[4:6]}-{value[6:8]}T{value[9:11]}:{value[11:13]}:{value[13:15]}Z"
 
 
-class _Pacer:
-    """Keep a service's rate limit across the whole process, since requests share one address."""
-
-    def __init__(self, interval_seconds: float) -> None:
-        self._interval = interval_seconds
-        self._lock = threading.Lock()
-        self._next_turn = 0.0
-
-    def wait_turn(self, deadline: float) -> bool:
-        """Wait for this caller's turn. False means the turn would come after the deadline."""
-        with self._lock:
-            now = time.monotonic()
-            turn = max(now, self._next_turn)
-            if turn >= deadline:
-                return False
-            self._next_turn = turn + self._interval
-        time.sleep(max(0.0, turn - now))
-        return True
-
-
 # GDELT asks for at most one request every 5 seconds.
 _GDELT_PACER = _Pacer(6.0)
 
@@ -218,7 +228,7 @@ class GdeltProvider:
     def _article_text(self, url: str, deadline: float) -> str:
         try:
             response = self._request(
-                url, headers={"User-Agent": _HEADERS["User-Agent"], "Accept": "text/html"}, deadline=deadline,
+                url, headers={"User-Agent": _USER_AGENT, "Accept": "text/html"}, deadline=deadline,
                 max_bytes=_MAX_PAGE_BYTES, timeout_s=5.0,
             )
         except (HttpFailed, HttpBlocked):
