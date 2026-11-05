@@ -1,0 +1,531 @@
+{
+ "metadata": {
+  "case_id": "sample-tight_group",
+  "synthetic": true
+ },
+ "accounts": [
+  {
+   "id": "a0",
+   "handle": "@invented_a0"
+  },
+  {
+   "id": "a1",
+   "handle": "@invented_a1"
+  },
+  {
+   "id": "a2",
+   "handle": "@invented_a2"
+  },
+  {
+   "id": "a3",
+   "handle": "@invented_a3"
+  },
+  {
+   "id": "a4",
+   "handle": "@invented_a4"
+  },
+  {
+   "id": "a5",
+   "handle": "@invented_a5"
+  },
+  {
+   "id": "bg0",
+   "handle": "@invented_bg0"
+  },
+  {
+   "id": "bg1",
+   "handle": "@invented_bg1"
+  },
+  {
+   "id": "bg2",
+   "handle": "@invented_bg2"
+  },
+  {
+   "id": "bg3",
+   "handle": "@invented_bg3"
+  },
+  {
+   "id": "bg4",
+   "handle": "@invented_bg4"
+  },
+  {
+   "id": "bg5",
+   "handle": "@invented_bg5"
+  },
+  {
+   "id": "bg6",
+   "handle": "@invented_bg6"
+  },
+  {
+   "id": "bg7",
+   "handle": "@invented_bg7"
+  },
+  {
+   "id": "bg8",
+   "handle": "@invented_bg8"
+  },
+  {
+   "id": "bg9",
+   "handle": "@invented_bg9"
+  }
+ ],
+ "posts": [
+  {
+   "id": "p0",
+   "account_id": "a0",
+   "created_at": "2026-01-05T09:00:00Z",
+   "url": "https://story.example/0"
+  },
+  {
+   "id": "p1",
+   "account_id": "a1",
+   "created_at": "2026-01-05T09:00:01Z",
+   "url": "https://story.example/0"
+  },
+  {
+   "id": "p2",
+   "account_id": "a2",
+   "created_at": "2026-01-05T09:00:02Z",
+   "url": "https://story.example/0"
+  },
+  {
+   "id": "p3",
+   "account_id": "a3",
+   "created_at": "2026-01-05T09:00:03Z",
+   "url": "https://story.example/0"
+  },
+  {
+   "id": "p4",
+   "account_id": "a4",
+   "created_at": "2026-01-05T09:00:04Z",
+   "url": "https://story.example/0"
+  },
+  {
+   "id": "p5",
+   "account_id": "a5",
+   "created_at": "2026-01-05T09:00:05Z",
+   "url": "https://story.example/0"
+  },
+  {
+   "id": "p6",
+   "account_id": "a0",
+   "created_at": "2026-01-05T11:00:00Z",
+   "url": "https://story.example/1"
+  },
+  {
+   "id": "p7",
+   "account_id": "a1",
+   "created_at": "2026-01-05T11:00:01Z",
+   "url": "https://story.example/1"
+  },
+  {
+   "id": "p8",
+   "account_id": "a2",
+   "created_at": "2026-01-05T11:00:02Z",
+   "url": "https://story.example/1"
+  },
+  {
+   "id": "p9",
+   "account_id": "a3",
+   "created_at": "2026-01-05T11:00:03Z",
+   "url": "https://story.example/1"
+  },
+  {
+   "id": "p10",
+   "account_id": "a4",
+   "created_at": "2026-01-05T11:00:04Z",
+   "url": "https://story.example/1"
+  },
+  {
+   "id": "p11",
+   "account_id": "a5",
+   "created_at": "2026-01-05T11:00:05Z",
+   "url": "https://story.example/1"
+  },
+  {
+   "id": "p12",
+   "account_id": "a0",
+   "created_at": "2026-01-05T13:00:00Z",
+   "url": "https://story.example/2"
+  },
+  {
+   "id": "p13",
+   "account_id": "a1",
+   "created_at": "2026-01-05T13:00:01Z",
+   "url": "https://story.example/2"
+  },
+  {
+   "id": "p14",
+   "account_id": "a2",
+   "created_at": "2026-01-05T13:00:02Z",
+   "url": "https://story.example/2"
+  },
+  {
+   "id": "p15",
+   "account_id": "a3",
+   "created_at": "2026-01-05T13:00:03Z",
+   "url": "https://story.example/2"
+  },
+  {
+   "id": "p16",
+   "account_id": "a4",
+   "created_at": "2026-01-05T13:00:04Z",
+   "url": "https://story.example/2"
+  },
+  {
+   "id": "p17",
+   "account_id": "a5",
+   "created_at": "2026-01-05T13:00:05Z",
+   "url": "https://story.example/2"
+  },
+  {
+   "id": "p18",
+   "account_id": "a0",
+   "created_at": "2026-01-05T15:00:00Z",
+   "url": "https://story.example/3"
+  },
+  {
+   "id": "p19",
+   "account_id": "a1",
+   "created_at": "2026-01-05T15:00:01Z",
+   "url": "https://story.example/3"
+  },
+  {
+   "id": "p20",
+   "account_id": "a2",
+   "created_at": "2026-01-05T15:00:02Z",
+   "url": "https://story.example/3"
+  },
+  {
+   "id": "p21",
+   "account_id": "a3",
+   "created_at": "2026-01-05T15:00:03Z",
+   "url": "https://story.example/3"
+  },
+  {
+   "id": "p22",
+   "account_id": "a4",
+   "created_at": "2026-01-05T15:00:04Z",
+   "url": "https://story.example/3"
+  },
+  {
+   "id": "p23",
+   "account_id": "a5",
+   "created_at": "2026-01-05T15:00:05Z",
+   "url": "https://story.example/3"
+  },
+  {
+   "id": "p24",
+   "account_id": "a0",
+   "created_at": "2026-01-05T17:00:00Z",
+   "url": "https://story.example/4"
+  },
+  {
+   "id": "p25",
+   "account_id": "a1",
+   "created_at": "2026-01-05T17:00:01Z",
+   "url": "https://story.example/4"
+  },
+  {
+   "id": "p26",
+   "account_id": "a2",
+   "created_at": "2026-01-05T17:00:02Z",
+   "url": "https://story.example/4"
+  },
+  {
+   "id": "p27",
+   "account_id": "a3",
+   "created_at": "2026-01-05T17:00:03Z",
+   "url": "https://story.example/4"
+  },
+  {
+   "id": "p28",
+   "account_id": "a4",
+   "created_at": "2026-01-05T17:00:04Z",
+   "url": "https://story.example/4"
+  },
+  {
+   "id": "p29",
+   "account_id": "a5",
+   "created_at": "2026-01-05T17:00:05Z",
+   "url": "https://story.example/4"
+  },
+  {
+   "id": "p30",
+   "account_id": "a0",
+   "created_at": "2026-01-05T19:00:00Z",
+   "url": "https://story.example/5"
+  },
+  {
+   "id": "p31",
+   "account_id": "a1",
+   "created_at": "2026-01-05T19:00:01Z",
+   "url": "https://story.example/5"
+  },
+  {
+   "id": "p32",
+   "account_id": "a2",
+   "created_at": "2026-01-05T19:00:02Z",
+   "url": "https://story.example/5"
+  },
+  {
+   "id": "p33",
+   "account_id": "a3",
+   "created_at": "2026-01-05T19:00:03Z",
+   "url": "https://story.example/5"
+  },
+  {
+   "id": "p34",
+   "account_id": "a4",
+   "created_at": "2026-01-05T19:00:04Z",
+   "url": "https://story.example/5"
+  },
+  {
+   "id": "p35",
+   "account_id": "a5",
+   "created_at": "2026-01-05T19:00:05Z",
+   "url": "https://story.example/5"
+  },
+  {
+   "id": "p36",
+   "account_id": "bg5",
+   "created_at": "2026-01-05T11:44:46Z",
+   "url": "https://other.example/404"
+  },
+  {
+   "id": "p37",
+   "account_id": "bg0",
+   "created_at": "2026-01-05T10:19:07Z",
+   "url": "https://other.example/840"
+  },
+  {
+   "id": "p38",
+   "account_id": "bg8",
+   "created_at": "2026-01-05T10:42:48Z",
+   "url": "https://other.example/374"
+  },
+  {
+   "id": "p39",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T10:03:21Z",
+   "url": "https://other.example/931"
+  },
+  {
+   "id": "p40",
+   "account_id": "bg8",
+   "created_at": "2026-01-05T12:54:30Z",
+   "url": "https://other.example/38"
+  },
+  {
+   "id": "p41",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T16:53:39Z",
+   "url": "https://other.example/428"
+  },
+  {
+   "id": "p42",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T13:22:52Z",
+   "url": "https://other.example/92"
+  },
+  {
+   "id": "p43",
+   "account_id": "bg8",
+   "created_at": "2026-01-05T16:43:41Z",
+   "url": "https://other.example/60"
+  },
+  {
+   "id": "p44",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T11:15:13Z",
+   "url": "https://other.example/970"
+  },
+  {
+   "id": "p45",
+   "account_id": "bg3",
+   "created_at": "2026-01-05T10:07:34Z",
+   "url": "https://other.example/590"
+  },
+  {
+   "id": "p46",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T16:13:16Z",
+   "url": "https://other.example/50"
+  },
+  {
+   "id": "p47",
+   "account_id": "bg3",
+   "created_at": "2026-01-05T09:50:52Z",
+   "url": "https://other.example/570"
+  },
+  {
+   "id": "p48",
+   "account_id": "bg2",
+   "created_at": "2026-01-05T14:16:19Z",
+   "url": "https://other.example/429"
+  },
+  {
+   "id": "p49",
+   "account_id": "bg2",
+   "created_at": "2026-01-05T18:50:34Z",
+   "url": "https://other.example/120"
+  },
+  {
+   "id": "p50",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T14:36:56Z",
+   "url": "https://other.example/573"
+  },
+  {
+   "id": "p51",
+   "account_id": "bg2",
+   "created_at": "2026-01-05T10:52:33Z",
+   "url": "https://other.example/595"
+  },
+  {
+   "id": "p52",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T12:25:12Z",
+   "url": "https://other.example/381"
+  },
+  {
+   "id": "p53",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T18:58:16Z",
+   "url": "https://other.example/729"
+  },
+  {
+   "id": "p54",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T10:05:06Z",
+   "url": "https://other.example/633"
+  },
+  {
+   "id": "p55",
+   "account_id": "bg3",
+   "created_at": "2026-01-05T18:02:13Z",
+   "url": "https://other.example/696"
+  },
+  {
+   "id": "p56",
+   "account_id": "bg8",
+   "created_at": "2026-01-05T16:47:02Z",
+   "url": "https://other.example/795"
+  },
+  {
+   "id": "p57",
+   "account_id": "bg5",
+   "created_at": "2026-01-05T17:28:33Z",
+   "url": "https://other.example/599"
+  },
+  {
+   "id": "p58",
+   "account_id": "bg7",
+   "created_at": "2026-01-05T15:34:56Z",
+   "url": "https://other.example/306"
+  },
+  {
+   "id": "p59",
+   "account_id": "bg3",
+   "created_at": "2026-01-05T12:16:21Z",
+   "url": "https://other.example/715"
+  },
+  {
+   "id": "p60",
+   "account_id": "bg3",
+   "created_at": "2026-01-05T10:29:24Z",
+   "url": "https://other.example/588"
+  },
+  {
+   "id": "p61",
+   "account_id": "bg4",
+   "created_at": "2026-01-05T18:33:39Z",
+   "url": "https://other.example/506"
+  },
+  {
+   "id": "p62",
+   "account_id": "bg5",
+   "created_at": "2026-01-05T17:10:14Z",
+   "url": "https://other.example/294"
+  },
+  {
+   "id": "p63",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T10:19:57Z",
+   "url": "https://other.example/120"
+  },
+  {
+   "id": "p64",
+   "account_id": "bg8",
+   "created_at": "2026-01-05T16:36:42Z",
+   "url": "https://other.example/168"
+  },
+  {
+   "id": "p65",
+   "account_id": "bg5",
+   "created_at": "2026-01-05T11:46:00Z",
+   "url": "https://other.example/955"
+  },
+  {
+   "id": "p66",
+   "account_id": "bg7",
+   "created_at": "2026-01-05T16:40:36Z",
+   "url": "https://other.example/40"
+  },
+  {
+   "id": "p67",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T14:42:41Z",
+   "url": "https://other.example/348"
+  },
+  {
+   "id": "p68",
+   "account_id": "bg5",
+   "created_at": "2026-01-05T18:02:30Z",
+   "url": "https://other.example/593"
+  },
+  {
+   "id": "p69",
+   "account_id": "bg7",
+   "created_at": "2026-01-05T10:15:06Z",
+   "url": "https://other.example/860"
+  },
+  {
+   "id": "p70",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T13:54:50Z",
+   "url": "https://other.example/485"
+  },
+  {
+   "id": "p71",
+   "account_id": "bg1",
+   "created_at": "2026-01-05T10:06:16Z",
+   "url": "https://other.example/748"
+  },
+  {
+   "id": "p72",
+   "account_id": "bg4",
+   "created_at": "2026-01-05T17:06:45Z",
+   "url": "https://other.example/291"
+  },
+  {
+   "id": "p73",
+   "account_id": "bg6",
+   "created_at": "2026-01-05T15:19:01Z",
+   "url": "https://other.example/23"
+  },
+  {
+   "id": "p74",
+   "account_id": "bg7",
+   "created_at": "2026-01-05T15:28:15Z",
+   "url": "https://other.example/172"
+  },
+  {
+   "id": "p75",
+   "account_id": "bg9",
+   "created_at": "2026-01-05T11:07:53Z",
+   "url": "https://other.example/505"
+  }
+ ],
+ "expected_null_test": "above_chance"
+}

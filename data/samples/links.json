@@ -1,0 +1,57 @@
+[
+ {
+  "url": "https://paypa1.example/signin",
+  "brand": "paypal",
+  "strength": "strong"
+ },
+ {
+  "url": "https://arnazon.example/",
+  "brand": "amazon",
+  "strength": "strong"
+ },
+ {
+  "url": "https://gooogle.example/",
+  "brand": "google",
+  "strength": "strong"
+ },
+ {
+  "url": "https://netflix-billing.example/",
+  "brand": "netflix",
+  "strength": "strong"
+ },
+ {
+  "url": "https://sbi-kyc-update.example/",
+  "brand": "sbi",
+  "strength": "strong"
+ },
+ {
+  "url": "https://paypal.com.account-check.example/",
+  "brand": "paypal",
+  "strength": "strong"
+ },
+ {
+  "url": "https://paypal.example.org/",
+  "brand": "paypal",
+  "strength": "weak"
+ },
+ {
+  "url": "https://amazon-rainforest.example/",
+  "brand": "amazon",
+  "strength": "weak"
+ },
+ {
+  "url": "https://town-notices.example/",
+  "brand": null,
+  "strength": null
+ },
+ {
+  "url": "https://www.paypal.com/signin",
+  "brand": null,
+  "strength": null
+ },
+ {
+  "url": "https://onlinesbi.sbi/",
+  "brand": null,
+  "strength": null
+ }
+]
