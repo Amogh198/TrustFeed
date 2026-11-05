@@ -3,7 +3,7 @@ RESPONSIBILITY: T1 image model, metadata, video keyframes, pHash match, explaina
 BRANCH: feature/akshay-media-forensics
 CURRENT TASK: Unknown to the T2 agent; owner to update
 STATUS: Doing
-COMPLETED: Media forensics adapter pushed, no PR yet (seen on GitHub; T2 agent did not run it)
+COMPLETED: Media forensics adapter in PR #5; T2's compat check passed without the model
 IN PROGRESS: Unknown to the T2 agent; owner to update
 NEXT ACTION: Pull main, adopt the protocol, publish status
 FILES OWNED: backend/media/**

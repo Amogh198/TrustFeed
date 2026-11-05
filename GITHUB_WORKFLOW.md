@@ -35,8 +35,7 @@ Branches stay independent until then, and `python tools/compat_check.py` checks 
 
 As observed on 2026-11-05. Only the repository admin can change these, and agents must not bypass them:
 
-- The `Protect Main` ruleset applies to `main` only, with no bypass actors. It blocks force pushes and deletion, and requires a pull request, **one approving review** and resolved review threads.
-- Stale approvals are dismissed when new commits are pushed.
+- The `Protect Main` ruleset applies to `main` only, with no bypass actors. It blocks force pushes and deletion and requires a pull request. It requires no approvals or resolved threads.
 - Feature branches are unprotected, so development isn't affected.
 - No CI workflows exist yet, so `check`, tests and lint run locally.
 - Each agent authenticates with its own human's `gh auth login`. Never share tokens, and never paste cookies, PATs or API keys into chat or commits.

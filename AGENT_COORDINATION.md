@@ -39,7 +39,7 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
-| T1 | `feature/akshay-media-forensics` | Pushed, no PR yet | Adapter with tests, per its branch | Agree T3 interface | None known |
+| T1 | `feature/akshay-media-forensics` | PR #5 open | Adapter with tests; output fits T3's `ModuleResult` | T3 wiring | None known |
 | T2 | `feat/network-coordination` | Validated, PR #3 | Engine, multi-platform demo data, 61 tests | Support T3 wiring | None |
 | T3 | `feat/amogh-backend-api-text` | PR #1 open | API starter, heuristics, placeholders | Fusion, replay, wiring | None known |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
@@ -53,7 +53,7 @@ Don't copy these into other files. Link to them.
 | HTTP endpoints, response rules, risk values | `API_CONTRACTS.md` |
 | `ModuleResult`, `AnalysisResponse` types | `backend/api/app/models.py` (in PR #1) |
 | T2 functions and payload fields | `backend/network/README.md` (in PR #3) |
-| T1 interface to T3 | **Not published yet.** T1 and T3 agree it. Results must follow the `API_CONTRACTS.md` rules. |
+| T1 functions and evidence fields | `backend/media/README.md` (in PR #5) |
 
 Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all routes and fusion. T4 consumes only HTTP responses and never imports backend internals. Results are signals, not proof, and insufficient evidence returns `inconclusive`.
 
@@ -61,22 +61,22 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 | Component | Built | Tested alone | Integrated |
 |---|---|---|---|
-| T1 media | Pushed, no PR | Has tests | No |
+| T1 media | Yes, PR #5 | Yes, 79 pass and 8 skipped without the model | No |
 | T2 network | Yes, PR #3 | Yes | No |
 | T3 API and text | Starter, PR #1 | Tests added; `/health` and analyze responded in a T2 smoke test | No |
 | T3 fusion | Text and URL only | Not run | No |
 | T4 dashboard | No | No | No |
 | T5 replay and demo | No | No | No |
 
-**Requirements not yet met:** deepfake and synthetic-media detection in `main` (T1's branch is unmerged); media upload; the dashboard; generated countermeasures (T3 has a template only). Multi-platform coverage is synthetic demo data only, in PR #3.
+**Requirements not yet met:** deepfake and synthetic-media detection in `main` (T1's PR #5 is unmerged, and its real model wasn't part of the compatibility check); media upload; the dashboard; generated countermeasures (T3 has a template only). Multi-platform coverage is synthetic demo data only, in PR #3.
 
 **Open compatibility problems:**
 1. `get_network` returns 404 for `demo-001` because it checks `CASES` first. T3 fix; steps in PR #3.
 2. `networkx` is missing from `backend/api/requirements.txt`. T3 fix.
-3. No T1 to T3 interface is published.
+3. T1's `analyze_media` isn't called by T3 yet. T3 fix.
 4. The repo has no CI, so required checks can't be enforced.
 
-**Repository restriction, owner Amogh:** the `Protect Main` ruleset still requires one approving review and resolved threads to merge to `main`. Only the repo admin can change it. It affects final integration only, never development.
+**Repository settings:** the `Protect Main` ruleset needs a pull request to reach `main`, with no required approvals. Merging is still reserved for controlled final integration.
 
 **Regressions:** none known.
 
