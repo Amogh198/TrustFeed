@@ -62,6 +62,7 @@ export interface ExplanationCheck {
   check_id: string;
   module: string;
   label: string;
+  legacy_alias?: boolean;
   status: string | null;
   result: string;
   reasoning: string | string[];

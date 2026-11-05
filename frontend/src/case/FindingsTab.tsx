@@ -9,7 +9,7 @@ export default function FindingsTab({ report, explanation, loading }: {
     if (loading) return <Loading>Working out why this result came out this way</Loading>;
     return <Unknown title="The explanation didn't load">The rest of the report still holds each check's own evidence and limits.</Unknown>;
   }
-  const ran = explanation.checks.filter(check => check.status !== 'not_applicable');
+  const ran = explanation.checks.filter(check => check.status !== 'not_applicable' && !check.legacy_alias);
   const uncertain = explanation.uncertainties.length ? explanation.uncertainties : report.uncertainties;
   return (
     <>

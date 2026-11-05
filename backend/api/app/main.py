@@ -374,7 +374,7 @@ def _demo_case() -> AnalysisResponse:
                 else _not_applicable("No synthetic network data is available.")
             ),
         },
-        uncertainties=["All accounts and posts in this case are simulated."],
+        uncertainties=["Synthetic demo: all accounts and posts in this case are simulated."],
         recommended_actions=["Treat this as a demonstration; it makes no claim about real people or content."],
     )
 
@@ -568,6 +568,7 @@ def get_explanation(case_id: str) -> ExplanationResponse:
             "check_id": "provenance-search",
             "module": "provenance",
             "label": "Source-search summary",
+            "legacy_alias": True,
             "status": report.status.value,
             "result": report.status.value,
             "reasoning": search["reasoning"],
@@ -598,6 +599,7 @@ def get_explanation(case_id: str) -> ExplanationResponse:
             "check_id": "network-trace",
             "module": "network",
             "label": "Public-post trace summary",
+            "legacy_alias": True,
             "status": network_result.status.value,
             "result": network_result.status.value,
             "reasoning": "; ".join(network_result.evidence + network_result.limitations)

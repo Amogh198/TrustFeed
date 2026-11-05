@@ -33,7 +33,7 @@ Status: **initial implementation contract**. Any change requires a PR that names
 
 `GET /api/cases/{case_id}/explanation` returns `what_was_submitted` (kinds of content only, never the content), `what_was_detected`, `supports`, `refutes`, `uncertainties`, `checks` and `missing_checks`.
 
-- Each check has `check_id`, `module`, `label`, `status`, `result`, `reasoning`, `benchmark`, `artifacts` and `limitations`.
+- Each check has `check_id`, `module`, `label`, `status`, `result`, `reasoning`, `benchmark`, `artifacts` and `limitations`. During migration, compatibility check IDs may include `legacy_alias: true`; clients can hide these when presenting the lane-qualified check.
 - `benchmark` is `null` when unmeasured, and the UI shows "Not measured". Figures are only read from a results file.
 - `missing_checks` lists each module that didn't run, with the reason. Nothing is filled in.
 - A quiet media detector is never listed under `refutes`, as it isn't reassuring.

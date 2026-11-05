@@ -104,6 +104,7 @@ class ExplanationCheck(BaseModel):
     check_id: str
     module: str
     label: str
+    legacy_alias: bool = False
     status: str | None = None
     result: str
     reasoning: str | list[str]
