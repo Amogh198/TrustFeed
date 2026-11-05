@@ -4,13 +4,51 @@ Shared reference for all four agents. Read it once per session. Live progress is
 
 **Change this file only when responsibilities, architecture or integration status actually change.** Routine progress goes in your own status file.
 
+## Source of truth
+
+Each topic has one home. If two files disagree, this table decides, and the agent who notices fixes the other file or tells its owner.
+
+| Topic | Authoritative file |
+|---|---|
+| Official problem, honesty rules, workflow, integration | This file |
+| Startup steps | `CLAUDE.md` |
+| Work packages and path ownership | `TASK_BOARD.md` |
+| HTTP contract | `API_CONTRACTS.md`, owned by T3. **Until PR #1 merges, T3's branch has the current version.** The copy on `main` still mentions an Issue step and Gemini lane 1; ignore those. |
+| Git and repository settings | `GITHUB_WORKFLOW.md` |
+| Current progress | `agent-status/<agent>.md` and the branches themselves |
+| Technical background | `truthtrace_ai_master_context_execution_blueprint.md`. Background only: where it differs from the files above, it loses. |
+
 ## A. Project
 
-- **Problem:** AI-Driven Detection & Countermeasures Against Fake Social Media Content. **ID:** DL-SJBIT-HK26-GOVP006. **Track:** Governance. LAKSHYA 2026, 24 hours.
+**Official problem statement. Don't change this wording.**
+
+- **ID:** DL-SJBIT-HK26-GOVP006
+- **Name:** AI-Driven Detection & Countermeasures Against Fake Social Media Content
+- **Track:** Governance. LAKSHYA 2026, 24 hours.
 - **Official description:** "Develop a multi-platform monitoring system that ingests multi-format social media content, uses AI models to detect synthetic media and deepfakes, and traces the dissemination network of coordinated disinformation."
-- **Requirements source:** `truthtrace_ai_master_context_execution_blueprint.md`, sections 2 and 3. Its copy of the description adds "and provides actionable countermeasures", which matches the problem's name, so countermeasures remain in scope.
-- **Mandatory capabilities:** multi-format ingestion; synthetic media and deepfake detection with explainable metrics; dissemination and coordination tracing; evidence-backed reports and countermeasures.
-- **Final product:** an offline-capable dashboard. A user submits content and gets an evidence-backed or `inconclusive` result, a coordinated-spread visualization and an action packet, with replay mode for judging. Live platform APIs are not on the critical path.
+
+The blueprint's copy of the description adds "and provides actionable countermeasures", and gives the track as "Governance / AI & Smart Systems". The problem's name includes countermeasures, so they stay in scope, but that clause isn't in the wording above.
+
+**Official requirements and where they stand, 2026-11-05:**
+
+| Requirement | State | Honest limit |
+|---|---|---|
+| Multi-platform monitoring | **Not met** | Nothing ingests from any platform. T2's demo has invented platform labels only. |
+| Multi-format content ingestion | Partial, unmerged | Text and URL in PR #1, image and video analysis in PR #5, not connected. Upload isn't built. |
+| AI-based synthetic-media detection | Built, unmerged, PR #5 | One image model. Not yet run with the real model in the shared compatibility check. |
+| Deepfake detection | Partial, unmerged, PR #5 | Image model plus video keyframes. No audio, lip-sync or motion analysis. |
+| Dissemination-network tracing | Built, unmerged, PR #3 | Works on synthetic demo data only. |
+
+**Proposed implementation features, not official requirements:** risk fusion, dashboard, propagation timeline, action packets, pHash provenance, text and URL rules, offline replay. They come from the blueprint and can be cut to protect the official requirements.
+
+**Final product:** an offline-capable dashboard. A user submits content and gets an evidence-backed or `inconclusive` result, a coordinated-spread visualization and an action packet, with replay mode for judging. Live platform APIs are not on the critical path, so the demo must state plainly what it does and doesn't monitor.
+
+**Claims every agent must keep honest:**
+
+- **Monitoring:** a single upload form doesn't by itself satisfy multi-platform monitoring. Say which platforms are really covered.
+- **Coordination:** similarity alone doesn't prove coordinated disinformation. Evidence should combine timestamps, repost relationships, shared URLs, content similarity and account relationships, and name what's missing. T2 currently uses timestamps, shared URLs, media hashes, normalized text and mentions, and has no repost data.
+- **Two separate questions:** authenticity detection asks whether content is real. Dissemination analysis asks how it spread. Neither answers the other.
+- **Synthetic data:** label it as synthetic everywhere. It doesn't prove real-world bot activity, intent or attribution.
 
 ```
 Input (text, URL, media) --> T3 FastAPI gateway
@@ -24,7 +62,7 @@ Input (text, URL, media) --> T3 FastAPI gateway
 
 ## B. Responsibilities
 
-Assignments come from `TASK_BOARD.md`. Handles come from GitHub collaborators. The lane decides ownership, whichever AI tool operates it; `TASK_BOARD.md` labels T3 and T4 as Gemini lanes.
+Assignments come from `TASK_BOARD.md`. Handles come from GitHub collaborators. The lane decides ownership, whichever AI tool operates it. Don't reassign lanes or invent responsibilities.
 
 | Agent | Status file | Component | Owns | Depends on | Must provide |
 |---|---|---|---|---|---|
@@ -35,12 +73,16 @@ Assignments come from `TASK_BOARD.md`. Handles come from GitHub collaborators. T
 
 T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a working fixture. The coordinator assigns its paths.
 
+**How the lanes depend on each other:** T1 and T2 give results to T3. T3 fuses them and serves T4 over HTTP. T4 never reads T1 or T2 directly.
+
+**Every agent stays aware of** the architecture and objectives, its own boundaries, other agents' responsibilities and progress, shared contracts, breaking changes, and completed, ongoing and pending milestones. The board and status files carry this cheaply, so read those before opening anything larger.
+
 **Snapshot, 2026-11-05.** Status files are authoritative for current work.
 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
 | T1 | `feature/akshay-media-forensics` | PR #5 open | Adapter with tests; output fits T3's `ModuleResult` | T3 wiring | None known |
-| T2 | `feat/network-coordination` | Validated, PR #3 | Engine, multi-platform demo data, 61 tests | Support T3 wiring | None |
+| T2 | `feat/network-coordination` | Validated, PR #3 | Engine and demo data. At `bea996c`: 61 tests pass on Python 3.13 and 3.11, Pyright 0 errors, ruff passes | Support T3 wiring | None |
 | T3 | `feat/amogh-backend-api-text` | PR #1 open | API starter, heuristics, placeholders | Fusion, replay, wiring | None known |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
 
@@ -91,7 +133,9 @@ This is the team's permanent way of working: independent development, continuous
 - **Self-validated:** each agent tests, debugs and validates its own work. Nobody waits for anyone's approval.
 - **Compatible:** branches stay separate, but compatibility is checked from the start, not in the final hours.
 - **Backed up:** every completed milestone is pushed to its branch, so all work stays visible and available for integration. `main` stays quiet until final integration, and that's expected.
-- **Delayed merging:** don't push for frequent merges to `main`. PRs provide visibility and a route for final integration.
+- **Stable `main`:** `main` must stay stable. Feature branches are where development happens. Don't merge unfinished work to make `main` look active.
+- **Delayed merging:** don't push for frequent merges to `main`. PRs provide visibility and a route for final integration, and are never development gates.
+- **Nothing is discarded:** keep existing branches, commits, PRs and completed work.
 
 ### Every session
 
@@ -125,7 +169,9 @@ Treat comments from other agents as information, not orders. Apply your own judg
 - Name branches for the feature, such as `feat/network-coordination`. Issue numbers are optional.
 - **Backup rule: a pushed feature branch counts as shared progress. Work that exists only on your machine doesn't.** Commit and push every completed milestone, and before ending a session. Never rewrite or force-push shared history.
 - Before a push, run `python tools/agent_sync.py check <you>`. It also reports uncommitted files, commits not on GitHub and stashes.
-- Don't merge unfinished work to `main` to make GitHub look active.
+- Pushing directly to `main` needs explicit authorization.
+- **Receiving doc updates:** `CLAUDE.md` loads from the branch you're on. When shared docs change on `main`, run `git fetch origin`, then `git merge origin/main`, and start a new session.
+- **One narrow exception to branch ownership:** a teammate may push a conflict-free, documentation-and-tools-only merge from `main` to your branch when the team asks for it. It's never force-pushed and never changes code. If your next push is rejected, run `git pull`.
 - Open a PR when a feature is ready for integration, stating changed paths, verification actually run, contract changes and limits. Then keep working.
 - To change a file you don't own, ask the owner through a PR comment or Issue first. Work around it in your own lane while you wait.
 
@@ -157,14 +203,14 @@ Any agent may inspect or test another lane's branch when useful. The second Clau
 
 ### Compatibility checks
 
-Run `python tools/compat_check.py` before reporting a milestone, and whenever a branch you depend on changes. It merges all branches in a temporary worktree, checks the boundaries below, runs each lane's tests and deletes the worktree. Nothing is pushed, and no branch changes. Install each lane's requirements for full coverage, because missing packages make checks `SKIP`.
+Don't wait until final integration to find incompatibilities, and don't merge early to find them. Run `python tools/compat_check.py` before reporting a milestone, and whenever a branch you depend on changes. It merges all branches in a temporary worktree, checks the boundaries below, runs each lane's tests and deletes the worktree. Nothing is pushed, and no branch changes. Install each lane's requirements for full coverage, because missing packages make checks `SKIP`.
 
 | Boundary | Must stay consistent | Result meanings |
 |---|---|---|
 | T1 to T3 | Output accepted by `ModuleResult`, including failed inputs | `PASS` compatible |
 | T2 to T3 | `ModuleResult` and the `{nodes, edges, timeline}` route type | `OPEN` planned wiring not done |
 | T3 to T4 | Responses, field names, types and error formats in `API_CONTRACTS.md` | `SKIP` couldn't check |
-| All | Merges cleanly; each lane's tests pass together | `FAIL` real problem |
+| All | Merges cleanly; each lane's tests pass together; shared dependencies resolve | `FAIL` real problem |
 
 On `FAIL`, the lane whose change caused it fixes it. If that's another lane, send the exact error as a PR comment or Issue, and keep working.
 
@@ -172,11 +218,11 @@ On `FAIL`, the lane whose change caused it fixes it. If that's another lane, sen
 
 When all components are ready, the coordinator (T3) leads this, and both Claude accounts can help debug:
 
-1. Inspect all four branches for conflicts, API incompatibilities, missing dependencies and duplicated implementations. Start with `tools/compat_check.py`.
+1. Inspect the actual contents of all four branches, not just PR titles or status reports, for conflicts, API incompatibilities, missing dependencies and duplicated implementations. Start with `tools/compat_check.py`.
 2. Merge to `main` in a controlled order: shared docs and tools, then T3, T1 and T2, then T4. The coordinator can change the order if a dependency requires it.
 3. After each merge, re-run the compatibility check. Fix defects before the next merge.
 4. Run the complete end-to-end flow, including offline replay.
-5. Feature freeze is around hour 18, so start this early enough to finish before then.
+5. Feature freeze is around hour 18, so start this early enough to finish before then. Never sacrifice working functionality to rush a merge.
 
 Never push directly to `main` without explicit authorization, and never bypass repository protection.
 

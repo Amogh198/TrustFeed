@@ -4,6 +4,8 @@
 
 - Canonical repository: https://github.com/Amogh198/TrustFeed (owner: Amogh198; default branch observed: `main`).
 - All four developers work against this one repository.
+- `main` must stay stable. Feature branches are the primary place for ongoing development. Don't push directly to `main` without explicit authorization.
+- Keep existing branches, commits, PRs and completed work.
 - Use `agent-status/` for live status, PRs to present work for integration, optional Issues for cross-lane requests, and `CLAUDE.md` plus the other root Markdown files as shared instructions.
 
 ## Before starting a task
@@ -29,7 +31,7 @@
 
 ## Final integration
 
-Branches stay independent until then, and `python tools/compat_check.py` checks compatibility without merging. The coordinator (T3) controls merging to `main` in the sequence set out in `AGENT_COORDINATION.md`. After a merge, agents sync from `origin/main` when convenient.
+Don't merge unfinished work. Branches stay independent until then, and `python tools/compat_check.py` checks compatibility without merging. The coordinator (T3) controls merging to `main` in the sequence set out in `AGENT_COORDINATION.md`. After a merge, agents sync from `origin/main` when convenient.
 
 ## Repository settings
 

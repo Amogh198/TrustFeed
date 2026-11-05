@@ -2,7 +2,7 @@
 
 Read [CLAUDE.md](CLAUDE.md) first. It is the shared entry point for every AI coding session.
 
-- [AGENT_COORDINATION.md](AGENT_COORDINATION.md): problem, ownership, contracts, integration status and the agent protocol.
+- [AGENT_COORDINATION.md](AGENT_COORDINATION.md): source-of-truth table, official problem, ownership, contracts, integration status and the agent workflow.
 - [agent-status/](agent-status/): one short status file per agent. View them with `python tools/agent_sync.py`.
 - [TASK_BOARD.md](TASK_BOARD.md): difficulty-based lanes, ownership, path boundaries, dependencies, and scope cuts.
 - [API_CONTRACTS.md](API_CONTRACTS.md): the HTTP integration boundary.

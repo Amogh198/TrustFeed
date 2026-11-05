@@ -5,7 +5,7 @@ CURRENT TASK: Unknown to the T2 agent; owner to update
 STATUS: Doing
 COMPLETED: Media forensics adapter in PR #5; T2's compat check passed without the model
 IN PROGRESS: Unknown to the T2 agent; owner to update
-NEXT ACTION: Pull main, adopt the protocol, publish status
+NEXT ACTION: Run git merge origin/main, start a new session, adopt the workflow, correct this file
 FILES OWNED: backend/media/**
 LATEST COMMIT: 64f40c9 on feature/akshay-media-forensics
 INTERFACES CHANGED: none

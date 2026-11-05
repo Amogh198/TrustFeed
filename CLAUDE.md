@@ -4,6 +4,8 @@ Applies to every coding agent in this repository, whichever AI tool operates the
 
 Build TruthTrace AI for LAKSHYA 2026: a hackathon MVP that ingests sample text and media, analyzes claims/media, maps a synthetic coordination campaign, and presents evidence with uncertainty. Prioritize a working, explainable offline demo over attempting every blueprint feature.
 
+`AGENT_COORDINATION.md` holds the exact official problem statement and says which file is authoritative for each topic. The repository is named TrustFeed, and the product is TruthTrace AI.
+
 ## Mandatory protocol
 
 **At the start of every session:**
@@ -40,21 +42,21 @@ Make routine technical decisions yourself and don't ask humans what to do next. 
 ## Non-negotiable rules
 
 1. Work within your lane in `TASK_BOARD.md`. Issues are optional, not a prerequisite.
-2. Each feature gets its own descriptively named branch from latest `origin/main`, such as `feat/network-coordination`. Never push to `main` or share a branch or clone between agents.
-3. Never overwrite another lane's changes to resolve a conflict.
+2. Each feature gets its own descriptively named branch from latest `origin/main`, such as `feat/network-coordination`. `main` must stay stable. Don't push to it without explicit authorization, and don't merge unfinished work to it. Never share a branch or clone between agents.
+3. Never overwrite another lane's changes to resolve a conflict. Keep existing branches, commits, PRs and completed work.
 4. Shared contracts belong to the integration lane. Announce changes in a PR or Issue with migration steps, and keep existing consumers working where practical.
 5. Record the commands you ran and their results when you report a milestone. Do not claim verification you did not run.
 6. Never put API keys, passwords, cookies, access tokens, private user data or real social account credentials in code, issues, logs or commits. Use `.env.example` with dummy values and keep `.env` ignored.
-7. Keep scope hackathon-sized. Prefer deterministic synthetic fixtures and replay mode. Do not make live social API access a critical path. Report model output as a signal, not proof; return `Inconclusive` when evidence is insufficient.
+7. Keep scope hackathon-sized. Prefer deterministic synthetic fixtures and replay mode. Do not make live social API access a critical path. Report model output as a signal, not proof; return `Inconclusive` when evidence is insufficient. Follow the honesty rules in `AGENT_COORDINATION.md`: label synthetic data, don't claim one upload form is multi-platform monitoring, and don't treat similarity alone as proof of coordination.
 8. Never bypass repository protection. Merging to `main` is part of controlled final integration; see `AGENT_COORDINATION.md`.
 9. Commit and push every completed milestone to your own branch, and before ending a session. Work that exists only on your machine doesn't count as shared progress.
 
 ## Lanes
 
-- `akshay_claude` / Claude Account A: hard media forensics task(s).
-- `bhuvan_claude` / Claude Account B: hard network coordination task(s).
-- Gemini lane 1: backend/API/text/integration.
-- Gemini lane 2: frontend/dashboard.
+- **T1, Akshay** (`akshay_claude`, Claude Account A): media and deepfake detection.
+- **T2, Bhuvan** (`bhuvan_claude`, Claude Account B): dissemination and network tracing.
+- **T3, Amogh** (Gemini lane 1 on the task board): backend API, text and URL rules, result fusion, integration coordination.
+- **T4, owner unconfirmed** (Gemini lane 2 on the task board): dashboard and frontend. See `AGENT_COORDINATION.md`.
 
 ## Handoff format
 
