@@ -37,13 +37,26 @@ class ProvenanceConfig:
 
     user_agent: str = "TruthTraceAI-Provenance/0.1 (research prototype)"
 
+    # Each web search with visual matches spends a second SerpApi search.
+    serpapi_visual_matches: bool = True
+    # Results are saved here by the file's SHA-256, so searching again spends nothing. Not set means nothing is saved.
+    cache_dir: Path | None = None
+    cache_days: float = 30.0
+    # The shortest time between two requests to one site. A site's own Crawl-delay can raise it, up to the cap.
+    site_delay_s: float = 1.0
+    max_site_delay_s: float = 10.0
+
     @classmethod
     def from_env(cls) -> ProvenanceConfig:
         def value(name: str) -> str | None:
             return os.environ.get(name, "").strip() or None
 
         replay = value("PROVENANCE_REPLAY_PATH")
+        cache = value("PROVENANCE_CACHE_DIR")
         return cls(
+            serpapi_visual_matches=(value("SERPAPI_VISUAL_MATCHES") or "1").casefold() in {"1", "true", "yes", "on"},
+            # Outside the repository by default, so saved results can't be committed by accident.
+            cache_dir=Path(cache) if cache else Path.home() / ".cache" / "trustfeed" / "provenance",
             vision_api_key=value("GOOGLE_VISION_API_KEY"),
             tineye_api_key=value("TINEYE_API_KEY"),
             serpapi_api_key=value("SERPAPI_API_KEY"),

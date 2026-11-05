@@ -58,6 +58,8 @@ def test_full_result_is_json_serializable(image_file):
         "fingerprint",
         "content_credentials",
         "forensics",
+        "faces",
+        "ocr",
     }
 
 
