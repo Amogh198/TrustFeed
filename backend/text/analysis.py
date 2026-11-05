@@ -208,6 +208,15 @@ def expand_shortener(url: str, request: Callable[..., HttpResponse] = safe_reque
     for _ in range(_MAX_SHORTENER_HOPS):
         if (urlsplit(current).hostname or "").casefold() not in SHORTENER_HOSTS:
             return current if current != url else None
+        try:
+            response = request(current, method="GET", timeout_s=_EXPAND_TIMEOUT_SECONDS, max_bytes=_MAX_REDIRECT_BODY, max_redirects=0)
+        except (HttpBlocked, HttpFailed):
+            return None
+        location = response.headers.get("location")
+        if response.status not in (301, 302, 303, 307, 308) or not location:
+            return None
+        current = urljoin(current, location)
+    return None
 
 
 def expand_short_url(url: str) -> tuple[str | None, str | None]:
@@ -221,15 +230,6 @@ def expand_short_url(url: str) -> tuple[str | None, str | None]:
     except HttpFailed as error:
         return None, f"Short URL expansion was unavailable ({error.kind})."
     return response.url, None
-        try:
-            response = request(current, method="GET", timeout_s=_EXPAND_TIMEOUT_SECONDS, max_bytes=_MAX_REDIRECT_BODY, max_redirects=0)
-        except (HttpBlocked, HttpFailed):
-            return None
-        location = response.headers.get("location")
-        if response.status not in (301, 302, 303, 307, 308) or not location:
-            return None
-        current = urljoin(current, location)
-    return None
 
 
 def fuse_risk(text_result: ModuleResult | None, url_result: ModuleResult | None) -> RiskLevel:
