@@ -16,6 +16,9 @@ build/
 .venv/
 venv/
 *.egg
+.python/
+.uv-cache/
+.tools/
 
 # Node / Frontend
 node_modules/
