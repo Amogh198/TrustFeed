@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -75,8 +76,8 @@ def _public_https(value: object) -> str | None:
     return value if isinstance(value, str) and value.startswith("https://") and _domain(value) else None
 
 
-def _get_json(request: Request, url: str, deadline: float) -> Any:
-    response = request(url, headers=_HEADERS, deadline=deadline, max_bytes=_MAX_JSON_BYTES, timeout_s=8.0)
+def _get_json(request: Request, url: str, deadline: float, timeout_s: float = 8.0) -> Any:
+    response = request(url, headers=_HEADERS, deadline=deadline, max_bytes=_MAX_JSON_BYTES, timeout_s=timeout_s)
     if response.status != 200:
         raise _Refused(response.status)
     return json.loads(response.body.decode("utf-8"))
@@ -90,6 +91,8 @@ class _Refused(Exception):
 
 def _failure_reason(name: str, error: Exception) -> str:
     """Say what went wrong without any URL, because some hold a key or the query."""
+    if isinstance(error, _Refused) and error.status == 429:
+        return f"{name} is limiting requests right now (HTTP 429), so it was not searched."
     if isinstance(error, _Refused):
         return f"{name} refused the request (HTTP {error.status})."
     if isinstance(error, HttpFailed):
@@ -179,6 +182,30 @@ def _gdelt_date(value: object) -> str | None:
     return f"{value[:4]}-{value[4:6]}-{value[6:8]}T{value[9:11]}:{value[11:13]}:{value[13:15]}Z"
 
 
+class _Pacer:
+    """Keep a service's rate limit across the whole process, since requests share one address."""
+
+    def __init__(self, interval_seconds: float) -> None:
+        self._interval = interval_seconds
+        self._lock = threading.Lock()
+        self._next_turn = 0.0
+
+    def wait_turn(self, deadline: float) -> bool:
+        """Wait for this caller's turn. False means the turn would come after the deadline."""
+        with self._lock:
+            now = time.monotonic()
+            turn = max(now, self._next_turn)
+            if turn >= deadline:
+                return False
+            self._next_turn = turn + self._interval
+        time.sleep(max(0.0, turn - now))
+        return True
+
+
+# GDELT asks for at most one request every 5 seconds.
+_GDELT_PACER = _Pacer(6.0)
+
+
 class GdeltProvider:
     """News articles. Only the headline is certain, so each page is also fetched where possible."""
 
@@ -205,8 +232,11 @@ class GdeltProvider:
             "query": f"{query} sourcelang:english", "mode": "ArtList", "format": "json",
             "maxrecords": str(self._max_articles), "sort": "HybridRel",
         }
+        if not _GDELT_PACER.wait_turn(deadline):
+            return ProviderResult(self.name, "unavailable", "GDELT allows one request every 5 seconds, and time ran out.")
         try:
-            articles = _get_json(self._request, f"{_GDELT_API}?{urlencode(params)}", deadline).get("articles") or []
+            listing = _get_json(self._request, f"{_GDELT_API}?{urlencode(params)}", deadline, timeout_s=20.0)
+            articles = listing.get("articles") or []
             documents: list[Document] = []
             for article in articles[: self._max_articles]:
                 url = _public_https(article.get("url"))

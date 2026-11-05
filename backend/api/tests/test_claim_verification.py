@@ -23,7 +23,7 @@ class Provider:
             "complete",
             documents=[
                 Document("fake", "A", "https://a.example/1", "a.example", PASSAGE, "2024-03-05T00:00:00Z", "first_seen"),
-                Document("fake", "B", "https://b.example/1", "b.example", PASSAGE),
+                Document("fake", "B", "https://b.example/1", "b.example", f"Inspectors reported this: {PASSAGE}"),
             ],
         )
 

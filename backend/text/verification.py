@@ -19,9 +19,10 @@ import re
 import threading
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
-from backend.text.claims import AnalyzedClaim, content_tokens, stem
+from backend.text.claims import AnalyzedClaim, content_tokens, is_verb_like, stem
 from backend.text.evidence_sources import (
     Document,
     Provider,
@@ -38,6 +39,8 @@ from backend.text.verify_models import (
 # Never log claims, queries or evidence: they come from what a user submitted.
 logger = logging.getLogger(__name__)
 
+MIN_CONTENT_WORDS = 3
+_MAX_SEARCH_WORKERS = 8
 SUPPORTED = "supported"
 CONTRADICTED = "contradicted"
 PARTIAL = "partially_supported"
@@ -45,6 +48,7 @@ UNVERIFIED = "unverified"
 
 _SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 _WORD = re.compile(r"[^\W\d_]+")
+_NOT_WORD = re.compile(r"\W+")
 _DIGITS = re.compile(r"\d[\d,.]*\d|\d")
 _REFUTING = re.compile(r"\b(?:false|fake|untrue|incorrect|debunked|hoax|fabricated|pants on fire|no evidence|baseless)\b", re.IGNORECASE)
 _MIXED = re.compile(r"\b(?:misleading|partly|partially|mostly|half|mixed|missing context|out of context|needs context|exaggerat\w*|altered)\b", re.IGNORECASE)
@@ -55,7 +59,9 @@ _TWO_PART_SUFFIXES = {"co.in", "co.uk", "com.au", "gov.in", "org.in", "net.in", 
 @dataclass(frozen=True)
 class VerifyConfig:
     max_claims: int = 5
-    search_seconds: float = 20.0
+    # For each service on each claim, and then for all searching in one case.
+    search_seconds: float = 45.0
+    total_search_seconds: float = 75.0
     compare_seconds: float = 60.0
     # Passages kept per claim for the slower entailment model.
     top_passages: int = 6
@@ -110,6 +116,11 @@ class VerificationReport:
     limitations: list[str]
 
 
+def is_too_vague(claim: AnalyzedClaim) -> bool:
+    """ "47 people died." names no event, so any disaster with 47 deaths would seem to support it."""
+    return not claim.named and len(content_tokens(claim)) < MIN_CONTENT_WORDS
+
+
 def build_query(claim: AnalyzedClaim) -> str:
     """Search words from the claim: its names, then its most specific other words."""
     names = [item.text for item in claim.named]
@@ -126,9 +137,14 @@ def build_query(claim: AnalyzedClaim) -> str:
     return " ".join([*names, *numbers, *words])[:200].strip()
 
 
+def _is_statement(passage: str) -> bool:
+    """A list entry like "Tower in Beijing, China near 39.8N" states nothing, so it cannot contradict."""
+    return any(is_verb_like(word) or (len(word) > 3 and word.endswith("s")) for word in _WORD.findall(passage))
+
+
 def _passages(document: Document, config: VerifyConfig) -> list[str]:
     sentences = [part.strip() for part in _SENTENCE.split(document.text) if part.strip()]
-    found = [sentence for sentence in sentences if len(sentence) >= config.min_passage_chars]
+    found = [item for item in sentences if len(item) >= config.min_passage_chars and _is_statement(item)]
     return found[: config.max_passages]
 
 
@@ -155,6 +171,11 @@ def _missing_specifics(claim: AnalyzedClaim, passage: str) -> list[str]:
 def _shares_subject(claim: AnalyzedClaim, passage: str) -> bool:
     if claim.named:
         lowered = passage.casefold()
+        # "He sent his regards from the Moon" does not say who. A sentence that only says
+        # "he" has lost its context, so every person and organization must be named.
+        actors = [item for item in claim.named if item.type in {"person", "organization"}]
+        if actors:
+            return all(item.text.casefold() in lowered for item in actors)
         return any(item.text.casefold() in lowered for item in claim.named)
     words = {stem(word) for word in _WORD.findall(passage)}
     return len(content_tokens(claim) & words) >= 2
@@ -244,9 +265,23 @@ def _compare_claim(
 def decide(sources: Sequence[SourceEvidence]) -> tuple[str, str]:
     """Turn sources into one result. Independent domains count, and names do not."""
     def domains(stance: str) -> set[str]:
-        return {_registered_domain(item.domain) for item in sources if item.stance == stance}
+        """Sites with this stance. A wire story printed by many sites is one source, not many."""
+        seen: set[str] = set()
+        found: set[str] = set()
+        for item in sources:
+            if item.stance != stance:
+                continue
+            text = _NOT_WORD.sub("", item.snippet.casefold())
+            if text and text in seen:
+                continue
+            seen.add(text)
+            found.add(_registered_domain(item.domain))
+        return found
 
     supporting, contradicting, partial = domains("supports"), domains("contradicts"), domains("partial")
+    # One site pointing both ways is not two sources disagreeing, and it counts for neither side.
+    both_ways = supporting & contradicting
+    supporting, contradicting = supporting - both_ways, contradicting - both_ways
     if supporting and contradicting:
         return PARTIAL, (
             f"Sources disagree. {_listed(supporting)} support this and {_listed(contradicting)} contradict it. "
@@ -266,6 +301,8 @@ def decide(sources: Sequence[SourceEvidence]) -> tuple[str, str]:
             f"Only one source supports this ({_listed(supporting)}), which is not enough to settle it. "
             "A well-known site can still be wrong."
         )
+    if both_ways:
+        return PARTIAL, f"Pages on {_listed(both_ways)} point both ways, which may be about different things. Read them directly."
     if partial:
         return PARTIAL, f"{_listed(partial)} support part of this, but not every detail."
     if sources:
@@ -277,36 +314,66 @@ def _listed(domains: set[str]) -> str:
     return ", ".join(sorted(domains))
 
 
-def _search(claim: AnalyzedClaim, providers: Sequence[Provider], config: VerifyConfig) -> list[ProviderResult]:
-    query = build_query(claim)
-    if not query:
-        return [ProviderResult(provider.name, "complete") for provider in providers]
-    deadline = time.monotonic() + config.search_seconds
-    results: list[ProviderResult] = []
-    for provider in providers:
-        try:
-            results.append(provider.search(query, deadline))
-        except Exception as error:  # noqa: BLE001 - One failed service must not lose the others.
-            logger.warning("Evidence provider failed: %s", type(error).__name__)
-            results.append(ProviderResult(provider.name, "unavailable", "The service failed unexpectedly."))
-    return results
+def _search_one(provider: Provider, query: str, config: VerifyConfig, overall_deadline: float) -> ProviderResult:
+    if time.monotonic() >= overall_deadline:
+        return ProviderResult(provider.name, "unavailable", "The time limit for searching was reached.")
+    # Each service gets its own time, so a slow one cannot use up the next one's.
+    deadline = min(time.monotonic() + config.search_seconds, overall_deadline)
+    try:
+        return provider.search(query, deadline)
+    except Exception as error:  # noqa: BLE001 - One failed service must not lose the others.
+        logger.warning("Evidence provider failed: %s", type(error).__name__)
+        return ProviderResult(provider.name, "unavailable", "The service failed unexpectedly.")
+
+
+def _search_all(
+    claims: Sequence[AnalyzedClaim], providers: Sequence[Provider], config: VerifyConfig
+) -> list[list[ProviderResult]]:
+    """Search at the same time, so one slow service does not use up the time for every other claim."""
+    if not claims or not providers:
+        return [[] for _ in claims]
+    overall_deadline = time.monotonic() + config.total_search_seconds
+    queries = [build_query(claim) for claim in claims]
+    with ThreadPoolExecutor(max_workers=_MAX_SEARCH_WORKERS, thread_name_prefix="text-search") as pool:
+        futures = [
+            [pool.submit(_search_one, provider, query, config, overall_deadline) for provider in providers]
+            if query
+            else []
+            for query in queries
+        ]
+    return [[future.result() for future in row] for row in futures]
 
 
 def _merge_providers(rounds: list[list[ProviderResult]]) -> list[ProviderResult]:
-    """One row per service. It is complete if any of its searches worked."""
-    merged: dict[str, ProviderResult] = {}
+    """One row per service. It is complete if any search worked, and says so if some did not."""
+    grouped: dict[str, list[ProviderResult]] = {}
     for results in rounds:
         for result in results:
-            current = merged.get(result.name)
-            if current is None:
-                merged[result.name] = result
-                continue
-            status = "complete" if "complete" in (current.status, result.status) else "unavailable"
-            merged[result.name] = ProviderResult(
-                result.name, status, None if status == "complete" else result.reason,
-                [*current.documents, *result.documents],
-            )
-    return list(merged.values())
+            grouped.setdefault(result.name, []).append(result)
+    merged: list[ProviderResult] = []
+    for name, results in grouped.items():
+        failed = [result for result in results if result.status != "complete"]
+        documents = [document for result in results for document in result.documents]
+        if not failed:
+            merged.append(ProviderResult(name, "complete", documents=documents))
+        elif len(failed) == len(results):
+            merged.append(ProviderResult(name, "unavailable", failed[0].reason, documents))
+        else:
+            reason = f"{len(failed)} of {len(results)} searches failed. {failed[0].reason}"
+            merged.append(ProviderResult(name, "complete", reason, documents))
+    return merged
+
+
+def _nothing_found(results: list[ProviderResult]) -> str:
+    """Say what really happened: a search that never ran did not find nothing."""
+    failed = [result for result in results if result.status != "complete"]
+    if not results or len(failed) == len(results):
+        details = " ".join(dict.fromkeys(result.reason or "" for result in failed)).strip()
+        return f"This could not be searched, so nothing is known either way. {details}".strip()
+    found = "No relevant source was found. That does not mean it is false."
+    if failed:
+        return f"{found} Some services did not answer: {', '.join(result.name for result in failed)}."
+    return found
 
 
 class _TimeLimit(Exception):
@@ -353,11 +420,12 @@ def verify_claims(
 
     services = list(providers) if providers is not None else default_providers()
     models = comparer or _default_comparer()
-    checkable = [claim for claim in claims if claim.checkable]
+    checkable = [claim for claim in claims if claim.checkable and not is_too_vague(claim)]
+    vague = [claim for claim in claims if claim.checkable and is_too_vague(claim)]
     chosen = checkable[: settings.max_claims]
     skipped = len(checkable) - len(chosen)
 
-    rounds = [_search(claim, services, settings) for claim in chosen]
+    rounds = _search_all(chosen, services, settings)
     documents_by_claim = [_unique_documents(results) for results in rounds]
     comparison_reason = models.is_ready()
     # With no evidence there was nothing to compare, which is not the same as having compared it.
@@ -386,18 +454,27 @@ def verify_claims(
 
     verdicts: list[ClaimVerdict] = []
     for index, claim in enumerate(chosen):
-        if compared is not None:
+        if compared is not None and documents_by_claim[index]:
             sources = compared[index]
             verdict, rationale = decide(sources)
-        else:
+        elif documents_by_claim[index]:
             sources = _not_compared(documents_by_claim[index], comparison_reason or "")
             verdict = UNVERIFIED
-            rationale = (
-                f"Sources were found, but could not be compared with this claim. {comparison_reason}"
-                if sources
-                else "No relevant source was found. That does not mean it is false."
-            )
+            rationale = f"Sources were found, but could not be compared with this claim. {comparison_reason}"
+        else:
+            sources = []
+            verdict = UNVERIFIED
+            rationale = _nothing_found(rounds[index])
         verdicts.append(ClaimVerdict(claim.id, verdict, rationale, sources))
+    verdicts += [
+        ClaimVerdict(
+            claim.id,
+            UNVERIFIED,
+            "This does not say enough on its own to identify an event, so it was not searched. "
+            "That does not mean it is false.",
+        )
+        for claim in vague
+    ]
 
     merged = _merge_providers(rounds)
     any_search = any(result.status == "complete" for result in merged)
@@ -407,7 +484,7 @@ def verify_claims(
         "Sources that repeat each other can look independent. Only the domain name is compared.",
         "Searches and passages are in English, so evidence in other languages can be missed.",
     ]
-    limitations += [f"{result.name}: {result.reason}" for result in merged if result.status != "complete" and result.reason]
+    limitations += [f"{result.name}: {result.reason}" for result in merged if result.reason]
     if skipped:
         limitations.append(f"Only the first {settings.max_claims} checkable claims were searched. {skipped} more were not.")
     if comparison_reason:

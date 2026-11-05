@@ -2,10 +2,12 @@
 
 import json
 import threading
+import time
 
 import pytest
 
 from backend.provenance.safe_http import HttpBlocked, HttpFailed, HttpResponse
+from backend.text import evidence_sources
 from backend.text.claims import describe_claim
 from backend.text.evidence_sources import (
     Document,
@@ -15,6 +17,7 @@ from backend.text.evidence_sources import (
     WikipediaProvider,
     page_text,
 )
+from backend.text.ner import ModelEntity
 from backend.text.verification import SourceEvidence as Source
 from backend.text.verification import VerifyConfig, build_query, decide, verify_claims
 from backend.text.verify_models import Entailment
@@ -28,8 +31,10 @@ def claim(text=CLAIM, number=1):
     return describe_claim(number, text)
 
 
-def document(domain="example.org", text=SUPPORTING, **extra):
-    return Document("fake", f"Page on {domain}", f"https://{domain}/page", domain, text, **extra)
+def document(domain="example.org", text=None, **extra):
+    # Each site words it differently by default, because identical text counts as one source.
+    body = text if text is not None else f"Writing on {domain}, staff said: {SUPPORTING}"
+    return Document("fake", f"Page on {domain}", f"https://{domain}/page", domain, body, **extra)
 
 
 class FakeProvider:
@@ -105,6 +110,22 @@ def test_one_contradicting_site_is_not_contradicted():
     assert verdict.verdict == "partially_supported"
 
 
+def test_one_site_pointing_both_ways_is_not_a_disagreement():
+    both = [source("supports", "en.wikipedia.org"), source("contradicts", "en.wikipedia.org")]
+    verdict, rationale = decide(both)
+    assert verdict == "partially_supported"
+    assert "both ways" in rationale
+    assert "disagree" not in rationale
+    # It does not count for either side of a real comparison.
+    assert decide([*both, source("supports", "a.com"), source("supports", "b.com")])[0] == "supported"
+
+
+def test_list_entries_with_no_statement_are_not_judged():
+    text = "Eiffel Tower in Beijing World Park, Beijing, China near 39.809333 N 116.281 E"
+    _, verdict = verify(document("a.example", text), comparer=ReviewComparer(0.95))
+    assert verdict.sources == []
+
+
 def test_two_independent_domains_support():
     _, verdict = verify(document("a.example"), document("b.example"))
     assert verdict.verdict == "supported"
@@ -112,9 +133,19 @@ def test_two_independent_domains_support():
 
 
 def test_two_independent_domains_contradict():
-    text = "The Sector 9 bridge did not collapse in 2024, the engineers said."
-    _, verdict = verify(document("a.example", text), document("b.example", text))
+    first = "The Sector 9 bridge did not collapse in 2024, the engineers said."
+    second = "Inspectors found the Sector 9 bridge did not collapse in 2024 at all."
+    _, verdict = verify(document("a.example", first), document("b.example", second))
     assert verdict.verdict == "contradicted"
+
+
+def test_a_wire_story_printed_twice_is_one_source():
+    _, verdict = verify(document("a.example", SUPPORTING), document("b.example", SUPPORTING))
+    assert verdict.verdict == "partially_supported"
+    assert "Only one source" in verdict.rationale
+    text = "That makes it taller than the Sector 9 bridge collapsed in 2024, a report said."
+    _, again = verify(document("a.example", text), document("b.example", f"  {text.upper()}"))
+    assert again.verdict == "partially_supported"
 
 
 def test_pages_on_one_site_count_once():
@@ -136,6 +167,19 @@ def test_agreeing_passage_without_the_claims_figure_is_only_partial():
     _, verdict = verify(document("a.example", text), document("b.example", text))
     assert verdict.verdict == "partially_supported"
     assert "2024" in verdict.sources[0].explanation
+
+
+def test_contradiction_needs_the_people_it_is_about_to_be_named():
+    named = ModelEntity("Neil Armstrong", "person", 0.99, 0, 14)
+    moon = ModelEntity("Moon", "place", 0.99, 27, 31)
+    subject = describe_claim(1, "Neil Armstrong walked on the Moon in 1969.", (named, moon))
+    text = "While flying toward the Moon in 1969, he did not collapse but sent his regards to everyone."
+    report = verify_claims(
+        [subject], providers=[FakeProvider(document("a.example", text), document("b.example", f"Later, {text}"))],
+        comparer=FakeComparer(),
+    )
+    assert {item.stance for item in report.verdicts[0].sources} == {"related"}
+    assert report.verdicts[0].verdict == "unverified"
 
 
 def test_contradiction_about_something_else_does_not_count():
@@ -256,6 +300,70 @@ class ExplodingProvider(FakeProvider):
         raise RuntimeError("the submitted text")
 
 
+def test_search_has_an_overall_time_limit_and_never_claims_it_found_nothing():
+    provider = FakeProvider(document())
+    claims = [describe_claim(number, f"The bridge number {number} collapsed.") for number in range(1, 4)]
+    report = verify_claims(claims, providers=[provider], comparer=FakeComparer(), config=VerifyConfig(total_search_seconds=0))
+    assert provider.queries == []
+    assert report.status == "unavailable"
+    assert any("time limit for searching" in item for item in report.limitations)
+    for verdict in report.verdicts:
+        assert verdict.verdict == "unverified"
+        assert "could not be searched" in verdict.rationale
+        assert "No relevant source was found" not in verdict.rationale
+
+
+def test_nothing_found_names_a_service_that_did_not_answer():
+    report = verify_claims(
+        [claim()],
+        providers=[FakeProvider(name="ok"), FakeProvider(name="down", status="unavailable", reason="Down.")],
+        comparer=FakeComparer(),
+    )
+    rationale = report.verdicts[0].rationale
+    assert "No relevant source was found" in rationale
+    assert "down" in rationale
+
+
+class SometimesDown(FakeProvider):
+    """Works for the first search only, as a rate limit would."""
+
+    def __init__(self):
+        super().__init__(name="flaky")
+        self.lock = threading.Lock()
+        self.calls = 0
+
+    def search(self, query, deadline):
+        with self.lock:
+            self.calls += 1
+            first = self.calls == 1
+        return ProviderResult(self.name, "complete") if first else ProviderResult(self.name, "unavailable", "Limited.")
+
+
+def test_partial_failure_of_a_service_is_reported_even_though_it_worked_once():
+    claims = [describe_claim(number, f"The bridge number {number} collapsed.") for number in range(1, 4)]
+    report = verify_claims(claims, providers=[SometimesDown()], comparer=FakeComparer())
+    row = report.providers[0]
+    assert row.status == "complete"
+    assert row.reason == "2 of 3 searches failed. Limited."
+    assert any("2 of 3 searches failed" in item for item in report.limitations)
+
+
+class Gate(FakeProvider):
+    """Finishes only once another search is running too."""
+
+    barrier = None
+
+    def search(self, query, deadline):
+        type(self).barrier.wait(timeout=5)
+        return ProviderResult(self.name, "complete")
+
+
+def test_searches_run_at_the_same_time():
+    Gate.barrier = threading.Barrier(2)
+    report = verify_claims([claim()], providers=[Gate(name="a"), Gate(name="b")], comparer=FakeComparer())
+    assert {row.status for row in report.providers} == {"complete"}
+
+
 def test_every_provider_failing_gives_unavailable_and_unverified():
     report = verify_claims(
         [claim()], providers=[ExplodingProvider(name="x"), FakeProvider(name="y", status="unavailable", reason="Down.")],
@@ -282,6 +390,15 @@ def test_only_checkable_claims_are_searched_and_the_limit_is_reported():
     assert report.skipped_claims == 2
     assert [item.claim_id for item in report.verdicts] == ["claim-2", "claim-3", "claim-4", "claim-5", "claim-6"]
     assert any("2 more were not" in item for item in report.limitations)
+
+
+def test_claim_too_vague_to_identify_an_event_is_not_searched():
+    provider = FakeProvider(document("a.example", "In a separate disaster 47 people died."), document("b.example"))
+    report = verify_claims([describe_claim(1, "47 people died.")], providers=[provider], comparer=FakeComparer())
+    assert provider.queries == []
+    assert report.verdicts[0].verdict == "unverified"
+    assert "does not say enough" in report.verdicts[0].rationale
+    assert "does not mean it is false" in report.verdicts[0].rationale
 
 
 def test_query_uses_specific_words_not_the_whole_sentence():
@@ -357,6 +474,20 @@ def test_gdelt_reads_articles_and_keeps_the_headline_if_the_page_fails():
     assert first.date == "2024-03-05T12:00:00Z" and first.date_kind == "first_seen"
     assert "The bridge fell at dawn." in first.text
     assert second.date is None and second.text == "Bridge report."
+
+
+def test_gdelt_rate_limit_is_named_plainly(monkeypatch):
+    limited = HttpResponse("https://x", 429, {}, b"Please limit requests")
+    monkeypatch.setattr(evidence_sources, "_GDELT_PACER", evidence_sources._Pacer(0.0))
+    result = GdeltProvider(FakeHttp([("api.gdeltproject.org", limited)])).search("bridge", 10**12)
+    assert result.status == "unavailable"
+    assert "limiting requests" in (result.reason or "")
+
+
+def test_pacer_refuses_a_turn_past_the_deadline():
+    pacer = evidence_sources._Pacer(100.0)
+    assert pacer.wait_turn(time.monotonic() + 5) is True
+    assert pacer.wait_turn(time.monotonic() + 5) is False
 
 
 def test_fact_check_needs_a_key_and_says_so():
