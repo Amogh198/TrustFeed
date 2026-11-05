@@ -1,6 +1,6 @@
 # API Contracts — Initial Integration Boundary
 
-Status: **proposal for kickoff; Gemini lane 1 owns publishing the first concrete schema in a PR.** Keep this file small and stable. Any change requires an Issue note before implementation and a PR that names affected lanes.
+Status: **initial implementation contract**. Any change requires a PR that names affected lanes. Keep this file small and stable.
 
 ## Design rules
 
@@ -10,15 +10,15 @@ Status: **proposal for kickoff; Gemini lane 1 owns publishing the first concrete
 - Risk values: `low`, `moderate`, `high`, `critical`, `inconclusive`. An AI detector score is not a factual verdict.
 - Keep user-supplied content out of logs and demo fixtures unless it is intentionally public/sample data.
 
-## Proposed endpoints
+## Endpoints
 
 - `GET /health` -> service status and version.
-- `POST /api/cases/analyze` -> accepts a text claim, URL, or uploaded-media reference; returns one case summary and available module results.
-- `GET /api/cases/{case_id}` -> stored/replay case result.
+- `POST /api/cases/analyze` -> accepts a text claim and/or URL; returns one case summary and available module results. Media uploads are deferred to a later issue.
+- `GET /api/cases/{case_id}` -> most recent in-memory case result for the running process (persistence is deferred).
 - `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI.
 - `POST /api/cases/{case_id}/action-packet` -> draft countermeasure text with evidence references and clear AI-generated label.
 
-Exact field names and upload mechanics are for the contract Issue. Agree before multiple lanes implement against these suggestions.
+Media upload mechanics and persistent storage are deferred. The frontend should submit JSON for text/URL analysis and must not depend on persistence surviving a server restart.
 
 ## Common response sketch
 
@@ -38,4 +38,4 @@ Exact field names and upload mechanics are for the contract Issue. Agree before 
 }
 ```
 
-This is an illustrative shape, not a frozen schema. The integration lane must settle Pydantic/OpenAPI types and sample fixtures before feature branches depend on it.
+This is the current response shape. The backend exposes Pydantic/OpenAPI types and deterministic rule-based text/URL results. Media is marked unavailable until the media lane integrates.

@@ -1,0 +1,1 @@
+"""TruthTrace API application."""
