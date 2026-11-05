@@ -33,11 +33,11 @@ The blueprint's copy of the description adds "and provides actionable countermea
 
 | Requirement | State | Honest limit |
 |---|---|---|
-| Multi-platform monitoring | Partial, on `feat/network-monitoring` | Polls public search on Mastodon, Lemmy and Hacker News. Bluesky, Reddit and YouTube need credentials, and X and private channels aren't covered. It isn't a complete feed of any platform, and it isn't wired into the API yet. |
-| Multi-format content ingestion | Partial | Text, URL, image and video reach the API on `main`. No audio-only input and no ingestion from platforms. |
-| AI-based synthetic-media detection | Built, accuracy unmeasured | One image model. It missed the one labelled fake tried so far, a face swap. |
-| Deepfake detection | Partial | Image model plus video keyframes. No audio, lip-sync or motion analysis. |
-| Dissemination-network tracing | Demo merged; real posts on `feat/network-real-posts` | Real posts are found by link, text or hashtag on three platforms. An image needs page links from a web source search. Not wired into the API yet. Accuracy on real campaigns is unmeasured. |
+| Multi-platform monitoring | Partial, merged in PR #11 | Polls public search on Mastodon, Lemmy and Hacker News. Bluesky, Reddit and YouTube need credentials, and X and private channels aren't covered. It isn't a complete feed of any platform, and it isn't wired into the API yet. |
+| Multi-format content ingestion | Partial, unmerged | Text and URL in PR #1, image and video analysis in PR #5, not connected. Upload isn't built. |
+| AI-based synthetic-media detection | Built, unmerged, PR #5 | One image model. Not yet run with the real model in the shared compatibility check. |
+| Deepfake detection | Partial, unmerged, PR #5 | Image model plus video keyframes. No audio, lip-sync or motion analysis. |
+| Dissemination-network tracing | Demo and real-post tracing merged | Real posts are found by link, text or hashtag on three platforms. An image needs page links from a web source search. Not wired into the API yet. Accuracy on real campaigns is unmeasured. |
 
 **Proposed implementation features, not official requirements:** risk fusion, dashboard, propagation timeline, action packets, pHash provenance, text and URL rules, offline replay. They come from the blueprint and can be cut to protect the official requirements.
 
@@ -82,8 +82,8 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
 | T1 | `main` | PR #5 merged | Adapter with tests; output fits T3's `ModuleResult` | Test on known real and fake samples | None known |
-| T2 | `feat/network-monitoring`, stacked on `feat/network-real-posts` and `fix/network-findings` | PR #3 merged; three branches ready | Findings fixed, real-post tracing, monitoring, linked demo story | T3 calls `trace_case`; T4 uses `appears_at` | None |
-| T3 | `main` | PR #1 and PR #7 merged | API, heuristics, media upload, demo network route, media fusion | Replay, generated action packet | None known |
+| T2 | `fix/network-trace-hardening` | PRs #3, #9, #10 and #11 merged; hardening open | Findings fixed, real-post tracing, monitoring, linked demo story | T3 calls `trace_case`; T4 uses `appears_at` | None |
+| T3 | `main` | PR #1 merged; wiring on `feat/wire-media-network-api` | API, heuristics, media upload, demo network route, media fusion | Replay, generated action packet | None known |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
 
 ## C. Contracts
@@ -110,17 +110,14 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 | T4 dashboard | No | No | No |
 | T5 replay and demo | No | No | No |
 
-**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which T2 has built on `feat/network-real-posts` but the API doesn't call yet. Detector accuracy on known fakes is untested.
+The T1, T2 and T3 rows describe `feat/wire-media-network-api` until that PR merges.
+
+**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which T2 has built but the API doesn't call yet. Detector accuracy on known fakes is untested.
 
 **Open compatibility problems:**
 1. The repo has no CI, so required checks can't be enforced.
 
-**T2 findings reproduced on `eca7847`:** all five are fixed on `fix/network-findings`, with regression tests in `backend/network/tests/test_findings.py`. They stay open on `main` until that branch merges:
-1. Target accounts have a null `first_campaign_post_at`, so they never appear under the README's slider rule, and 472 edges have an endpoint that never appears. Nodes gain `appears_at`, which T4 should use for the slider.
-2. A popular link shared by two ring members can make an unrelated earlier account the `origin_candidate`.
-3. `normalize_text` strips Indic combining marks, so पानी and पीना both become "प न".
-4. Malformed records raise `KeyError` or `TypeError`, and a bad URL raises `ValueError`.
-5. Two items matched by different signals count as 1 in `distinct_items`.
+**T2 findings reproduced on `eca7847`:** all five are fixed and merged in PR #9, with regression tests in `backend/network/tests/test_findings.py`. Nodes gained `appears_at`, which T4 should use for the time slider.
 
 **Repository settings:** the `Protect Main` ruleset needs a pull request to reach `main`, with no required approvals. Merging is still reserved for controlled final integration.
 
