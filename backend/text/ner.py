@@ -11,10 +11,10 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 # Never log the text or the entities: they come from what a user submitted.
 logger = logging.getLogger(__name__)
@@ -114,15 +114,37 @@ class HuggingFaceNer:
         recognize = self._load()
         results: list[list[ModelEntity]] = []
         for text in texts:
-            found: list[ModelEntity] = []
-            for item in recognize(text[:MAX_CHARS_PER_TEXT]):  # type: ignore[operator]
-                kind = _ENTITY_TYPES.get(str(item["entity_group"]))
-                if kind is None or float(item["score"]) < MIN_ENTITY_SCORE:
-                    continue
-                start, end = int(item["start"]), int(item["end"])
-                found.append(ModelEntity(text[start:end].strip(), kind, round(float(item["score"]), 3), start, end))
-            results.append(found)
+            results.append(entities_from_output(text, recognize(text[:MAX_CHARS_PER_TEXT])))  # type: ignore[operator]
         return results
+
+
+def entities_from_output(text: str, output: Sequence[Mapping[str, Any]]) -> list[ModelEntity]:
+    """Rejoin names the model returned in pieces, such as "Na" + "rendra Modi".
+
+    Pieces with nothing between them are one word, so they are one name. Two names
+    separated by a space stay apart. The lowest score is kept, so a joined name
+    never looks more certain than its weakest part.
+    """
+    spans: list[tuple[str, int, int, float]] = []
+    for item in sorted(output, key=lambda entry: int(entry["start"])):
+        kind = _ENTITY_TYPES.get(str(item["entity_group"]))
+        if kind is None:
+            continue
+        start, end, score = int(item["start"]), int(item["end"]), float(item["score"])
+        if spans and spans[-1][0] == kind and spans[-1][2] == start:
+            _, first, _, lowest = spans[-1]
+            spans[-1] = (kind, first, end, min(lowest, score))
+        else:
+            spans.append((kind, start, end, score))
+    found: list[ModelEntity] = []
+    for kind, start, end, score in spans:
+        name = text[start:end]
+        trimmed = name.strip(" .,;:!?'\"()")
+        if score < MIN_ENTITY_SCORE or not trimmed:
+            continue
+        begin = start + name.index(trimmed)
+        found.append(ModelEntity(trimmed, kind, round(score, 3), begin, begin + len(trimmed)))
+    return found
 
 
 class NerRunner:
@@ -189,4 +211,5 @@ def download_model() -> str:
     """Fetch only the pinned safetensors weights and config files. Run by hand, never by the API."""
     from huggingface_hub import snapshot_download
 
+    # One worker: huggingface_hub's symlink check races across threads on Windows.
     return snapshot_download(MODEL_ID, revision=MODEL_REVISION, allow_patterns=MODEL_FILES, max_workers=1)
