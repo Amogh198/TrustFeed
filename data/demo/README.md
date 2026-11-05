@@ -6,6 +6,7 @@
 |---|---|---|
 | `network_demo.json` | 320 accounts and 872 posts for case `demo-001` | Network engine |
 | `network_demo_ground_truth.json` | Planted labels | **Tests only**, never the engine |
+| `network_demo_story.json` | Recorded platform responses for the linked story, case `demo-story-001`, from `backend/network/seed_story.py` | Adapters, through `ReplayFetch` |
 
 ## What it contains
 

@@ -1,6 +1,8 @@
 """Community detection and the Coordination Risk Score."""
 
+import math
 import statistics
+from collections import defaultdict
 from dataclasses import dataclass, replace
 
 import networkx as nx
@@ -28,6 +30,7 @@ class Cluster:
     components: dict[str, float]
     risk_level: str
     flagged: bool
+    # Only the items enough members co-shared. See ``_campaign_items``.
     item_keys: frozenset[tuple[str, str]]
     distinct_items: int
     median_delay_seconds: float
@@ -57,6 +60,18 @@ def _score_components(
         "density": nx.density(subgraph),
         "repetition": min(1.0, (mean_items - 1) / (_REPETITION_SATURATION - 1)),
     }
+
+
+def _campaign_items(
+    edges: list[CoShare], size: int, config: CoordinationConfig
+) -> frozenset[tuple[str, str]]:
+    """Keep items enough members co-shared, which are the ones that describe the campaign."""
+    sharers: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for pair in edges:
+        for key in pair.item_keys():
+            sharers[key].update((pair.source, pair.target))
+    needed = max(config.campaign_item_min_members, math.ceil(size * config.campaign_item_min_share))
+    return frozenset(key for key, accounts in sharers.items() if len(accounts) >= needed)
 
 
 def _risk_level(score: float, size: int, config: CoordinationConfig) -> str:
@@ -98,7 +113,7 @@ def detect_clusters(
                 components={name: round(value, 4) for name, value in components.items()},
                 risk_level=_risk_level(score, size, config),
                 flagged=size >= config.min_cluster_size and score >= config.flag_score_threshold,
-                item_keys=frozenset(key for pair in edges for key in pair.item_keys()),
+                item_keys=_campaign_items(edges, size, config),
                 distinct_items=max(pair.distinct_items for pair in edges),
                 median_delay_seconds=statistics.median(pair.median_delay for pair in edges),
             )
