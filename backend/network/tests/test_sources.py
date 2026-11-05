@@ -94,9 +94,11 @@ class FakeFetch:
 
     def __call__(self, url):
         self.calls.append(url)
-        if url not in self.responses:
-            raise FetchError("The platform refused the request (HTTP 403)")
-        return self.responses[url]
+        if url in self.responses:
+            return self.responses[url]
+        if "/timelines/link" in url:
+            raise FetchError("The platform refused the request (HTTP 404)", 404)
+        raise FetchError("The platform refused the request (HTTP 403)", 403)
 
 
 def ring_fetch(size=6, items=3):
@@ -125,7 +127,8 @@ def test_query_takes_links_hashtags_and_a_leading_phrase():
         url="https://b.example/y",
         urls=("https://c.example/z",),
     )
-    assert query.urls == ("https://c.example/z", "https://b.example/y", "https://a.example/x")
+    assert query.urls == ("https://b.example/y", "https://a.example/x")
+    assert query.page_urls == ("https://c.example/z",)
     assert query.hashtags == ("floodalert", "बाढ़")
     assert query.phrases == ("breaking the dam has failed near the city share this now floodalert",)
 
@@ -173,12 +176,11 @@ def test_mastodon_leaves_out_reposts_and_non_public_posts_and_counts_broken_reco
     assert outcome.malformed == 1
 
 
-def test_mastodon_says_links_and_text_cannot_be_searched():
-    fetch = FakeFetch()
-    outcome = MastodonSource().search(SearchQuery(urls=(ITEM,), phrases=("some phrase here",)), fetch)
+def test_mastodon_says_text_cannot_be_searched_and_links_only_when_trending():
+    outcome = MastodonSource().search(SearchQuery(urls=(ITEM,), phrases=("some phrase here",)), FakeFetch())
     assert outcome.searches_run == 0
-    assert fetch.calls == []
-    assert "only hashtags" in outcome.unsupported[0]
+    assert "Text can't be searched" in outcome.unsupported[0]
+    assert "trending" in outcome.unsupported[1]
 
 
 def test_tag_with_url_characters_cannot_change_the_request_host_or_path():
@@ -334,7 +336,7 @@ def test_uncoordinated_spread_still_gets_nodes_and_a_timeline():
 def test_every_trace_says_what_was_not_covered():
     result = trace_public_spread("case-1", url=ITEM, fetch=ring_fetch())
     missing = {item["platform"] for item in result.coverage["not_connected"]}
-    assert {"bluesky", "reddit", "youtube", "x", "private channels"} <= missing
+    assert {"reddit", "youtube", "x", "private channels"} <= missing
     limitations = " ".join(result.module_result["limitations"])
     assert "Not connected" in limitations
     assert "Coverage is partial" in limitations
@@ -372,7 +374,7 @@ def test_every_platform_failing_is_unavailable_with_the_reason():
     assert result.module_result["status"] == "unavailable"
     assert result.module_result["score"] is None
     statuses = {item["platform"]: item["status"] for item in result.coverage["platforms"]}
-    assert statuses == {"mastodon": "not_searchable", "lemmy": "failed", "hackernews": "failed"}
+    assert statuses == {"mastodon": "not_searchable", "lemmy": "failed", "hackernews": "failed", "bluesky": "failed"}
     lemmy = next(item for item in result.coverage["platforms"] if item["platform"] == "lemmy")
     assert "HTTP 403" in lemmy["notes"][0]
 

@@ -51,7 +51,7 @@ class HackerNewsSource:
             outcome.unsupported.append("Hacker News has no hashtags, so hashtags weren't searched here.")
         addresses = [
             f"{_BASE}?query={quote(url, safe='')}&restrictSearchableAttributes=url&tags=story&hitsPerPage={_PAGE_SIZE}"
-            for url in query.urls
+            for url in query.all_urls
         ] + [
             f"{_BASE}?query={quote(chr(34) + phrase + chr(34), safe='')}&tags=(story,comment)&hitsPerPage={_PAGE_SIZE}"
             for phrase in query.phrases

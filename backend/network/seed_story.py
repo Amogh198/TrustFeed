@@ -177,6 +177,8 @@ class _InventedWorld:
     def __call__(self, address: str) -> Any:
         parts = urlsplit(address)
         query = parse_qs(parts.query)
+        if parts.netloc == _SOCIAL and parts.path.endswith("/timelines/link"):
+            return []  # These invented links aren't trending, so nothing comes back.
         if parts.netloc == _SOCIAL and "/timelines/tag/" in parts.path:
             tag = unquote(parts.path.rsplit("/", 1)[1]).casefold()
             wanted = [post for post in self.posts["social"] if _HASHTAG.casefold() == tag and post["url"] == SUBMISSION["url"]]

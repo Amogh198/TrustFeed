@@ -28,6 +28,7 @@ HN_URL = (
     "https://hn.algolia.com/api/v1/search_by_date"
     f"?query={quote(ITEM, safe='')}&restrictSearchableAttributes=url&tags=story&hitsPerPage=50"
 )
+BLUESKY_UP = "bluesky is answering"
 NOW = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
 
 
@@ -60,12 +61,16 @@ class ScriptedFetch:
     """Serve set responses that a test can change between polls."""
 
     def __init__(self):
-        self.responses = {TAG_URL: [status(1)], LEMMY_URL: {"posts": []}, HN_URL: {"hits": [hit(1)]}}
+        self.responses = {TAG_URL: [status(1)], LEMMY_URL: {"posts": []}, HN_URL: {"hits": [hit(1)]}, BLUESKY_UP: True}
 
     def __call__(self, url):
-        if url not in self.responses:
-            raise FetchError("The platform refused the request (HTTP 403)")
-        return self.responses[url]
+        if url in self.responses:
+            return self.responses[url]
+        if "/timelines/link" in url:
+            raise FetchError("The platform refused the request (HTTP 404)", 404)
+        if url.startswith("https://api.bsky.app/") and BLUESKY_UP in self.responses:
+            return {"posts": []}
+        raise FetchError("The platform refused the request (HTTP 403)", 403)
 
 
 def monitor(fetch, **kwargs):
@@ -77,19 +82,19 @@ def monitor(fetch, **kwargs):
 
 def test_a_watch_reads_two_or_more_real_platforms_and_says_which():
     snapshot = monitor(ScriptedFetch()).poll(NOW)
-    assert snapshot["platforms_read"] == ["mastodon", "lemmy", "hackernews"]
-    assert snapshot["new_posts"] == {"mastodon": 1, "lemmy": 0, "hackernews": 1}
+    assert snapshot["platforms_read"] == ["mastodon", "lemmy", "hackernews", "bluesky"]
+    assert snapshot["new_posts"] == {"mastodon": 1, "lemmy": 0, "hackernews": 1, "bluesky": 0}
     assert snapshot["total_matching_posts"] == 2
     assert snapshot["polled_at"] == "2026-03-01T12:00:00Z"
     assert snapshot["synthetic"] is False
-    assert {item["platform"] for item in snapshot["not_connected"]} >= {"bluesky", "reddit", "youtube"}
+    assert {item["platform"] for item in snapshot["not_connected"]} >= {"reddit", "youtube"}
 
 
 def test_a_platform_that_cannot_be_searched_is_not_counted_as_read():
     fetch = ScriptedFetch()
     snapshot = Monitor("watch-2", urls=(ITEM,), fetch=fetch).poll(NOW)
     assert "mastodon" not in snapshot["platforms_read"]
-    assert snapshot["platforms_read"] == ["lemmy", "hackernews"]
+    assert snapshot["platforms_read"] == ["lemmy", "hackernews", "bluesky"]
 
 
 def test_later_polls_report_only_new_posts_but_keep_everything():
@@ -99,7 +104,7 @@ def test_later_polls_report_only_new_posts_but_keep_everything():
     fetch.responses[HN_URL] = {"hits": [hit(1), hit(2)]}
     second = watch.poll(NOW)
     assert second["poll"] == 2
-    assert second["new_posts"] == {"mastodon": 0, "lemmy": 0, "hackernews": 1}
+    assert second["new_posts"] == {"mastodon": 0, "lemmy": 0, "hackernews": 1, "bluesky": 0}
     assert second["total_matching_posts"] == 3
     third_row = next(item for item in second["platforms"] if item["platform"] == "hackernews")
     assert third_row["matching_posts"] == 2
@@ -121,7 +126,7 @@ def test_a_platform_going_down_raises_an_alert_and_keeps_earlier_posts():
     del fetch.responses[HN_URL]
     snapshot = watch.poll(NOW)
     assert snapshot["total_matching_posts"] == 2
-    assert snapshot["platforms_read"] == ["mastodon", "lemmy"]
+    assert snapshot["platforms_read"] == ["mastodon", "lemmy", "bluesky"]
     alert = next(item for item in snapshot["alerts"] if item["type"] == "platform_unreachable")
     assert alert["platform"] == "hackernews"
     assert "HTTP 403" in alert["message"]
@@ -161,7 +166,7 @@ def test_state_survives_a_restart(tmp_path):
     assert restarted.polls == 1
     snapshot = restarted.poll(NOW)
     assert snapshot["poll"] == 2
-    assert snapshot["new_posts"] == {"mastodon": 0, "lemmy": 0, "hackernews": 0}
+    assert snapshot["new_posts"] == {"mastodon": 0, "lemmy": 0, "hackernews": 0, "bluesky": 0}
     assert snapshot["total_matching_posts"] == 2
 
 

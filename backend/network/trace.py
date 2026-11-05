@@ -61,16 +61,18 @@ class Collected:
 
 
 def matched_on(post: PublicPost, query: SearchQuery) -> str | None:
-    """Say what ties this post to the query, or None if the search result was only fuzzy."""
-    wanted = {normalize_url(url) for url in query.urls} - {None}
-    linked = {normalize_url(link) for link in [post.url, *URL_IN_TEXT.findall(post.text)] if link}
-    if wanted & linked:
+    """Say what ties this post to the query, strongest first, or None if the result was only fuzzy."""
+    links = [post.url, *post.other_links, *URL_IN_TEXT.findall(post.text)]
+    linked = {normalize_url(link) for link in links if link} - {None}
+    if linked & {normalize_url(url) for url in query.urls}:
         return "link"
     if set(query.hashtags) & set(post.hashtags):
         return "hashtag"
     text = f" {normalize_text(post.text)} "
     if any(f" {phrase} " in text for phrase in query.phrases):
         return "text"
+    if linked & {normalize_url(url) for url in query.page_urls}:
+        return "page_link"
     return None
 
 
@@ -205,6 +207,7 @@ def _spread(collected: Collected, synthetic: bool) -> list[dict[str, Any]]:
             # Invented posts have no real page, and a link could land on someone else's.
             "permalink": None if synthetic else safe_web_link(post.permalink),
             "matched_on": collected.on_topic[post.id],
+            "repost_count": post.repost_count,
             "earliest_found": index == 1,
         }
         for index, post in enumerate(ordered, start=1)
@@ -260,6 +263,18 @@ def _module_result(
         "that posted this content close together were also read."
     )
     history_lines = [history_line] if collected.histories_read else []
+    hashtag_matches = sum(1 for match in collected.on_topic.values() if match == "hashtag")
+    if hashtag_matches:
+        history_lines.append(
+            f"{hashtag_matches} of the matching posts only share a hashtag. That shows a shared topic, "
+            "not shared content, so they may concern other events."
+        )
+    page_matches = sum(1 for match in collected.on_topic.values() if match == "page_link")
+    if page_matches:
+        history_lines.append(
+            f"{page_matches} of the matching posts link to a page where the image was found, rather than "
+            "carrying the submitted link or text. They may be about something else on that page."
+        )
     return {
         **result,
         "evidence": [*first_lines, coverage_line, *history_lines, *other_lines],
@@ -286,7 +301,12 @@ def assemble_result(
         "mode": getattr(fetch, "mode", "live"),
         "searched_at": searched_at,
         "synthetic": synthetic,
-        "query": {"urls": list(query.urls), "phrases": list(query.phrases), "hashtags": list(query.hashtags)},
+        "query": {
+            "urls": list(query.urls),
+            "page_urls": list(query.page_urls),
+            "phrases": list(query.phrases),
+            "hashtags": list(query.hashtags),
+        },
         "platforms": collected.platforms,
         "not_connected": [{"platform": name, "reason": reason} for name, reason in sorted(NOT_CONNECTED.items())],
         "account_histories": {

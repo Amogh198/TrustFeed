@@ -26,6 +26,7 @@ from backend.network import get_network_payload, get_network_module_result, get_
 get_network_payload("demo-001")        # {"nodes": [...], "edges": [...], "timeline": [...]}
 get_network_module_result("demo-001")  # dict with the ModuleResult fields
 get_network_clusters("demo-001")       # per-cluster scores, for an evidence view
+get_network_checks("demo-001")         # explanation checks, see below
 ```
 
 Every function returns `None` for any other case id. **Don't give user-submitted cases the demo network**, because it would present invented spread as a finding about their content. Keep `network` as `unavailable` for them.
@@ -43,10 +44,10 @@ After `trace_case`, `get_network_payload`, `get_network_module_result` and `get_
 
 | Platform, checked without a login on 2026-11-05 | State | What can be searched |
 |---|---|---|
-| Mastodon (`mastodon.social`) | Connected | Hashtags only. Text search returns nothing and the link timeline returns 404 |
-| Lemmy (`lemmy.world` and instances it federates with) | Connected | Links and text |
 | Hacker News (Algolia API) | Connected | Links, and text in stories and comments |
-| Bluesky | Not connected | Post search returns 403 and 401 without a login |
+| Bluesky (`api.bsky.app`) | Connected | Links, hashtags and text. Tested behaviour, as its docs pages couldn't be read, so a refusal is reported as `failed`. Accounts asking to be hidden from logged-out viewers are left out |
+| Lemmy (`lemmy.world` and instances it federates with) | Connected | Links and text. It returned 503 for part of one day, which is reported as `failed` |
+| Mastodon (`mastodon.social`) | Connected, narrowly | Hashtags, and links only while they trend on that server. Status search returned nothing on all 4 servers tried, and a link that isn't trending returns 404, so a bare link usually reports `not_searchable`. **It can't honestly do better without a login** |
 | Reddit | Not connected | Search returns 403 without registered API credentials |
 | YouTube | Not connected | The Data API returns 403 without a key |
 | X | Not connected | Not tried: no paid API access |
@@ -55,11 +56,33 @@ After `trace_case`, `get_network_payload`, `get_network_module_result` and `get_
 - **Ask first.** Searching sends the submitted text and links to these platforms' search services, so the product should make it opt-in. Fill only `text`, `url`, `urls` and `hashtags` from request data.
 - **Render links safely.** `spread[].permalink` is null unless it's http or https. Handles and other fields come from the platforms, so treat them as untrusted text in the UI.
 - **Only real matches count.** Search results are candidates. A post is kept only if it carries the searched link, hashtag or phrase.
+- **Matches differ in strength.** `spread[].matched_on` says why each post counted, strongest first:
+  - `link` carries a link the user submitted.
+  - `hashtag` uses the hashtag, which shows a shared topic, not shared content.
+  - `text` contains the submitted text.
+  - `page_link` links to a page where a source search found the image, and may be about something else on that page. These come from the `urls` argument.
+- **Repost counts have no times.** `spread[].repost_count` is from Mastodon and Bluesky. Neither says when reposts happened, so counts can't order events, and reposts aren't used as co-shares.
 - **Repetition comes from account histories.** Searching for one item can only find one shared item, and one item is never treated as coordination. So the other recent public posts of up to 20 accounts that posted within the window are read as well.
 - **Account identity stays per platform.** The same name on two platforms is two accounts.
 - **Failures are reported.** Each platform has a `status` of `searched`, `partial`, `failed` or `not_searchable`, with notes. If none can be searched the result is `unavailable`. If nothing matches the result is `Inconclusive`, never clean.
 - **Offline runs.** `RecordingFetch` saves a run and `ReplayFetch` plays it back, by passing `fetch=`. Recordings hold real people's public posts, so keep them out of Git.
 - **Tests never use the network.** Only a manual run has read the live platforms, so a platform changing its API would not show up in tests.
+
+### Explanation checks
+
+`get_network_checks(case_id)` returns `network.platform_search`, `network.matching_posts` and `network.coordination_signal`. `build_network_checks(case_id, payload, coverage, module_result)` does the same from stored results. Each has `check_id`, `module`, `label`, `result`, `reasoning`, `benchmark`, `artifacts` and `limitations`. **This follows the draft shape for `/explanation`.** `benchmark` is null because nothing here has been measured on labelled real data.
+
+### Match quality
+
+Measured once on 2026-11-05 on a small live recording that isn't kept in Git. It is one person's reading of a small sample, not a benchmark.
+
+| Match | Result | What it means |
+|---|---|---|
+| Link | 302 of 302 kept posts carried the link on a separate check, and 34 of 336 results were rejected | Reliable that the post carries the link. It doesn't show the post agrees with the link |
+| Text | 13 of 13 posts read were about the same item | Good for distinctive headlines. Short or common phrases may do worse |
+| Hashtag | 20 posts read from 140 for `#flood` were mostly automated warnings about different places | Shows a topic only, so it isn't evidence of shared content |
+
+Page links haven't been measured.
 
 ### Monitoring two or more platforms
 
@@ -74,9 +97,11 @@ snapshot = monitor.poll()  # call on a schedule; results accumulate between poll
 python -m backend.network.watch --watch-id watch-1 --hashtag floods --url https://example.org/a --polls 3 --interval 300
 ```
 
-A watch with a hashtag and a link reads all three connected platforms: Mastodon through the hashtag, and Lemmy and Hacker News through the link. A watch with only one of these reads fewer, and `platforms_read` on each snapshot says exactly which were read. Each snapshot also has `new_posts`, `total_matching_posts`, `alerts` and `module_result`. Alerts are `coordination_signal`, for a person to review, and `platform_unreachable`, when a platform that worked before stops working. After a poll, the getters above work with the watch id.
+A watch with a hashtag and a link reads all four connected platforms. A watch with only one of these can read fewer, and `platforms_read` on each snapshot says exactly which were read. Each snapshot also has `new_posts`, `total_matching_posts`, `alerts` and `module_result`. Alerts are `coordination_signal`, for a person to review, and `platform_unreachable`, when a platform that worked before stops working. After a poll, the getters above work with the watch id.
 
 **This is repeated polling of public search, not a complete feed.** The command line waits at least 60 seconds between polls. `--state` keeps results between runs. That file holds real people's public posts, so keep it under `backend/network/recordings/`, which Git ignores.
+
+For the API, `start_watch`, `poll_watch`, `stop_watch` and `list_watches` add limits. Starting needs `opted_in=True` and sends nothing, and **nothing runs in the background**: a watch polls only when `poll_watch` is called. At most 5 watches run at once, polls are at least 60 seconds apart, and a watch ends after 24 hours. Refusals raise `WatchError`. No route calls these yet.
 
 ### Linked demo story
 
@@ -142,11 +167,12 @@ Risk bands: under 0.35 `low`, under 0.55 `moderate`, under 0.75 `high`, otherwis
 
 ## Limitations
 
-- **Coverage is partial.** Only three platforms are read, public search doesn't return every post, and the histories read are recent and capped. Lemmy shows what one server has federated.
-- **Reposts are left out.** Mastodon reposts are dropped, so account relationships are still limited to mentions.
+- **Coverage is partial.** Only four platforms are read, public search doesn't return every post, and the histories read are recent and capped. Lemmy shows what one server has federated.
+- **Reposts aren't traced.** Reposts are left out of the posts analyzed, so account relationships are still limited to mentions.
+- **Automated accounts can look coordinated.** Weather alerts and news feeds post the same items within seconds, so a flagged group can be harmless.
 - **Demo results prove little.** The engine recovers the planted cluster in data built to contain one. That shows it works as designed, not how accurate it would be on real data.
 - **No claims about people.** Co-sharing does not establish intent, common control, automation or attribution. Newsrooms and fan communities can look similar.
-- **Evidence coverage.** Similarity alone is never treated as coordination: a pair must co-share repeatedly within the time window. The engine uses timestamps, shared URLs, media hashes, normalized text and mentions. It has no repost data, and mentions are its only account relationship. Real posts currently give no media hashes, so images are compared only through shared links.
+- **Evidence coverage.** Similarity alone is never treated as coordination: a pair must co-share repeatedly within the time window. The engine uses timestamps, shared URLs, media hashes, normalized text and mentions. It has no repost data, and mentions are its only account relationship. Real posts give no media hashes, so images are compared only through shared links.
 - **Origin is limited to the dataset.** The true source may have posted elsewhere or earlier.
 - **Evasion is easy.** Paraphrases, re-encoded media and delays over 120 seconds are all missed. Perceptual matching from T1 could address the media case after integration.
 - **Single-threaded and in-memory.** Suitable for demo-sized data. Very large bursts within the window get slow, since every pair is compared.

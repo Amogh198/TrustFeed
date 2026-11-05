@@ -24,7 +24,7 @@ def live_fetch(url: str) -> Any:
         with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
             body = response.read(_MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
-        raise FetchError(f"The platform refused the request (HTTP {error.code})") from error
+        raise FetchError(f"The platform refused the request (HTTP {error.code})", error.code) from error
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise FetchError("The platform could not be reached") from error
     if len(body) > _MAX_RESPONSE_BYTES:

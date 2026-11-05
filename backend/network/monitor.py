@@ -48,7 +48,7 @@ class Monitor:
         state_path: Path | None = None,
     ) -> None:
         self.watch_id = watch_id
-        self.query = SearchQuery.from_submission(text=text, url=url, urls=urls, hashtags=hashtags)
+        self.query = SearchQuery.from_submission(text=text, url=url, watched_urls=urls, hashtags=hashtags)
         if self.query.is_empty():
             raise ValueError("A watch needs text, a link or a hashtag to search for")
         self.sources = default_sources() if sources is None else sources

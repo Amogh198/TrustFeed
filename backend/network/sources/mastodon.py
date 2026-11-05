@@ -1,7 +1,9 @@
-"""Mastodon: public hashtag timelines and account posts, with no login.
+"""Mastodon: public hashtag timelines, trending links and account posts, with no login.
 
-Checked 2026-11-05 on mastodon.social: without a login, searching post text returns
-nothing and the link timeline returns 404, so only hashtags can be searched.
+Checked 2026-11-05 on four servers: without a login, status search returns nothing. The
+link timeline answered for all 3 links trending on mastodon.social, and returned 404 for
+a link that wasn't trending. So a link can be traced only while it trends on this server,
+and a 404 says nothing about whether anyone posted it.
 """
 
 from typing import Any
@@ -13,6 +15,7 @@ from backend.network.sources.base import (
     PublicPost,
     SearchOutcome,
     SearchQuery,
+    count_or_none,
     read_html,
     utc_timestamp,
 )
@@ -47,12 +50,14 @@ class MastodonSource:
             permalink=status.get("url"),
             text=text,
             url=card.get("url") or next(iter(links), None),
+            other_links=tuple(links),
             hashtags=tuple(tag["name"].casefold() for tag in status.get("tags") or ()),
             mentions=tuple(
                 (f"{self.platform}:{self._qualified(item['acct'])}", self._qualified(item["acct"]))
                 for item in status.get("mentions") or ()
             ),
             followers=int(account.get("followers_count") or 0),
+            repost_count=count_or_none(status.get("reblogs_count")),
         )
 
     def _read(self, statuses: Any, outcome: SearchOutcome) -> None:
@@ -67,8 +72,24 @@ class MastodonSource:
 
     def search(self, query: SearchQuery, fetch: Fetch) -> SearchOutcome:
         outcome = SearchOutcome()
-        if query.urls or query.phrases:
-            outcome.unsupported.append("Links and text can't be searched here without a login; only hashtags can.")
+        if query.phrases:
+            outcome.unsupported.append("Text can't be searched here without a login.")
+        if query.all_urls:
+            outcome.unsupported.append(
+                "Without a login, a link can be found here only while it is trending on this server, "
+                "so finding nothing doesn't show it wasn't posted."
+            )
+        for link in query.all_urls:
+            address = f"https://{self.instance}/api/v1/timelines/link?url={quote(link, safe='')}&limit={_PAGE_SIZE}"
+            try:
+                statuses = fetch(address)
+            except FetchError as error:
+                if error.status != 404:  # A 404 only means the link isn't trending here.
+                    outcome.searches_run += 1
+                    outcome.failures.append(str(error))
+                continue
+            outcome.searches_run += 1
+            self._read(statuses, outcome)
         for tag in query.hashtags:
             address = f"https://{self.instance}/api/v1/timelines/tag/{quote(tag, safe='')}?limit={_PAGE_SIZE}"
             outcome.searches_run += 1

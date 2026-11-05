@@ -20,15 +20,23 @@ _HASHTAG_IN_TEXT = re.compile(r"(?<![^\s(])#([^\s#.,;:!?()]+)")
 class FetchError(Exception):
     """A platform couldn't be read. The message says why and is safe to show to users."""
 
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
 
 Fetch = Callable[[str], Any]
 
 
 @dataclass(frozen=True)
 class SearchQuery:
+    # Links the user submitted or is watching.
     urls: tuple[str, ...] = ()
     phrases: tuple[str, ...] = ()
     hashtags: tuple[str, ...] = ()
+    # Pages where a source search found the image. A post linking to one of these may be
+    # about something else on that page, so these matches are reported separately.
+    page_urls: tuple[str, ...] = ()
 
     @classmethod
     def from_submission(
@@ -37,21 +45,31 @@ class SearchQuery:
         url: str | None = None,
         urls: tuple[str, ...] = (),
         hashtags: tuple[str, ...] = (),
+        watched_urls: tuple[str, ...] = (),
     ) -> "SearchQuery":
-        """Build a search from submitted content. Long text becomes one leading phrase."""
+        """Build a search from submitted content. Long text becomes one leading phrase.
+
+        ``urls`` are page links from a source search. ``watched_urls`` count as submitted.
+        """
         text = text or ""
-        found_urls = [*urls, *([url] if url else []), *URL_IN_TEXT.findall(text)]
+        candidates: list[str] = [*watched_urls, *([url] if url else []), *URL_IN_TEXT.findall(text)]
+        found_urls = tuple(dict.fromkeys(candidates))
         found_tags = [*hashtags, *_HASHTAG_IN_TEXT.findall(text)]
         words = normalize_text(text).split()
         phrase = " ".join(words[:_MAX_PHRASE_WORDS])
         return cls(
-            urls=tuple(dict.fromkeys(found_urls)),
+            urls=found_urls,
+            page_urls=tuple(link for link in dict.fromkeys(urls) if link not in found_urls),
             phrases=(phrase,) if len(phrase) >= _MIN_PHRASE_LENGTH else (),
             hashtags=tuple(dict.fromkeys(tag.lstrip("#").casefold() for tag in found_tags if tag.lstrip("#"))),
         )
 
+    @property
+    def all_urls(self) -> tuple[str, ...]:
+        return (*self.urls, *self.page_urls)
+
     def is_empty(self) -> bool:
-        return not (self.urls or self.phrases or self.hashtags)
+        return not (self.all_urls or self.phrases or self.hashtags)
 
 
 @dataclass(frozen=True)
@@ -68,10 +86,14 @@ class PublicPost:
     permalink: str | None = None
     text: str = ""
     url: str | None = None
+    # Further links in the post. They count when matching but aren't co-share signals.
+    other_links: tuple[str, ...] = ()
     hashtags: tuple[str, ...] = ()
     # (account id, handle) of each mentioned account.
     mentions: tuple[tuple[str, str], ...] = ()
     followers: int = 0
+    # How many times it was reposted. Platforms don't say when, so this can't order events.
+    repost_count: int | None = None
 
     def __post_init__(self) -> None:
         # Platform responses are untrusted. A wrong type here counts as one malformed
@@ -103,6 +125,10 @@ class Source(Protocol):
     def search(self, query: SearchQuery, fetch: Fetch) -> SearchOutcome: ...
 
     def author_posts(self, post: PublicPost, fetch: Fetch) -> list[PublicPost]: ...
+
+
+def count_or_none(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 def safe_web_link(link: str | None) -> str | None:

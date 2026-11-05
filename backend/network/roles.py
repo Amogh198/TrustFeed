@@ -12,7 +12,7 @@ from backend.network.coshare import post_signals
 from backend.network.dataset import Dataset, Post
 
 ROLE_LABELS = {
-    "origin_candidate": "Earliest observed account in this dataset (Patient Zero candidate)",
+    "origin_candidate": "Earliest observed account in this dataset, not shown to be the source",
     "amplifier": "Amplifier: co-shares widely within the cluster",
     "participant": "Participant: co-shares with part of the cluster",
     "target": "Target: repeatedly mentioned by cluster members",
