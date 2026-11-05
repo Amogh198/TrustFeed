@@ -1,15 +1,15 @@
-AGENT: manasprashant06-ux, UNRESOLVED: T4 inferred as the only remaining collaborator; owner to confirm
+AGENT: manasprashant06-ux, T4 frontend
 RESPONSIBILITY: T4 React dashboard, upload and text workflow, evidence panel, graph and timeline, replay mode
-BRANCH: none seen on GitHub as of 2026-11-05
-CURRENT TASK: Unknown to the T2 agent; owner to update
-STATUS: Ready
-COMPLETED: none seen on GitHub
-IN PROGRESS: Unknown to the T2 agent; owner to update
-NEXT ACTION: Pull main, confirm the T4 assignment, start a new session, adopt the workflow, publish a frontend branch
+BRANCH: feature/manas-api-integration
+CURRENT TASK: Connect the React dashboard to the published T3 HTTP API.
+STATUS: Validated locally; live API check pending backend availability.
+COMPLETED: Dashboard and offline replay presentation merged in PR #17.
+IN PROGRESS: Publish the integration branch; run the live API smoke check when backend is available.
+NEXT ACTION: Start the backend and rerun `pnpm run smoke:api`, then open the integration PR.
 FILES OWNED: frontend/**
-LATEST COMMIT: none
-INTERFACES CHANGED: none
+LATEST COMMIT: 30a9b60
+INTERFACES CHANGED: T4 consumes existing T3 HTTP endpoints only; no contract change.
 DEPENDENCIES: T3 HTTP responses (PR #1); T2 payload fields in backend/network/README.md (PR #3)
-BLOCKERS: Assignment unconfirmed
+BLOCKERS: Live API smoke test cannot pass until backend dependencies are installed and the API is running on localhost:8000. `compat_check.py` also cannot create its temporary worktree under the sandbox Temp directory.
 LAST UPDATED: 2026-11-05
-PROTOCOL: pending
+PROTOCOL: adopted 2026-11-05

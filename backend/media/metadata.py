@@ -145,7 +145,8 @@ def read_image(path: Path, config: MediaConfig):
 
     limitations: list[str] = []
     try:
-        with Image.open(path) as image:
+        # Only these decoders run. Others, such as EPS, can start outside programs.
+        with Image.open(path, formats=("JPEG", "PNG", "WEBP")) as image:
             width, height = image.size
             if width * height > config.max_image_pixels:
                 raise MediaInputError("too_large", f"The image exceeds the {config.max_image_pixels:,} pixel limit.")

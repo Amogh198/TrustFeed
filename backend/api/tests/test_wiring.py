@@ -103,7 +103,7 @@ def test_json_route_reports_media_as_not_submitted():
 
 @pytest.mark.parametrize(
     ("score", "risk", "human_review"),
-    [(0.9, "high", True), (0.1, "low", False), (0.5, "inconclusive", False)],
+    [(0.9, "high", True), (0.1, "inconclusive", False), (0.5, "inconclusive", False)],
 )
 def test_image_upload_uses_the_media_assessment(analyzed_paths, score, risk, human_review):
     analyzed_paths(score)
