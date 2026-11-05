@@ -103,19 +103,17 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 | Component | Built | Tested alone | Integrated |
 |---|---|---|---|
-| T1 media | Yes | Yes, 87 pass with the model | Yes, through `POST /api/cases/analyze-media` |
-| T2 network | Yes | Yes | `demo-001` through the API. `trace_case`, `Monitor` and `demo-story-001` aren't called by the API yet |
-| T3 API and text | Yes | Yes | Yes |
-| T3 fusion | Text, URL and media | Yes | Yes |
-| T4 dashboard | No | No | No |
-| T5 replay and demo | No | No | No |
+| T1 media and provenance | Yes | Yes | Yes, through `POST /api/cases/analyze-media`; source search needs explicit `search_web` consent |
+| T2 network | Yes | Yes | `demo-001` and opted-in submitted traces reach the API; monitoring has no API route yet |
+| T3 API and text | Yes | Yes | Yes, including source-search, trace, history, replay and explanation routes |
+| T3 fusion | Text, URL and media | Yes | Yes; provenance and trace data never change `overall_risk` |
+| T4 dashboard | Partial | Fixture UI only | API connection is still pending |
+| T5 replay and demo | Partial | Yes | Offline replay exists; presentation rehearsal remains |
 
-The T1, T2 and T3 rows describe `feat/wire-media-network-api` until that PR merges.
-
-**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which T2 has built but the API doesn't call yet. Detector accuracy on known fakes is untested.
+**Requirements not yet met:** a dashboard connected to the real API; generated countermeasures (T3 has a template only); a monitor route; detector accuracy remains a known limitation.
 
 **Open compatibility problems:**
-1. The repo has no CI, so required checks can't be enforced.
+1. CI configuration is being repaired; confirm its first real GitHub Actions run before relying on it.
 
 **T2 findings reproduced on `eca7847`:** all five are fixed and merged in PR #9, with regression tests in `backend/network/tests/test_findings.py`. Nodes gained `appears_at`, which T4 should use for the time slider.
 

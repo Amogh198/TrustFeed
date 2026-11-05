@@ -78,6 +78,33 @@ class TimelineResponse(BaseModel):
     events: list[TimelineEvent]
 
 
+class ExplanationArtifact(BaseModel):
+    kind: str
+    label: str
+    url: str | None = None
+
+
+class ExplanationCheck(BaseModel):
+    check_id: str
+    module: str
+    label: str
+    result: str
+    reasoning: str
+    benchmark: dict[str, object] | None = None
+    artifacts: list[ExplanationArtifact] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ExplanationResponse(BaseModel):
+    case_id: str
+    checks: list[ExplanationCheck]
+    what_was_submitted: list[str]
+    what_was_detected: list[str]
+    supports: list[str]
+    refutes: list[str]
+    uncertainties: list[str]
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.1.0"

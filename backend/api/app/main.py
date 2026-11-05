@@ -22,6 +22,9 @@ from backend.api.app.models import (
     AnalyzeRequest,
     CaseHistoryResponse,
     ClaimRecord,
+    ExplanationArtifact,
+    ExplanationCheck,
+    ExplanationResponse,
     HealthResponse,
     ModuleResult,
     ModuleStatus,
@@ -49,7 +52,13 @@ from backend.provenance import (
     investigate_provenance,
 )
 from backend.provenance.models import MatchType, Status
-from backend.text.analysis import analyze_text, analyze_url, fuse_risk, signal_summary
+from backend.text.analysis import (
+    analyze_text,
+    analyze_url,
+    expand_short_url,
+    fuse_risk,
+    signal_summary,
+)
 
 # Never log submitted text, links or file names: they can reveal what a user submitted.
 logger = logging.getLogger(__name__)
@@ -165,6 +174,13 @@ def _trace_spread(
     return module
 
 
+def _analyze_url_with_opt_in(url: str | None, search_web: bool) -> ModuleResult | None:
+    if not url:
+        return None
+    expanded_url, expansion_limit = expand_short_url(url) if search_web else (None, None)
+    return analyze_url(url, expanded_url=expanded_url, expansion_limit=expansion_limit)
+
+
 def _store_case(
     text_result: ModuleResult | None,
     url_result: ModuleResult | None,
@@ -240,6 +256,8 @@ def _store_case(
     )
     CASES[case_id] = result
     CASE_STORE.save(result)
+    if media is not None:
+        CASE_STORE.save_detail(case_id, "media", media.model_dump(mode="json"))
     if provenance is not None:
         CASE_STORE.save_detail(case_id, "provenance", provenance.for_case(case_id).model_dump(mode="json"))
     if network_detail is not None:
@@ -345,6 +363,147 @@ def _in_time_order(events: list[TimelineEvent]) -> list[TimelineEvent]:
     return [*dated, *(event for event in events if not event.at)]
 
 
+def _module_check(check_id: str, module: str, label: str, result: ModuleResult) -> ExplanationCheck:
+    evidence = result.evidence or ["This module did not produce evidence."]
+    return ExplanationCheck(
+        check_id=check_id,
+        module=module,
+        label=label,
+        result=result.status.value,
+        reasoning=" ".join(evidence),
+        limitations=result.limitations,
+    )
+
+
+def _media_checks(case_id: str, result: ModuleResult) -> list[ExplanationCheck]:
+    saved = CASE_STORE.get_detail(case_id, "media")
+    if saved is None:
+        return [_module_check("media-summary", "media", "Media analysis", result)]
+    media = MediaAnalysisResult.model_validate(saved)
+    classifier = media.checks.classifier
+    metadata = media.checks.metadata
+    phash = media.checks.phash
+    keyframes = media.checks.keyframes
+    return [
+        ExplanationCheck(
+            check_id="media-classifier",
+            module="media",
+            label="Synthetic-media classifier",
+            result=classifier.status.value,
+            reasoning=(
+                f"Classifier score: {classifier.score if classifier.score is not None else 'not measured'}. "
+                f"Band: {classifier.band.value if classifier.band is not None else 'not measured'}."
+            ),
+            limitations=classifier.limitations,
+        ),
+        ExplanationCheck(
+            check_id="media-metadata",
+            module="media",
+            label="Media metadata",
+            result=metadata.status.value,
+            reasoning=(
+                f"Format: {metadata.format or 'unknown'}. "
+                f"Generator hint: {'present' if metadata.generator_hint else 'not found'}."
+            ),
+            limitations=metadata.limitations,
+        ),
+        ExplanationCheck(
+            check_id="media-phash",
+            module="media",
+            label="Perceptual-hash comparison",
+            result=phash.status.value,
+            reasoning=f"Compared {phash.references_checked} reference item(s); found {len(phash.matches)} match(es).",
+            limitations=phash.limitations,
+        ),
+        ExplanationCheck(
+            check_id="media-keyframes",
+            module="media",
+            label="Video keyframes",
+            result=keyframes.status.value,
+            reasoning=f"Examined {len(keyframes.frames)} keyframe(s) using {keyframes.strategy or 'no'} strategy.",
+            limitations=keyframes.limitations,
+        ),
+    ]
+
+
+def _provenance_check(case_id: str, result: ModuleResult) -> ExplanationCheck:
+    report = _provenance_report(case_id)
+    artifacts = [
+        ExplanationArtifact(kind="web_appearance", label=item.domain or "Web appearance", url=item.page_url)
+        for item in report.appearances
+        if item.page_url
+    ]
+    return ExplanationCheck(
+        check_id="provenance-search",
+        module="provenance",
+        label="Source search",
+        result=report.status.value,
+        reasoning=f"Found {len(report.appearances)} appearance(s) across {len(report.providers)} provider run(s).",
+        artifacts=artifacts,
+        limitations=[*result.limitations, *report.limitations],
+    )
+
+
+def _network_check(case_id: str, result: ModuleResult) -> ExplanationCheck:
+    detail = _network_detail(case_id)
+    if detail is None:
+        return _module_check("network-trace", "network", "Public-post trace", result)
+    coverage = detail.get("coverage") or {}
+    spread = coverage.get("spread") or []
+    artifacts = [
+        ExplanationArtifact(
+            kind="public_post",
+            label=f"Matching post on {post.get('platform', 'an unknown platform')}",
+            url=post.get("permalink"),
+        )
+        for post in spread
+        if post.get("permalink")
+    ]
+    searched = [item.get("label", item.get("platform", "unknown")) for item in coverage.get("platforms", [])]
+    return ExplanationCheck(
+        check_id="network-trace",
+        module="network",
+        label="Public-post trace",
+        result=result.status.value,
+        reasoning=f"Searched: {', '.join(searched) or 'no platforms'}. Found {len(spread)} matching public post(s).",
+        artifacts=artifacts,
+        limitations=result.limitations,
+    )
+
+
+def _explanation(case_id: str) -> ExplanationResponse:
+    case = _find_case(case_id)
+    checks = [
+        _module_check("text-rules", "text", "Text-language rules", case.modules["text"]),
+        _module_check("url-rules", "url", "URL rules", case.modules["url"]),
+        *_media_checks(case_id, case.modules["media"]),
+        _provenance_check(case_id, case.modules["provenance"]),
+        _network_check(case_id, case.modules["network"]),
+    ]
+    submitted = []
+    if case.claims:
+        submitted.append(f"Text was submitted and split into {len(case.claims)} claim unit(s).")
+    if case.modules["url"].status is not ModuleStatus.NOT_APPLICABLE:
+        submitted.append("A URL was submitted.")
+    if case.modules["media"].status is not ModuleStatus.NOT_APPLICABLE:
+        submitted.append("A media upload was submitted.")
+    detected = [item for module in case.modules.values() for item in module.evidence]
+    uncertainties = list(case.uncertainties)
+    if any("synthetic" in item.casefold() for item in detected) and not any(
+        "synthetic" in item.casefold() for item in uncertainties
+    ):
+        uncertainties.append("SYNTHETIC DEMO DATA: this explanation describes invented demo records.")
+    return ExplanationResponse(
+        case_id=case_id,
+        checks=checks,
+        what_was_submitted=submitted or ["No submission details are available for this saved case."],
+        what_was_detected=detected or ["No module produced evidence for this case."],
+        supports=detected or ["No evidence supports a factual conclusion."],
+        refutes=["No check in this case independently verifies or refutes a factual claim."],
+        uncertainties=uncertainties,
+    )
+
+
 def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisResult, ProvenanceReport | None]:
     """Analyze an upload from a private temporary file, which is always deleted.
 
@@ -372,7 +531,7 @@ def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisRe
 def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
     text_result, claims = analyze_text(request.text) if request.text else (None, [])
     url = str(request.url) if request.url else None
-    url_result = analyze_url(url) if url else None
+    url_result = _analyze_url_with_opt_in(url, request.search_web)
     if not request.search_web:
         return _store_case(text_result, url_result, claims=claims)
     case_id = str(uuid4())
@@ -396,7 +555,7 @@ def analyze_media_case(
         )
     text_result, claims = analyze_text(text) if text and text.strip() else (None, [])
     link = str(url) if url else None
-    url_result = analyze_url(link) if link else None
+    url_result = _analyze_url_with_opt_in(link, search_web)
     if not search_web:
         return _store_case(text_result, url_result, media, claims, provenance=provenance)
     case_id = str(uuid4())
@@ -449,6 +608,12 @@ def get_timeline(case_id: str) -> TimelineResponse:
     report = _provenance_report(case_id)
     events = [TimelineEvent.model_validate(event) for event in report.timeline_events()]
     return TimelineResponse(events=_in_time_order([*events, *_network_events(_network_detail(case_id))]))
+
+
+@app.get("/api/cases/{case_id}/explanation", response_model=ExplanationResponse)
+def get_explanation(case_id: str) -> ExplanationResponse:
+    """Assemble recorded checks without creating facts or measurements."""
+    return _explanation(case_id)
 
 
 @app.get("/api/network/{case_id}")
