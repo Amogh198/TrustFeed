@@ -117,8 +117,8 @@ The T1, T2 and T3 rows describe `feat/wire-media-network-api` until that PR merg
 **Open compatibility problems:**
 1. The repo has no CI, so required checks can't be enforced.
 
-**Open T2 findings, reproduced on `eca7847`:**
-1. Target accounts have a null `first_campaign_post_at`, so they never appear under the README's slider rule, and 472 edges have an endpoint that never appears.
+**T2 findings reproduced on `eca7847`:** all five are fixed on `fix/network-findings`, with regression tests in `backend/network/tests/test_findings.py`. They stay open on `main` until that branch merges:
+1. Target accounts have a null `first_campaign_post_at`, so they never appear under the README's slider rule, and 472 edges have an endpoint that never appears. Nodes gain `appears_at`, which T4 should use for the slider.
 2. A popular link shared by two ring members can make an unrelated earlier account the `origin_candidate`.
 3. `normalize_text` strips Indic combining marks, so पानी and पीना both become "प न".
 4. Malformed records raise `KeyError` or `TypeError`, and a bad URL raises `ValueError`.
