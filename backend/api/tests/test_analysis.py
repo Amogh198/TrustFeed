@@ -2,7 +2,8 @@ from fastapi.testclient import TestClient
 
 from backend.api.app.main import app
 from backend.api.app.models import RiskLevel
-from backend.text.analysis import analyze_text, analyze_url, fuse_risk
+from backend.provenance.safe_http import HttpResponse
+from backend.text.analysis import analyze_text, analyze_url, expand_short_url, fuse_risk
 
 client = TestClient(app)
 
@@ -33,6 +34,21 @@ def test_url_analysis_is_static_and_marks_shorteners():
     assert any("HTTPS" in item for item in result.evidence)
     assert any("shortening" in item for item in result.evidence)
     assert "no domain reputation" in result.limitations[0]
+
+
+def test_shortener_expansion_is_safe_and_opt_in_ready(monkeypatch):
+    monkeypatch.setattr(
+        "backend.text.analysis.safe_request",
+        lambda *args, **kwargs: HttpResponse(url="https://example.zip/login", status=200),
+    )
+
+    expanded, limit = expand_short_url("https://bit.ly/demo")
+    result = analyze_url("https://bit.ly/demo", expanded_url=expanded, expansion_limit=limit)
+
+    assert expanded == "https://example.zip/login"
+    assert limit is None
+    assert any("resolved" in item for item in result.evidence)
+    assert any("deceptive links" in item for item in result.evidence)
 
 
 def test_risk_is_inconclusive_without_module_scores():

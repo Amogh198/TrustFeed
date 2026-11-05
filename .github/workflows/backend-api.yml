@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: ${{ github.workspace }}
-      CASE_STORE_PATH: ${{ runner.temp }}/trusttrace-test.db
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -35,4 +34,6 @@ jobs:
         run: pyright
 
       - name: Test API
+        env:
+          CASE_STORE_PATH: ${{ runner.temp }}/trusttrace-test.db
         run: python -m pytest -p no:cacheprovider --basetemp="$RUNNER_TEMP/pytest" backend/api/tests -q
