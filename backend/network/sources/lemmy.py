@@ -16,11 +16,10 @@ _PAGE_SIZE = 50
 
 
 class LemmySource:
-    platform = "lemmy"
-
-    def __init__(self, instance: str = "lemmy.world") -> None:
+    def __init__(self, instance: str = "lemmy.world", platform: str = "lemmy", label: str | None = None) -> None:
         self.instance = instance
-        self.label = f"Lemmy (as seen from {instance})"
+        self.platform = platform
+        self.label = label or f"Lemmy (as seen from {instance})"
 
     def _parse(self, view: dict[str, Any]) -> PublicPost | None:
         post = view["post"]
@@ -30,8 +29,8 @@ class LemmySource:
         handle = f"{creator['name']}@{urlsplit(creator['actor_id']).netloc}"
         return PublicPost(
             platform=self.platform,
-            id=f"lemmy:{post['ap_id']}",
-            author_id=f"lemmy:{creator['actor_id']}",
+            id=f"{self.platform}:{post['ap_id']}",
+            author_id=f"{self.platform}:{creator['actor_id']}",
             author_handle=handle,
             author_ref=handle,
             created_at=utc_timestamp(post["published"]),

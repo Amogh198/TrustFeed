@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 DEMO_DATASET_PATH = Path(__file__).resolve().parents[2] / "data" / "demo" / "network_demo.json"
+DEMO_STORY_PATH = DEMO_DATASET_PATH.with_name("network_demo_story.json")
 
 
 @dataclass(frozen=True)

@@ -41,6 +41,10 @@ class Budgeted:
     def __init__(self, fetch: Fetch, seconds: float) -> None:
         self._fetch = fetch
         self._deadline = time.monotonic() + seconds
+        # Keep the wrapped fetch's labels, so a replay still says it's a replay.
+        for name in ("synthetic", "recorded_at", "mode"):
+            if hasattr(fetch, name):
+                setattr(self, name, getattr(fetch, name))
 
     def __call__(self, url: str) -> Any:
         if time.monotonic() > self._deadline:

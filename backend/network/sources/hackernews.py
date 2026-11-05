@@ -18,16 +18,17 @@ _PAGE_SIZE = 50
 
 
 class HackerNewsSource:
-    platform = "hackernews"
-    label = "Hacker News"
+    def __init__(self, platform: str = "hackernews", label: str = "Hacker News") -> None:
+        self.platform = platform
+        self.label = label
 
     def _parse(self, hit: dict[str, Any]) -> PublicPost:
         author = hit["author"]
         body, links = read_html(hit.get("story_text") or hit.get("comment_text") or "")
         return PublicPost(
             platform=self.platform,
-            id=f"hackernews:{hit['objectID']}",
-            author_id=f"hackernews:{author}",
+            id=f"{self.platform}:{hit['objectID']}",
+            author_id=f"{self.platform}:{author}",
             author_handle=author,
             author_ref=author,
             created_at=utc_timestamp(hit["created_at"]),

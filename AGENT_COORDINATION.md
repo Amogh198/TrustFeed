@@ -33,11 +33,11 @@ The blueprint's copy of the description adds "and provides actionable countermea
 
 | Requirement | State | Honest limit |
 |---|---|---|
-| Multi-platform monitoring | **Not met** | Nothing ingests from any platform. T2's demo has invented platform labels only. |
+| Multi-platform monitoring | Partial, on `feat/network-monitoring` | Polls public search on Mastodon, Lemmy and Hacker News. Bluesky, Reddit and YouTube need credentials, and X and private channels aren't covered. It isn't a complete feed of any platform, and it isn't wired into the API yet. |
 | Multi-format content ingestion | Partial, unmerged | Text and URL in PR #1, image and video analysis in PR #5, not connected. Upload isn't built. |
 | AI-based synthetic-media detection | Built, unmerged, PR #5 | One image model. Not yet run with the real model in the shared compatibility check. |
 | Deepfake detection | Partial, unmerged, PR #5 | Image model plus video keyframes. No audio, lip-sync or motion analysis. |
-| Dissemination-network tracing | Built, unmerged, PR #3 | Works on synthetic demo data only. |
+| Dissemination-network tracing | Demo merged; real posts on `feat/network-real-posts` | Real posts are found by link, text or hashtag on three platforms. An image needs page links from a web source search. Not wired into the API yet. Accuracy on real campaigns is unmeasured. |
 
 **Proposed implementation features, not official requirements:** risk fusion, dashboard, propagation timeline, action packets, pHash provenance, text and URL rules, offline replay. They come from the blueprint and can be cut to protect the official requirements.
 
@@ -82,7 +82,7 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
 | T1 | `main` | PR #5 merged | Adapter with tests; output fits T3's `ModuleResult` | Test on known real and fake samples | None known |
-| T2 | `main` | PR #3 merged | Engine and demo data. At `bea996c`: 61 tests pass on Python 3.13 and 3.11, Pyright 0 errors, ruff passes | Fix findings listed in section D | None |
+| T2 | `feat/network-monitoring`, stacked on `feat/network-real-posts` and `fix/network-findings` | PR #3 merged; three branches ready | Findings fixed, real-post tracing, monitoring, linked demo story | T3 calls `trace_case`; T4 uses `appears_at` | None |
 | T3 | `main` | PR #1 merged; wiring on `feat/wire-media-network-api` | API, heuristics, media upload, demo network route, media fusion | Replay, generated action packet | None known |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
 
@@ -104,7 +104,7 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 | Component | Built | Tested alone | Integrated |
 |---|---|---|---|
 | T1 media | Yes | Yes, 87 pass with the model | Yes, through `POST /api/cases/analyze-media` |
-| T2 network | Yes | Yes | Demo case only, through `demo-001` |
+| T2 network | Yes | Yes | `demo-001` through the API. `trace_case`, `Monitor` and `demo-story-001` aren't called by the API yet |
 | T3 API and text | Yes | Yes | Yes |
 | T3 fusion | Text, URL and media | Yes | Yes |
 | T4 dashboard | No | No | No |
@@ -112,7 +112,7 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 
 The T1, T2 and T3 rows describe `feat/wire-media-network-api` until that PR merges.
 
-**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which has no spread data. Detector accuracy on known fakes is untested. Multi-platform coverage is synthetic demo data only.
+**Requirements not yet met:** the dashboard; generated countermeasures (T3 has a template only); network analysis of submitted content, which T2 has built on `feat/network-real-posts` but the API doesn't call yet. Detector accuracy on known fakes is untested.
 
 **Open compatibility problems:**
 1. The repo has no CI, so required checks can't be enforced.

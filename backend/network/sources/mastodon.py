@@ -21,11 +21,10 @@ _PAGE_SIZE = 40
 
 
 class MastodonSource:
-    platform = "mastodon"
-
-    def __init__(self, instance: str = "mastodon.social") -> None:
+    def __init__(self, instance: str = "mastodon.social", platform: str = "mastodon", label: str | None = None) -> None:
         self.instance = instance
-        self.label = f"Mastodon ({instance})"
+        self.platform = platform
+        self.label = label or f"Mastodon ({instance})"
 
     def _qualified(self, acct: str) -> str:
         return acct if "@" in acct else f"{acct}@{self.instance}"
@@ -40,8 +39,8 @@ class MastodonSource:
         card = status.get("card") or {}
         return PublicPost(
             platform=self.platform,
-            id=f"mastodon:{status['uri']}",
-            author_id=f"mastodon:{acct}",
+            id=f"{self.platform}:{status['uri']}",
+            author_id=f"{self.platform}:{acct}",
             author_handle=acct,
             author_ref=str(account["id"]),
             created_at=utc_timestamp(status["created_at"]),
@@ -50,7 +49,7 @@ class MastodonSource:
             url=card.get("url") or next(iter(links), None),
             hashtags=tuple(tag["name"].casefold() for tag in status.get("tags") or ()),
             mentions=tuple(
-                (f"mastodon:{self._qualified(item['acct'])}", self._qualified(item["acct"]))
+                (f"{self.platform}:{self._qualified(item['acct'])}", self._qualified(item["acct"]))
                 for item in status.get("mentions") or ()
             ),
             followers=int(account.get("followers_count") or 0),

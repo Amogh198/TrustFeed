@@ -14,6 +14,8 @@ python -m pytest backend/network/tests -q
 python -m backend.network                       # print the demo result
 python -m backend.network.seed_network          # regenerate demo data
 python -m backend.network.seed_network --check  # confirm committed data is current
+python -m backend.network.seed_story            # regenerate the demo story
+python -m backend.network.seed_story --check    # confirm the demo story is current
 ```
 
 ## Interface for the API lane
@@ -56,6 +58,38 @@ After `trace_case`, `get_network_payload`, `get_network_module_result` and `get_
 - **Failures are reported.** Each platform has a `status` of `searched`, `partial`, `failed` or `not_searchable`, with notes. If none can be searched the result is `unavailable`. If nothing matches the result is `Inconclusive`, never clean.
 - **Offline runs.** `RecordingFetch` saves a run and `ReplayFetch` plays it back, by passing `fetch=`. Recordings hold real people's public posts, so keep them out of Git.
 - **Tests never use the network.** Only a manual run has read the live platforms, so a platform changing its API would not show up in tests.
+
+### Monitoring two or more platforms
+
+```python
+from backend.network import Monitor
+
+monitor = Monitor("watch-1", urls=(link,), hashtags=("floods",))
+snapshot = monitor.poll()  # call on a schedule; results accumulate between polls
+```
+
+```bash
+python -m backend.network.watch --watch-id watch-1 --hashtag floods --url https://example.org/a --polls 3 --interval 300
+```
+
+A watch with a hashtag and a link reads all three connected platforms: Mastodon through the hashtag, and Lemmy and Hacker News through the link. A watch with only one of these reads fewer, and `platforms_read` on each snapshot says exactly which were read. Each snapshot also has `new_posts`, `total_matching_posts`, `alerts` and `module_result`. Alerts are `coordination_signal`, for a person to review, and `platform_unreachable`, when a platform that worked before stops working. After a poll, the getters above work with the watch id.
+
+**This is repeated polling of public search, not a complete feed.** The command line waits at least 60 seconds between polls. `--state` keeps results between runs. That file holds real people's public posts, so keep it under `backend/network/recordings/`, which Git ignores.
+
+### Linked demo story
+
+`demo-story-001` is one invented rumour traced end to end offline: a sample post goes through the real adapters, matching, history reads and engine, reading a synthetic recording in each platform's real format. It covers three invented platforms, 12 co-posting accounts, a resident who asked about the photo hours earlier, sceptical late replies and search results that must be filtered out.
+
+```python
+from backend.network import DEMO_STORY_CASE_ID, get_demo_story
+
+get_demo_story()["submission"]  # the {text, url} a presenter submits
+trace_case(case_id, **get_demo_story()["submission"])  # replays the recording, never the internet
+```
+
+- Only the story's exact text or link replays it, so real content never receives this data.
+- All the usual getters work with `demo-story-001`, and `synthetic` is true throughout. **The dashboard must say so.**
+- It shows that the earliest post found isn't the source: the resident is earliest, and is outside the flagged group.
 
 To analyze other data, use `analyze_network(parse_dataset(raw))`. `parse_dataset` raises `ValueError` for any malformed record.
 

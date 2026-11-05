@@ -51,10 +51,13 @@ class TraceResult:
 
 
 @dataclass
-class _Collected:
+class Collected:
     posts: dict[str, PublicPost] = field(default_factory=dict)
     on_topic: dict[str, str] = field(default_factory=dict)
     platforms: list[dict[str, Any]] = field(default_factory=list)
+    histories_read: set[str] = field(default_factory=set)
+    histories_failed: int = 0
+    histories_skipped: int = 0
 
 
 def matched_on(post: PublicPost, query: SearchQuery) -> str | None:
@@ -71,12 +74,18 @@ def matched_on(post: PublicPost, query: SearchQuery) -> str | None:
     return None
 
 
-def collect(query: SearchQuery, sources: Iterable[Source], fetch: Fetch) -> _Collected:
-    """Search each source and keep the posts that really match, reporting what happened."""
-    collected = _Collected()
+def collect(
+    query: SearchQuery, sources: Iterable[Source], fetch: Fetch, collected: Collected | None = None
+) -> Collected:
+    """Search each source and keep the posts that really match, reporting what happened.
+
+    Pass an earlier ``collected`` to add to it, as monitoring does between polls.
+    """
+    collected = collected or Collected()
+    collected.platforms = []
     for source in sources:
         outcome = source.search(query, fetch)
-        matching = 0
+        new_matches = 0
         for post in outcome.posts:
             match = matched_on(post, query)
             if match is None:
@@ -84,7 +93,7 @@ def collect(query: SearchQuery, sources: Iterable[Source], fetch: Fetch) -> _Col
             collected.posts[post.id] = post
             if post.id not in collected.on_topic:
                 collected.on_topic[post.id] = match
-                matching += 1
+                new_matches += 1
         if outcome.failures and outcome.searches_run == len(outcome.failures):
             status = "failed"
         elif outcome.failures:
@@ -99,7 +108,10 @@ def collect(query: SearchQuery, sources: Iterable[Source], fetch: Fetch) -> _Col
                 "label": source.label,
                 "status": status,
                 "searches_run": outcome.searches_run,
-                "matching_posts": matching,
+                "matching_posts": sum(
+                    1 for post_id in collected.on_topic if collected.posts[post_id].platform == source.platform
+                ),
+                "new_matching_posts": new_matches,
                 "results_returned": len(outcome.posts),
                 "malformed_records_skipped": outcome.malformed,
                 "notes": [*dict.fromkeys(outcome.failures), *outcome.unsupported],
@@ -142,17 +154,17 @@ def build_raw_dataset(
 
 
 def _expand_co_posting_accounts(
-    collected: _Collected,
+    collected: Collected,
     sources: Iterable[Source],
     fetch: Fetch,
     config: CoordinationConfig,
-) -> tuple[int, int, int]:
+) -> None:
     """Read the other posts of accounts that posted close together.
 
     Searching for one item can only ever find one shared item, while the engine
     needs repetition. So the histories of co-posting accounts are read to see
-    whether they repeatedly post the same things. Returns the number of accounts
-    read, the accounts left unread by the cap, and the failed reads.
+    whether they repeatedly post the same things. Each is read once, and a failed
+    read is tried again on the next poll.
     """
     raw = build_raw_dataset("expansion", collected.posts.values(), collected.on_topic)
     pairs = find_co_shares(parse_dataset(raw).posts, config)
@@ -160,8 +172,11 @@ def _expand_co_posting_accounts(
     by_platform = {source.platform: source for source in sources}
     one_post_per_author = {post.author_id: post for post in collected.posts.values()}
 
-    read = failed = 0
-    for account_id in co_posting[:_MAX_ACCOUNTS_EXPANDED]:
+    pending = [account for account in co_posting if account not in collected.histories_read]
+    allowed = max(0, _MAX_ACCOUNTS_EXPANDED - len(collected.histories_read))
+    collected.histories_failed = 0
+    collected.histories_skipped = max(0, len(pending) - allowed)
+    for account_id in pending[:allowed]:
         post = one_post_per_author.get(account_id)
         source = by_platform.get(post.platform) if post else None
         if post is None or source is None:
@@ -169,13 +184,12 @@ def _expand_co_posting_accounts(
         try:
             for extra in source.author_posts(post, fetch):
                 collected.posts.setdefault(extra.id, extra)
-            read += 1
+            collected.histories_read.add(account_id)
         except FetchError:
-            failed += 1
-    return read, max(0, len(co_posting) - _MAX_ACCOUNTS_EXPANDED), failed
+            collected.histories_failed += 1
 
 
-def _spread(collected: _Collected) -> list[dict[str, Any]]:
+def _spread(collected: Collected, synthetic: bool) -> list[dict[str, Any]]:
     """List the matching posts in time order, naming the earliest found, not an origin."""
     ordered = sorted(
         (collected.posts[post_id] for post_id in collected.on_topic),
@@ -188,7 +202,8 @@ def _spread(collected: _Collected) -> list[dict[str, Any]]:
             "account_id": post.author_id,
             "handle": post.author_handle,
             "posted_at": format_timestamp(parse_timestamp(post.created_at)),
-            "permalink": post.permalink,
+            # Invented posts have no real page, and a link could land on someone else's.
+            "permalink": None if synthetic else post.permalink,
             "matched_on": collected.on_topic[post.id],
             "earliest_found": index == 1,
         }
@@ -198,9 +213,8 @@ def _spread(collected: _Collected) -> list[dict[str, Any]]:
 
 def _module_result(
     analysis: NetworkAnalysis,
-    collected: _Collected,
+    collected: Collected,
     query: SearchQuery,
-    histories_read: int,
     synthetic: bool,
 ) -> dict[str, Any]:
     reachable = [item for item in collected.platforms if item["status"] in ("searched", "partial")]
@@ -224,13 +238,14 @@ def _module_result(
             "limitations": ["No platform could be searched for this content.", *limitations],
         }
 
-    coverage_line = "; ".join(f"{item['label']}: {item['matching_posts']} matching" for item in collected.platforms)
+    per_platform = "; ".join(f"{item['label']}: {item['matching_posts']} matching" for item in collected.platforms)
+    coverage_line = f"{'Replayed synthetic posts' if synthetic else 'Searched public posts'}. {per_platform}."
     if not collected.on_topic:
         return {
             "status": "complete",
             "score": None,
             "confidence": None,
-            "evidence": [f"Searched public posts. {coverage_line}."],
+            "evidence": [coverage_line],
             "limitations": [
                 "Inconclusive: no matching public posts were found, so no spread could be traced.",
                 *limitations,
@@ -241,15 +256,47 @@ def _module_result(
     first_lines = [line for line in result["evidence"] if line.startswith("SYNTHETIC")] if synthetic else []
     other_lines = [line for line in result["evidence"] if line not in first_lines]
     history_line = (
-        f"To check for repetition, the other recent public posts of {histories_read} accounts "
+        f"To check for repetition, the other recent public posts of {len(collected.histories_read)} accounts "
         "that posted this content close together were also read."
     )
-    history_lines = [history_line] if histories_read else []
+    history_lines = [history_line] if collected.histories_read else []
     return {
         **result,
-        "evidence": [*first_lines, f"Searched public posts. {coverage_line}.", *history_lines, *other_lines],
+        "evidence": [*first_lines, coverage_line, *history_lines, *other_lines],
         "limitations": [*result["limitations"], *limitations],
     }
+
+
+def assemble_result(
+    case_id: str,
+    collected: Collected,
+    query: SearchQuery,
+    sources: Iterable[Source],
+    fetch: Fetch,
+    config: CoordinationConfig,
+    now: datetime | None = None,
+) -> TraceResult:
+    """Check co-posting accounts' histories, run the engine and report the coverage."""
+    synthetic = getattr(fetch, "synthetic", False) is True
+    _expand_co_posting_accounts(collected, sources, fetch, config)
+    dataset = parse_dataset(build_raw_dataset(case_id, collected.posts.values(), collected.on_topic, synthetic))
+    analysis = analyze_network(dataset, config)
+    searched_at = getattr(fetch, "recorded_at", None) or format_timestamp(now or datetime.now(UTC))
+    coverage = {
+        "mode": getattr(fetch, "mode", "live"),
+        "searched_at": searched_at,
+        "synthetic": synthetic,
+        "query": {"urls": list(query.urls), "phrases": list(query.phrases), "hashtags": list(query.hashtags)},
+        "platforms": collected.platforms,
+        "not_connected": [{"platform": name, "reason": reason} for name, reason in sorted(NOT_CONNECTED.items())],
+        "account_histories": {
+            "read": len(collected.histories_read),
+            "failed": collected.histories_failed,
+            "skipped_by_cap": collected.histories_skipped,
+        },
+        "spread": _spread(collected, synthetic),
+    }
+    return TraceResult(analysis, _module_result(analysis, collected, query, synthetic), coverage)
 
 
 def trace_public_spread(
@@ -272,23 +319,6 @@ def trace_public_spread(
     config = config or CoordinationConfig()
     sources = default_sources() if sources is None else sources
     query = SearchQuery.from_submission(text=text, url=url, urls=urls, hashtags=hashtags)
-    synthetic = getattr(fetch, "synthetic", False) is True
     budgeted = Budgeted(fetch, _TIME_BUDGET_SECONDS)
-
-    collected = collect(query, sources, budgeted) if not query.is_empty() else _Collected()
-    expanded, skipped, failed = _expand_co_posting_accounts(collected, sources, budgeted, config)
-    dataset = parse_dataset(build_raw_dataset(case_id, collected.posts.values(), collected.on_topic, synthetic))
-    analysis = analyze_network(dataset, config)
-
-    searched_at = getattr(fetch, "recorded_at", None) or format_timestamp(now or datetime.now(UTC))
-    coverage = {
-        "mode": getattr(fetch, "mode", "live"),
-        "searched_at": searched_at,
-        "synthetic": synthetic,
-        "query": {"urls": list(query.urls), "phrases": list(query.phrases), "hashtags": list(query.hashtags)},
-        "platforms": collected.platforms,
-        "not_connected": [{"platform": name, "reason": reason} for name, reason in sorted(NOT_CONNECTED.items())],
-        "account_histories": {"read": expanded, "failed": failed, "skipped_by_cap": skipped},
-        "spread": _spread(collected),
-    }
-    return TraceResult(analysis, _module_result(analysis, collected, query, expanded, synthetic), coverage)
+    collected = collect(query, sources, budgeted) if not query.is_empty() else Collected()
+    return assemble_result(case_id, collected, query, sources, budgeted, config, now)
