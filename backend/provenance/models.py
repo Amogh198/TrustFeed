@@ -95,6 +95,37 @@ class ProvenanceReport(BaseModel):
             "limitations": list(self.limitations),
         }
 
+    def to_checks(self) -> list[dict[str, Any]]:
+        """Return the explanation check. Its benchmark is null, because search has not been measured."""
+        exact = sum(item.match_type is MatchType.EXACT for item in self.appearances)
+        dated = sum(item.observed_at is not None for item in self.appearances)
+        if self.status is not Status.COMPLETE:
+            result = "No search result"
+        elif not self.appearances:
+            result = "No matching pages found"
+        else:
+            result = f"{len(self.appearances)} pages found, {exact} exact, {dated} with a usable date"
+        reasoning = self._evidence()
+        if self.status is not Status.COMPLETE:
+            reasoning.append("No search result is available, so this check says nothing about where the image appeared.")
+        elif not self.appearances:
+            reasoning.append("Finding nothing does not show the image is new or unused. Search covers only part of the web.")
+        if self.earliest_found:
+            reasoning.append(self.earliest_found.caveat)
+        return [
+            {
+                "check_id": "provenance.search",
+                "module": "provenance",
+                "label": "Where the image was found",
+                "status": self.status.value,
+                "result": result,
+                "reasoning": " ".join(reasoning),
+                "benchmark": None,
+                "artifacts": [],
+                "limitations": list(self.limitations),
+            }
+        ]
+
     def timeline_events(self) -> list[dict[str, Any]]:
         """Return one event per appearance. Undated ones stay in, with a null time."""
         return [

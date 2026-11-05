@@ -42,6 +42,34 @@ python -m backend.media analyze sample.jpg --index media_index.json
 
 `analyze_media` reports expected failures in the result instead of raising. The command line exits with `2` when the input was rejected.
 
+### Explanations
+
+`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash` and `media.keyframes`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
+
+- **`benchmark`** holds test-split figures from `data/eval/commons_2026-11-05.json`, and adds `auc` and counts by band. It is `null` unless that file measured this model and revision at these bands, and it is always `null` for video.
+- **Plain statement:** the classifier check's limitations say how few fakes the current bands flag.
+- **GPS:** the check says GPS data exists but never shows coordinates.
+
+### Occlusion heatmap
+
+```python
+from backend.media import occlusion_heatmap, render_png
+
+heatmap = occlusion_heatmap(image, classifier)  # about 11 seconds on CPU, images only
+png = render_png(heatmap)  # only when heatmap.status is complete
+```
+
+```bash
+python -m backend.media heatmap sample.jpg --out C:/somewhere-outside-the-repo/heat.png
+```
+
+The heatmap covers each of 8 x 8 areas in turn and records how the model's score moves, so it needs 65 model runs. Run it on request, not on every upload. It shows sensitivity, not proof of editing.
+
+- **Colours:** red areas were raising the score and blue areas were lowering it. Colours never scale below a change of 0.05, so tiny changes stay faint.
+- **Failure:** if the model fails or 60 seconds pass, the status is `unavailable` with a reason, and there is no partial picture.
+- **Privacy:** `render_png` holds only colours, with none of the image's pixels, so it can be stored and laid over the dashboard's own preview. `render_overlay`, used by the command line, holds the image, so never store it. The command refuses to save inside the repository.
+- **Timing for the API:** the image is needed, so a route must run this before the temporary upload is deleted.
+
 ## Output
 
 `to_module_result()` returns the `API_CONTRACTS.md` module shape:
