@@ -4,3 +4,4 @@ pydantic>=2.7,<3.0
 python-multipart>=0.0.9,<1.0
 -r ../media/requirements.txt
 -r ../network/requirements.txt
+-r ../provenance/requirements.txt

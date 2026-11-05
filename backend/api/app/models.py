@@ -40,6 +40,8 @@ class ClaimRecord(BaseModel):
 class AnalyzeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=20_000)
     url: HttpUrl | None = None
+    # Sends the text and link to public platforms' search services, so it is off by default.
+    search_web: bool = False
 
     @model_validator(mode="after")
     def require_input(self) -> "AnalyzeRequest":
@@ -59,6 +61,21 @@ class AnalysisResponse(BaseModel):
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False
     replay_label: str | None = None
+
+
+class TimelineEvent(BaseModel):
+    # Undated events stay in the list with a null time. A date is never invented.
+    at: str | None = None
+    kind: str
+    label: str
+    module: str
+    ref: str
+    date_source: str
+    synthetic: bool = False
+
+
+class TimelineResponse(BaseModel):
+    events: list[TimelineEvent]
 
 
 class HealthResponse(BaseModel):
