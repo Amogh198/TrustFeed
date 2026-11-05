@@ -207,6 +207,10 @@ class LinkOfficialComparison(BaseModel):
 class LinkThreatLists(BaseModel):
     status: ModuleStatus
     reason: str | None = None
+    # Public feeds read, and how many addresses they held.
+    sources: list[str] = Field(default_factory=list)
+    entries: int = 0
+    listed: bool = False
 
 
 class LinkSign(BaseModel):

@@ -1,3 +1,7 @@
+import os
+
+# Tests never download the public threat feeds.
+os.environ["LINK_THREAT_FEEDS"] = "off"
 """Keep API tests the same on every machine, whatever models happen to be downloaded."""
 
 import pytest

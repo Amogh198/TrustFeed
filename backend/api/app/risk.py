@@ -37,6 +37,8 @@ _STRONG = 0.7
 _WEAK = 0.3
 # One uncalibrated model never reaches critical alone.
 _MEDIA_CAP = 0.75
+_LISTED = 0.95
+_RULES_CAP = 0.55
 # The detector's scores bunch near zero, so its elevated band flagged 1 of 157 fakes. On the same
 # benchmark, this line was passed by 82% of fakes and 19% of real images. See data/eval.
 MEDIA_REVIEW_LINE = 0.0068
@@ -108,13 +110,18 @@ def _scam(analysis: ScamAnalysis | None, weights: Mapping[str, float]) -> RiskCo
     )
 
 
-def _link(analysis: LinkAnalysis | None, weights: Mapping[str, float]) -> RiskComponent:
-    base = {"name": "link", "label": "Link address check", "weight": weights["link"], "results_file": LINK_RESULTS}
+def _link(analysis: LinkAnalysis | None, url: ModuleResult | None, weights: Mapping[str, float]) -> RiskComponent:
+    base = {"name": "link", "label": "Link checks", "weight": weights["link"], "results_file": LINK_RESULTS}
     if analysis is None:
         return RiskComponent(status=ModuleStatus.NOT_APPLICABLE, counted=False, note="No link was submitted.", **base)
-    strength = analysis.lookalike.strength
-    score = _STRONG if strength == "strong" else _WEAK if strength == "weak" else 0.0
-    evidence = [item.why for item in analysis.signs if item.sign.startswith("lookalike_")]
+    names = {item.sign for item in analysis.signs}
+    strong = any(item.strength == "strong" for item in analysis.signs)
+    score = _LISTED if "threat_listed" in names else _STRONG if strong else _WEAK if analysis.signs else 0.0
+    rules = url.score if url and url.score else 0.0
+    # The fixed link rules, such as a bare IP address or a hidden destination, count up to Moderate.
+    score = max(score, min(_RULES_CAP, rules) if rules >= _WEAK else 0.0)
+    evidence = [item.why for item in analysis.signs]
+    evidence += [line for line in (url.evidence if url else []) if not line.startswith("Link warning sign:")] if rules >= _WEAK else []
     if analysis.live_failed:
         # The user asked for the live checks, so an address alone can't read as a clean result.
         failed = [
@@ -150,14 +157,11 @@ def build_unified_risk(
     language = [line for line in (text.evidence if text else []) if " rule" not in line and not line.startswith(("Scam warning sign", "Possible inconsistency", "Media and caption"))]
     refuted = [record.text for record in claims or [] if getattr(record.verdict, "value", None) == "contradicted"]
     conflicts = [item.explanation for item in (claim_analysis.inconsistencies if claim_analysis else []) if item.severity == "conflict"]
-    link_other = [item.why for item in (link_analysis.signs if link_analysis else []) if not item.sign.startswith("lookalike_")]
-    url_rules = [line for line in (url.evidence if url else []) if not line.startswith("Link warning sign:") and (url.score or 0) >= _WEAK]
     components = [
         _media(media, media_level, weights),
         _scam(scam_analysis, weights),
-        _link(link_analysis, weights),
+        _link(link_analysis, url, weights),
         _shown_only("language", "Language rules", language),
-        _shown_only("link_rules", "Link rules and live link signs", [*url_rules, *link_other]),
         _shown_only("claims", "Claims contradicted by sources", refuted),
         _shown_only("inconsistency", "Inconsistent statements", conflicts),
         _shown_only("cross_modal", "Caption and media differences", [item.explanation for item in cross_modal.conflicts] if cross_modal else []),

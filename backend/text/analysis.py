@@ -60,7 +60,10 @@ _TEXT_CATEGORIES = (
 # Rules can't check whether anything is true, so on their own they never reach critical.
 _MAX_RULE_SCORE = 0.75
 SHORTENER_HOSTS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "ow.ly", "rb.gy", "cutt.ly", "shorturl.at"}
-SUSPICIOUS_TLDS = {".zip", ".mov", ".click", ".top", ".work"}
+SUSPICIOUS_TLDS = {
+    ".zip", ".mov", ".click", ".top", ".work", ".xyz", ".icu", ".cfd", ".sbs", ".rest", ".monster", ".buzz",
+    ".tk", ".ml", ".ga", ".cf", ".gq", ".cam", ".quest", ".lol",
+}
 # Names often impersonated in phishing links, and the domains that really are theirs.
 _BRANDS = {
     "paypal": ("paypal.com",),

@@ -97,8 +97,7 @@ def test_weights_are_configurable_and_bad_values_are_ignored(monkeypatch):
     assert load_weights("not json")["media"] == 1.0
     monkeypatch.setenv("RISK_WEIGHTS", '{"link": 0}')
     body = client.post("/api/cases/analyze", json={"url": "https://paypa1.com/a"}).json()
-    # With the score at zero, the unscored link rule still stops it reading Low.
-    assert body["unified_risk"]["score"] == 0 and body["overall_risk"] == "inconclusive" and components(body)["link"]["weight"] == 0
+    assert body["unified_risk"]["score"] == 0 and body["overall_risk"] == "low" and components(body)["link"]["weight"] == 0
 
 
 def test_a_live_check_that_failed_cannot_read_as_low(monkeypatch):
@@ -106,7 +105,7 @@ def test_a_live_check_that_failed_cannot_read_as_low(monkeypatch):
 
     real = main.investigate_link
 
-    def crash(url, *, offline_reason=None):
+    def crash(url, *, offline_reason=None, **_kw):
         if offline_reason is None:
             raise ValueError("broken")
         return real(url, offline_reason=offline_reason)
@@ -121,3 +120,44 @@ def test_a_live_check_that_failed_cannot_read_as_low(monkeypatch):
 def test_an_offline_check_by_choice_can_read_low():
     body = client.post("/api/cases/analyze", json={"url": "https://example.org/"}).json()
     assert body["overall_risk"] == "low" and not body["link_analysis"]["live_failed"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://free-gift-claim.top/", "http://192.0.2.7/login.php", "https://bit.ly/abc", "https://lucky-prize-winner.example/x", "https://xn--pypal-4ve.com/", "https://login-check.pages.dev/", "https://portail-mlcrosoft.fr/"],
+)
+def test_dangerous_links_outside_the_brand_list_are_not_scored_as_nothing(url):
+    body = client.post("/api/cases/analyze", json={"url": url}).json()
+    assert body["overall_risk"] in {"moderate", "high", "critical"}
+    assert body["unified_risk"]["trust_score"] <= 40
+
+
+def test_a_link_on_a_threat_feed_is_critical(monkeypatch):
+    from backend.api.app import main
+    from backend.provenance.safe_http import HttpResponse
+    from backend.text.links import ThreatFeeds
+
+    feed = HttpResponse(url="", status=200, body=b"# comment\nhttp://bad.example/payload.exe\n")
+    feeds = ThreatFeeds({"TestFeed": "https://feed.example/"})
+    real = main.investigate_link
+    monkeypatch.setattr(main, "DEFAULT_FEEDS", feeds)
+    monkeypatch.setenv("LINK_THREAT_FEEDS", "on")
+    monkeypatch.setattr(main, "investigate_link", lambda url, **kw: real(url, request=lambda *_a, **_k: feed, **kw))
+    listed = client.post("/api/cases/analyze", json={"url": "http://bad.example/payload.exe"}).json()
+    assert listed["overall_risk"] == "critical" and listed["link_analysis"]["threat_lists"]["listed"]
+    assert listed["unified_risk"]["trust_score"] <= 25
+    host = client.post("/api/cases/analyze", json={"url": "http://bad.example/other"}).json()
+    assert host["overall_risk"] == "high"
+    clean = client.post("/api/cases/analyze", json={"url": "https://town-notices.example/"}).json()
+    assert clean["overall_risk"] == "low" and clean["link_analysis"]["threat_lists"]["status"] == "complete"
+
+
+def test_unreadable_feeds_say_so_and_retry_later():
+    from backend.provenance.safe_http import HttpFailed
+    from backend.text.links import ThreatFeeds
+
+    def fail(*_a, **_k):
+        raise HttpFailed("network")
+
+    result, signs = ThreatFeeds({"TestFeed": "https://feed.example/"}).check(["https://a.example/"], fail)
+    assert result.status is ModuleStatus.UNAVAILABLE and signs == []

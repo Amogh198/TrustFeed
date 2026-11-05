@@ -61,7 +61,7 @@ from backend.api.app.report import build_overview, build_report, case_kinds, ren
 from backend.api.app.risk import build_unified_risk, summary_for
 from backend.api.app.scam_records import build_scam_analysis
 from backend.text.cross_modal import compare_channels
-from backend.text.links import investigate_link
+from backend.text.links import DEFAULT_FEEDS, investigate_link
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
@@ -236,16 +236,18 @@ def _check_link(url: str | None, search_web: bool, text: str | None = None) -> L
     """Look into a link. Opening it or asking a registry about it needs the user's consent."""
     if not url:
         return None
-    if not search_web:
-        return investigate_link(url, offline_reason="Not checked, because outside requests were not allowed.")
     if _replay_mode() or is_demo_story(text, url):
         return investigate_link(url, offline_reason="Replay stays offline, so this was not checked.")
+    # The feeds are downloaded whole and learn nothing about the link, so they run without consent too.
+    feeds = DEFAULT_FEEDS if os.getenv("LINK_THREAT_FEEDS", "on").casefold() != "off" else None
+    if not search_web:
+        return investigate_link(url, offline_reason="Not opened, because outside requests were not allowed.", feeds=feeds)
     # Run apart with a hard limit, as a site sending its headers very slowly can outlast the request timeouts.
     box: dict[str, LinkAnalysis] = {}
 
     def work() -> None:
         try:
-            box["report"] = investigate_link(url)
+            box["report"] = investigate_link(url, feeds=feeds)
         except Exception as exc:  # noqa: BLE001 - A failed check must not lose the rest of the case.
             logger.warning("Link check failed: %s", type(exc).__name__)
 
