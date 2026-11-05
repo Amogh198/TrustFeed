@@ -55,6 +55,7 @@ from backend.text.analysis import analyze_text, analyze_url, fuse_risk, signal_s
 logger = logging.getLogger(__name__)
 
 MEDIA_UPLOAD_PATH = "/api/cases/analyze-media"
+NO_EXTERNAL_CHECK = "No external fact-checking or domain reputation source was queried."
 # Each link costs a search on each platform, and the trace has a 25-second budget.
 MAX_TRACED_PAGE_LINKS = 10
 # The largest accepted file plus room for the other form fields. analyze_media
@@ -187,7 +188,7 @@ def _store_case(
         risk = combine_risks(levels)
         summary = fused_summary(risk)
 
-    uncertainties = ["No external fact-checking or domain reputation source was queried."]
+    uncertainties = [NO_EXTERNAL_CHECK]
     if text_result or url_result:
         uncertainties.insert(0, "Text and URL scores are deterministic heuristics, not calibrated probabilities.")
     recommended_actions = ["Verify factual claims with trusted sources before sharing."]
@@ -210,7 +211,17 @@ def _store_case(
     if provenance is not None and provenance.replay:
         uncertainties.append("The source search results in this case were replayed from a recording.")
 
-    claim_records, claim_analysis = build_claims(claims or [])
+    # A trace is only given when the user allowed outside search, so the same consent covers this.
+    # The labelled demo story replays offline, so it must not reach any outside service.
+    synthetic_replay = bool(network_detail and (network_detail["coverage"] or {}).get("synthetic"))
+    claim_records, claim_analysis = build_claims(claims or [], search_web=network is not None and not synthetic_replay)
+    if claim_analysis and synthetic_replay:
+        claim_analysis.verification.reason = "This labelled synthetic replay stays offline, so no claim was sent anywhere."
+    if claim_analysis and claim_analysis.verification.comparison_status is ModuleStatus.COMPLETE:
+        uncertainties[uncertainties.index(NO_EXTERNAL_CHECK)] = (
+            "Claim results come from comparing public sources by model. They are signals, not proof. "
+            "No domain reputation source was queried."
+        )
     if text_result and claim_analysis:
         # Shown as evidence, but not scored: the unified risk step decides what counts.
         text_result.evidence.extend(
