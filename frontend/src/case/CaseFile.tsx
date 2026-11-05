@@ -105,7 +105,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
   const exportCase = useCallback(async () => {
     try {
       const value = await api.getExport(caseId);
-      downloadFile(`truthtrace-${caseId}.json`, JSON.stringify(value, null, 2), 'application/json');
+      downloadFile(`trustfeed-${caseId}.json`, JSON.stringify(value, null, 2), 'application/json');
     } catch (problem) { setPartial((problem as Error).message); }
   }, [caseId]);
 

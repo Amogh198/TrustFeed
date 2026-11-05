@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { safeHttpUrl } from '../api.js';
 import type { AnalysisResponse, NetworkPayload } from '../types';
-import { benchmarkSentence, markPhrases, quotedPhrases, scoreText, trustScore, uploadProblem, utc } from './format';
+import { benchmarkSentence, markPhrases, NEUTRAL_TRUST, quotedPhrases, scoreText, trustScore, uploadProblem, utc } from './format';
 import { buildView, revealedAt } from './graph';
 import { caseHref, parseRoute } from './route';
 
@@ -117,9 +117,39 @@ describe('trust score', () => {
   }) as unknown as AnalysisResponse;
 
   it('uses the strongest warning from checks on the content', () => {
-    const trust = trustScore(report({ media: ['complete', 0.28], text: ['complete', 0.45], network: ['complete', 0.99] }));
-    expect(trust.score).toBe(55);
+    const trust = trustScore(report({ media: ['complete', 0.28], text: ['complete', 0.7], network: ['complete', 0.99] }));
+    expect(trust.score).toBe(30);
     expect(trust.strongest?.name).toBe('Text');
+    expect(trust.words).toBe('Some warning signs');
+  });
+
+  it('never gives a low detector score alone more than the neutral midpoint', () => {
+    const trust = trustScore(report({ media: ['complete', 0.0008] }));
+    expect(trust.score).toBe(NEUTRAL_TRUST);
+    expect(trust.score).toBe(50);
+    expect(trust.words).toBe('Inconclusive: not enough evidence');
+    expect(trust.capped).toBe(true);
+  });
+
+  it('marks a flagged result as a warning, not as a verdict', () => {
+    const trust = trustScore(report({ media: ['complete', 0.9] }));
+    expect(trust.score).toBe(10);
+    expect(trust.words).toBe('Warning signs found: a person should review this');
+    expect(trust.capped).toBe(false);
+  });
+
+  it('lowers the score for signals other than the model, such as generator metadata', () => {
+    const high = trustScore({ ...report({ media: ['complete', 0.01] }), overall_risk: 'high' } as AnalysisResponse);
+    expect(high.score).toBe(25);
+    expect(high.fromOverallRisk).toBe(true);
+    const moderate = trustScore({ ...report({ media: ['complete', 0.01] }), overall_risk: 'moderate' } as AnalysisResponse);
+    expect(moderate.score).toBe(40);
+    expect(moderate.words).toBe('Some warning signs');
+  });
+
+  it('never raises a score because of the overall risk', () => {
+    const trust = trustScore({ ...report({ media: ['complete', 0.9] }), overall_risk: 'low' } as AnalysisResponse);
+    expect(trust.score).toBe(10);
   });
 
   it('gives no score rather than a high one when nothing measured the content', () => {
@@ -128,7 +158,9 @@ describe('trust score', () => {
     expect(trust.mediaMissing).toBe(true);
   });
 
-  it('counts a real zero', () => {
-    expect(trustScore(report({ url: ['complete', 0] })).score).toBe(100);
+  it('counts a real zero, which still stops at the midpoint', () => {
+    const trust = trustScore(report({ url: ['complete', 0] }));
+    expect(trust.score).toBe(50);
+    expect(trust.counted).toEqual([{ name: 'Link', value: 0 }]);
   });
 });

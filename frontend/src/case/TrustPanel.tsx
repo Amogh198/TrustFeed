@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { scoreText, trustScore } from '../lib/format';
+import { NEUTRAL_TRUST, scoreText, trustScore } from '../lib/format';
 import { uploadFor } from '../lib/session';
 import type { AnalysisResponse, Explanation } from '../types';
 
@@ -46,14 +46,19 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
             <p className="trust-words">{trust.words}</p>
             <span className="meter-track" aria-hidden="true"><span style={{ width: `${trust.score}%` }} /></span>
             <p>
-              Worked out as 100 minus the strongest warning signal: {trust.counted.map(item => `${item.name} ${scoreText(item.value)}`).join(', ')}.
+              Warning signals checked: {trust.counted.map(item => `${item.name} ${scoreText(item.value)}`).join(', ')}.
+              {trust.fromOverallRisk
+                ? ' The overall result raised concern for another reason, so the score is lower. See Why it got this result.'
+                : trust.capped
+                  ? ` Finding no warning doesn't show content is genuine, so the score stops at ${NEUTRAL_TRUST}, which is a neutral midpoint, not a measurement.`
+                  : ' The score is 100 minus the strongest signal.'}
             </p>
             {trust.mediaMissing && <p className="trust-warn">The media check didn't run, so this score covers the text and link only.</p>}
             <p className="fineprint">
               An estimate, not proof.
               {usedMedia && benchmark?.low_fake != null
-                ? ` A high score doesn't show it's genuine: in testing, this detector scored ${benchmark.low_fake} of ${benchmark.n_fake} fakes as low.`
-                : " A high score doesn't show it's genuine."}
+                ? ` In testing, this detector scored ${benchmark.low_fake} of ${benchmark.n_fake} fakes as low, so a low score says very little.`
+                : ''}
             </p>
           </div>
         </>

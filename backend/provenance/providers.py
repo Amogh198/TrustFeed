@@ -75,7 +75,7 @@ def _encode_within(image, max_bytes: int) -> bytes:
 
 
 def _multipart(fields: Mapping[str, str], file_field: str, data: bytes) -> tuple[bytes, str]:
-    boundary = f"truthtrace{uuid4().hex}"
+    boundary = f"trustfeed{uuid4().hex}"
     parts: list[bytes] = []
     for name, value in fields.items():
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())

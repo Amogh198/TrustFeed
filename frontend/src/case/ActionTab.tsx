@@ -74,7 +74,7 @@ export default function ActionTab({ report }: { report: AnalysisResponse }) {
             {AUDIENCES.map(([value, name]) => <option key={value} value={value}>{name}</option>)}
           </select>
         </label>
-        <button type="button" className="button" onClick={() => downloadFile(`truthtrace-${report.case_id}-action-packet.txt`, packet.draft, 'text/plain')}>
+        <button type="button" className="button" onClick={() => downloadFile(`trustfeed-${report.case_id}-action-packet.txt`, packet.draft, 'text/plain')}>
           <Download size={16} aria-hidden="true" />Download packet
         </button>
         <CopyButton text={packet.draft} label="Copy the whole packet" />

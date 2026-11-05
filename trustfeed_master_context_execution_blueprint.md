@@ -1,4 +1,4 @@
-# PROJECT TRUTHTRACE AI: MASTER HACKATHON CONTEXT & EXECUTION BLUEPRINT
+# PROJECT TRUSTFEED: MASTER HACKATHON CONTEXT & EXECUTION BLUEPRINT
 
 > **Background document.** This is the original plan and is kept for technical reference. Where it differs from `AGENT_COORDINATION.md`, `TASK_BOARD.md` or `API_CONTRACTS.md`, those files win. In particular:
 >
@@ -14,7 +14,7 @@
 
 | Parameter | Specification |
 | :--- | :--- |
-| **Project Name** | **TruthTrace AI** |
+| **Project Name** | **TrustFeed** |
 | **Hackathon Event** | LAKSHYA 2026 — 24-Hour National Level Hackathon (SJBIT) |
 | **Problem Statement Name** | **AI-Driven Detection & Countermeasures Against Fake Social Media Content** |
 | **Problem Statement ID** | **DL-SJBIT-HK26-GOVP006** |
@@ -212,7 +212,7 @@ The 4-developer structure operates along parallel tracks to avoid bottlenecks:
 * **Hours 17–18 (All):** Complete feature freeze. Fix visual UI glitches, polish graphs, and verify error state handling ("Inconclusive" outputs).
 
 ### Phase 5: Demo Prep & Pitch Scripting (Hours 18–20)
-* **Hours 18–19 (All):** Record backup video demonstration of TruthTrace AI operating smoothly.
+* **Hours 18–19 (All):** Record backup video demonstration of TrustFeed operating smoothly.
 * **Hours 19–20 (All):** Rehearse 3-minute pitch presentation and live system walkthrough 3 times.
 
 ---
@@ -230,7 +230,7 @@ When passing tasks to your 2× Claude Pro and 2× Gemini Pro assistants during t
 
 ## 8. DEMONSTRATION & PITCH STORYBOARD (3 MINUTES)
 
-1. **The Core Ingestion (0:00 – 0:45):** Upload a re-compressed video/image asset to TruthTrace AI. Show real-time extraction of metadata, visual deepfake probability, and pHash historical matching in the Evidence Drawer. Highlight the system's honest uncertainty score when dealing with compression loss.
+1. **The Core Ingestion (0:00 – 0:45):** Upload a re-compressed video/image asset to TrustFeed. Show real-time extraction of metadata, visual deepfake probability, and pHash historical matching in the Evidence Drawer. Highlight the system's honest uncertainty score when dealing with compression loss.
 2. **Context & Historical Misattribution (0:45 – 1:15):** Show an example of an authentic photo paired with a false caption. Demonstrate how pHash provenance matches the image to an older event, exposing media recycling without relying solely on AI deepfake scores.
 3. **The Disinformation Network & Patient Zero (1:15 – 2:15):** Switch to the Dissemination Network tab. Show the `react-force-graph` visualization. Scrub the timeline slider forward to reveal how a cluster of 30+ coordinated accounts amplified the post within seconds. Click the red node to highlight **"Patient Zero"**.
 4. **Actionable Countermeasures (2:15 – 3:00):** Click **"Generate Action Packet"**. Show auto-generated Fact-Check Cards and ready-to-broadcast counter-narrative responses, closing the full threat-to-mitigation operational loop.

@@ -65,4 +65,4 @@ Example request:
 }
 ```
 
-Cases are stored locally in `trusttrace.db` by default, or at `CASE_STORE_PATH` if set. The database stores the rendered analysis record; it does not store an original upload, which is deleted after analysis. A case with `search_web` also stores the pages it found, and the public account handles and post links from its trace. Do not send secrets, private data, or credentials in analysis requests.
+Cases are stored locally in `trustfeed.db` by default, or at `CASE_STORE_PATH` if set. The database stores the rendered analysis record; it does not store an original upload, which is deleted after analysis. A case with `search_web` also stores the pages it found, and the public account handles and post links from its trace. Do not send secrets, private data, or credentials in analysis requests.

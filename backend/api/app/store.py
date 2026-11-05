@@ -132,4 +132,4 @@ class CaseStore:
 
 
 def default_store() -> CaseStore:
-    return CaseStore(os.getenv("CASE_STORE_PATH", "trusttrace.db"))
+    return CaseStore(os.getenv("CASE_STORE_PATH", "trustfeed.db"))

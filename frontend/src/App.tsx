@@ -40,14 +40,14 @@ export default function App() {
     <>
       <a className="skip" href="#main">Skip to the content</a>
       <header className="topbar no-print">
-        <a className="brand" href="#/" aria-label="TruthTrace AI, home">
+        <a className="brand" href="#/" aria-label="TrustFeed, home">
           <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
             <path d="M6 25 15 15l11-8" stroke="#ff4f8b" strokeWidth="2.5" fill="none" />
             <circle cx="6" cy="25" r="3.5" fill="#eef25a" />
             <circle cx="15" cy="15" r="3" fill="#ff4f8b" />
             <circle cx="26" cy="7" r="3" fill="#ff4f8b" />
           </svg>
-          TruthTrace AI
+          TrustFeed
         </a>
         <nav aria-label="Main">
           {NAV.map(([page, href, name]) => (

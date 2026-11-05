@@ -100,7 +100,7 @@ MEDIA_REJECTION_STATUS = {
     "corrupt_media": 422,
 }
 
-app = FastAPI(title="TrustTrace AI API", version="0.1.0")
+app = FastAPI(title="TrustFeed API", version="0.1.0")
 
 
 def _upload_error(status_code: int, code: str, message: str) -> JSONResponse:
@@ -696,7 +696,7 @@ def action_packet(case_id: str, request: ActionPacketRequest) -> ActionPacketRes
         ActionPacketSection(heading="Suggested countermeasures", items=build_countermeasures(case)),
     ]
     draft_lines = [
-        f"TruthTrace AI draft for {request.audience}.",
+        f"TrustFeed draft for {request.audience}.",
         "This draft is assembled by fixed rules from the case record; no generative model or external fact-check was used.",
     ]
     for section in sections:

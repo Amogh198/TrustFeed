@@ -52,7 +52,7 @@ The model separates fakes from real images better than these bands show, so the 
 
 ## Run it
 
-Needs Python 3.11 or later and Node 18 or later. **The dashboard with the trust score is on `feat/dashboard-rebuild` until it's merged. `main` still has the older one.** Run these from the repository root, inside a virtual environment:
+Needs Python 3.11 or later and Node 18 or later. **Use Python 3.12, which is the version the image model was tested on. On Python 3.14 the model's packages may not install, and uploads then have no media score.** Run these from the repository root, inside a virtual environment:
 
 ```bash
 pip install -r backend/api/requirements-dev.txt

@@ -16,7 +16,7 @@ Each topic has one home. If two files disagree, this table decides, and the agen
 | HTTP contract | `API_CONTRACTS.md`, owned by T3. |
 | Git and repository settings | `GITHUB_WORKFLOW.md` |
 | Current progress | `agent-status/<agent>.md` and the branches themselves |
-| Technical background | `truthtrace_ai_master_context_execution_blueprint.md`. Background only: where it differs from the files above, it loses. |
+| Technical background | `trustfeed_master_context_execution_blueprint.md`. Background only: where it differs from the files above, it loses. |
 
 ## A. Project
 

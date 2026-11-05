@@ -150,16 +150,28 @@ export function prefersReducedMotion(): boolean {
 
 const TRUST_MODULES = ['media', 'text', 'url'] as const;
 
+/** A neutral midpoint, not a measurement. No check here can show that content is genuine. */
+export const NEUTRAL_TRUST = 50;
+// The same levels the API's risk result uses. They catch signals the model score doesn't hold,
+// such as metadata naming a generator or a match on the reference list.
+const RISK_CEILING: Partial<Record<RiskLevel, number>> = { moderate: 40, high: 25, critical: 25 };
+
 export interface Trust {
   score: number | null;
   words: string;
   strongest: { name: string; value: number } | null;
   counted: { name: string; value: number }[];
   mediaMissing: boolean;
+  /** The checks' own figure was higher, and the midpoint held it down. */
+  capped: boolean;
+  /** The overall risk result lowered the score, rather than the strongest signal. */
+  fromOverallRisk: boolean;
 }
 
 /**
- * 100 minus the strongest warning signal from the checks that looked at the content itself.
+ * 100 minus the strongest warning signal from the checks that looked at the content itself,
+ * and never above the midpoint: finding no warning isn't evidence that content is genuine.
+ * The detector scored 128 of 157 fakes low in testing, so a low score can't earn a high number.
  * Spread and source search aren't counted: where content went doesn't say whether it's true.
  * It's null when nothing was measured, and is never filled in.
  */
@@ -169,9 +181,15 @@ export function trustScore(report: AnalysisResponse): Trust {
     return module?.status === 'complete' && module.score != null ? [{ name: MODULE_NAMES[key], value: module.score }] : [];
   });
   const mediaMissing = report.modules?.media?.status === 'unavailable';
-  if (!counted.length) return { score: null, words: 'No trust score', strongest: null, counted, mediaMissing };
+  if (!counted.length) {
+    return { score: null, words: 'No trust score', strongest: null, counted, mediaMissing, capped: false, fromOverallRisk: false };
+  }
   const strongest = counted.reduce((top, item) => (item.value > top.value ? item : top));
-  const score = Math.round((1 - strongest.value) * 100);
-  const words = score > 75 ? 'No strong warning signs' : score > 25 ? 'Some warning signs' : 'Strong warning signs';
-  return { score, words, strongest, counted, mediaMissing };
+  const measured = Math.round((1 - strongest.value) * 100);
+  const ceiling = RISK_CEILING[report.overall_risk] ?? NEUTRAL_TRUST;
+  const score = Math.min(measured, NEUTRAL_TRUST, ceiling);
+  const words = score >= NEUTRAL_TRUST
+    ? 'Inconclusive: not enough evidence'
+    : score > 25 ? 'Some warning signs' : 'Warning signs found: a person should review this';
+  return { score, words, strongest, counted, mediaMissing, capped: measured > NEUTRAL_TRUST, fromOverallRisk: ceiling < Math.min(measured, NEUTRAL_TRUST) };
 }

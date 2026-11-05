@@ -1,4 +1,4 @@
-# Task Board — TruthTrace AI
+# Task Board — TrustFeed
 
 This is the work split, and it is enough to determine responsibilities; Issues are optional. **Live status is in `agent-status/`**, shown by `python tools/agent_sync.py`. The integration coordinator alone updates this summary table when packages change. This avoids simultaneous edits and Markdown merge conflicts.
 

@@ -1,4 +1,4 @@
-# TruthTrace AI dashboard UX contract
+# TrustFeed dashboard UX contract
 
 The dashboard shows real API responses. It holds no sample data of its own, and the only canned content is the labelled replay data the API serves. Product copy on the "What it misses" page comes from `AGENT_COORDINATION.md`, and must change when that file does.
 

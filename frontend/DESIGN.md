@@ -1,4 +1,4 @@
-# TruthTrace AI dashboard design
+# TrustFeed dashboard design
 
 ## Character
 
