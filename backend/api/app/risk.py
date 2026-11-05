@@ -37,6 +37,9 @@ _STRONG = 0.7
 _WEAK = 0.3
 # One uncalibrated model never reaches critical alone.
 _MEDIA_CAP = 0.75
+# The detector's scores bunch near zero, so its elevated band flagged 1 of 157 fakes. On the same
+# benchmark, this line was passed by 82% of fakes and 19% of real images. See data/eval.
+MEDIA_REVIEW_LINE = 0.0068
 _ELEVATED = 0.75
 _THRESHOLDS = ((0.8, RiskLevel.CRITICAL), (0.6, RiskLevel.HIGH), (0.3, RiskLevel.MODERATE))
 _TRUST_CAPS = {RiskLevel.MODERATE: 40, RiskLevel.HIGH: 25, RiskLevel.CRITICAL: 25}
@@ -70,6 +73,17 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
         note = module.limitations[0] if module.limitations else "The media check gave no result."
         return RiskComponent(status=ModuleStatus.UNAVAILABLE, counted=False, blocks_low=True, note=note, **base)
     # The media check's own assessment decides, as a video whose frames disagree can score high and still be unclear.
+    if level not in (RiskLevel.MODERATE, RiskLevel.HIGH) and module.score >= MEDIA_REVIEW_LINE:
+        return RiskComponent(
+            status=ModuleStatus.COMPLETE,
+            counted=True,
+            score=_WEAK,
+            note=(
+                f"Scored {module.score:.4f}, above the review line of {MEDIA_REVIEW_LINE}. On our benchmark, 82% of fakes and "
+                "19% of real images passed this line, which was chosen on those same images, so about 1 in 5 real images is flagged."
+            ),
+            **base,
+        )
     if level not in (RiskLevel.MODERATE, RiskLevel.HIGH):
         # In the benchmark it scored most fakes low, so a quiet detector says nothing either way.
         return RiskComponent(
@@ -77,7 +91,7 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
             counted=False,
             blocks_low=True,
             score=module.score,
-            note="No strong signal. The detector misses many fakes, so this neither raises nor lowers the risk.",
+            note=f"Scored {module.score:.4f}, below the review line of {MEDIA_REVIEW_LINE}. On our benchmark 18% of fakes also scored this low, so this does not show the image is real.",
             **base,
         )
     score = min(_MEDIA_CAP, module.score) if level is RiskLevel.HIGH else max(_WEAK, min(module.score, _ELEVATED - 0.01))

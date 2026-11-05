@@ -1,5 +1,6 @@
 import base64
 import logging
+from collections import Counter
 import os
 import re
 import shutil
@@ -417,6 +418,10 @@ def _store_case(
     )
     risk = unified.level
     summary = summary_for(unified)
+    if claim_analysis and claim_analysis.verification.status is ModuleStatus.COMPLETE:
+        # What the sources said matters most to a reader, so it comes first.
+        counts = Counter(record.verdict.value.replace("_", " ") for record in claim_records if record.verdict)
+        summary = "Compared with public sources: " + ", ".join(f"{count} {name}" for name, count in counts.items()) + f". {summary}"
 
     result = AnalysisResponse(
         case_id=case_id,

@@ -143,7 +143,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
   };
 
   const panels: Record<string, JSX.Element> = {
-    findings: <FindingsTab report={report} explanation={details.explanation} loading={loading} />,
+    findings: <FindingsTab report={report} explanation={details.explanation} loading={loading} sourceProviders={details.provenance?.providers} />,
     media: <MediaTab report={report} explanation={details.explanation} />,
     text: <TextLinkTab report={report} />,
     source: <SourceTab report={report} data={details.provenance} loading={loading} />,

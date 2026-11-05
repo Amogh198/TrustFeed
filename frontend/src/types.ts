@@ -20,7 +20,7 @@ export interface Claim {
 
 export interface AnalysisResponse {
   link_analysis?: LinkAnalysis | null;
-  claim_analysis?: { verification?: { status?: string } } | null;
+  claim_analysis?: { entity_model_status?: string; verification?: { status?: string; reason?: string | null; comparison_status?: string; comparison_reason?: string | null; providers?: { name: string; status: string; reason?: string | null; result_count: number }[] } } | null;
   scam_analysis?: ScamAnalysis | null;
   cross_modal?: CrossModal | null;
   unified_risk?: UnifiedRisk | null;

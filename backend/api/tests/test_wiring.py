@@ -103,7 +103,7 @@ def test_json_route_reports_media_as_not_submitted():
 
 @pytest.mark.parametrize(
     ("score", "risk", "human_review"),
-    [(0.9, "high", True), (0.1, "inconclusive", False), (0.5, "inconclusive", False)],
+    [(0.9, "high", True), (0.1, "moderate", False), (0.5, "moderate", False), (0.001, "inconclusive", False)],
 )
 def test_image_upload_uses_the_media_assessment(analyzed_paths, score, risk, human_review):
     analyzed_paths(score)
@@ -167,8 +167,9 @@ def test_video_with_disagreeing_frames_does_not_become_high_risk(analyzed_paths,
     analyzed_paths([0.05, 0.95])
     video = write_video(tmp_path / "clip.mp4", [(RED, 2.0), (BLUE, 2.0)])
     body = upload(video.read_bytes(), name="clip.mp4").json()
+    # Above the review line, so a weak signal, but the disagreeing frames keep it below high.
     assert body["modules"]["media"]["score"] == 0.95
-    assert body["overall_risk"] == "inconclusive"
+    assert body["overall_risk"] == "moderate"
 
 
 def test_unavailable_model_is_reported_without_a_score(analyzed_paths):
@@ -192,7 +193,7 @@ def test_text_and_url_are_fused_with_media(analyzed_paths):
 
 
 def test_quiet_text_does_not_hide_inconclusive_media(analyzed_paths):
-    analyzed_paths(0.5)
+    analyzed_paths(0.001)
     body = upload(png_bytes(), text="A community meeting will happen on Friday.").json()
     assert body["modules"]["text"]["score"] == 0
     assert body["overall_risk"] == "inconclusive"
