@@ -57,7 +57,7 @@ T5 (end-to-end wiring, offline replay, demo script) starts once each lane has a 
 | Lane | Branch | State | Done | Upcoming | Blocker |
 |---|---|---|---|---|---|
 | T1 | none seen | Not started on GitHub | Nothing visible | Model adapter, metadata, keyframes, pHash | None known |
-| T2 | `feat/network-coordination` | In review, PR #3 | Engine, demo data, 58 tests | Multi-platform signal; support T3 wiring | Needs approval |
+| T2 | `feat/network-coordination` | In review, PR #3 | Engine, multi-platform demo data, 61 tests | Support T3 wiring; review T1 when ready | Needs approval |
 | T3 | `feat/amogh-backend-api-text` | In review, PR #1 | API starter, heuristics, placeholders | Tests, fusion, replay, wiring | Needs approval |
 | T4 | none seen | Not started on GitHub | Nothing visible | Dashboard against T3 mocks | Assignment unconfirmed |
 
@@ -85,7 +85,7 @@ Boundaries: T1 and T2 expose Python functions and add no routes. T3 owns all rou
 | T4 dashboard | No | No | No |
 | T5 replay and demo | No | No | No |
 
-**Requirements not yet met:** deepfake and synthetic-media detection; media upload; the dashboard; generated countermeasures (T3 has a template only); multi-platform labelling in demo data.
+**Requirements not yet met:** deepfake and synthetic-media detection; media upload; the dashboard; generated countermeasures (T3 has a template only). Multi-platform coverage is synthetic demo data only, in PR #3.
 
 **Open compatibility problems:**
 1. `get_network` returns 404 for `demo-001` because it checks `CASES` first. T3 fix; steps in PR #3.
