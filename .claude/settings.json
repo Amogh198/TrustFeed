@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 tools/agent_sync.py 2>/dev/null || python tools/agent_sync.py",
+            "timeout": 45,
+            "statusMessage": "Loading agent board..."
+          }
+        ]
+      }
+    ]
+  }
+}
