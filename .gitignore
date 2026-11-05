@@ -1,0 +1,56 @@
+# Environment variables — NEVER commit .env
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Model weights (large files, download at runtime)
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+
+# SQLite databases (generated at runtime)
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Coverage / test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build artifacts
+*.pyc
