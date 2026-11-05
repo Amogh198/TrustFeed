@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from backend.api.app.main import app
 from backend.api.app.models import RiskLevel
 from backend.provenance.safe_http import HttpResponse
-from backend.text.analysis import analyze_text, analyze_url, expand_short_url, fuse_risk
+from backend.text.analysis import analyze_text, analyze_url, expand_shortener, fuse_risk
 
 client = TestClient(app)
 
@@ -37,17 +37,21 @@ def test_url_analysis_is_static_and_marks_shorteners():
 
 
 def test_shortener_expansion_is_safe_and_opt_in_ready(monkeypatch):
-    monkeypatch.setattr(
-        "backend.text.analysis.safe_request",
-        lambda *args, **kwargs: HttpResponse(url="https://example.zip/login", status=200),
-    )
+    monkeypatch.setattr("backend.text.analysis._MAX_SHORTENER_HOPS", 3)
 
-    expanded, limit = expand_short_url("https://bit.ly/demo")
-    result = analyze_url("https://bit.ly/demo", expanded_url=expanded, expansion_limit=limit)
+    def fake_request(url, **kwargs):
+        assert kwargs["max_redirects"] == 0
+        return HttpResponse(
+            url=url,
+            status=302,
+            headers={"location": "https://example.zip/login"},
+        )
+
+    expanded = expand_shortener("https://bit.ly/demo", request=fake_request)
+    result = analyze_url("https://bit.ly/demo", expanded_to=expanded)
 
     assert expanded == "https://example.zip/login"
-    assert limit is None
-    assert any("resolved" in item for item in result.evidence)
+    assert any("short link leads" in item for item in result.evidence)
     assert any("deceptive links" in item for item in result.evidence)
 
 
