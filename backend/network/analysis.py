@@ -4,11 +4,22 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from backend.network.clusters import SCORE_WEIGHTS, Cluster, build_coordination_graph, detect_clusters
+from backend.network.clusters import (
+    SCORE_WEIGHTS,
+    Cluster,
+    build_coordination_graph,
+    detect_clusters,
+)
 from backend.network.config import CoordinationConfig
 from backend.network.coshare import CoShare, find_co_shares
 from backend.network.dataset import Dataset, format_timestamp
-from backend.network.roles import ROLE_LABELS, AccountRole, Origin, assign_roles, campaign_posts
+from backend.network.roles import (
+    ROLE_LABELS,
+    AccountRole,
+    Origin,
+    assign_roles,
+    campaign_posts,
+)
 from backend.network.timeline import build_timeline
 
 SYNTHETIC_NOTICE = (
@@ -45,6 +56,7 @@ def _build_nodes(
     dataset: Dataset,
     roles: dict[str, AccountRole],
     clusters: list[Cluster],
+    edges: list[dict[str, Any]],
     config: CoordinationConfig,
 ) -> list[dict[str, Any]]:
     first_post: dict[str, str] = {}
@@ -56,11 +68,25 @@ def _build_nodes(
         if post.platform:
             platforms[post.account_id].add(post.platform)
 
+    in_campaign = {
+        post.id
+        for cluster in clusters
+        if cluster.flagged
+        for post in campaign_posts(dataset.posts, cluster, config)
+    }
     first_campaign_post: dict[str, str] = {}
-    for cluster in clusters:
-        if cluster.flagged:
-            for post in campaign_posts(dataset.posts, cluster, config):
-                first_campaign_post.setdefault(post.account_id, format_timestamp(post.created_at))
+    for post in dataset.posts:  # In time order, so the first one seen is the earliest.
+        if post.on_topic or post.id in in_campaign:
+            first_campaign_post.setdefault(post.account_id, format_timestamp(post.created_at))
+
+    # A node must be on the slider by the time any of its edges is. This also places
+    # targets, which are mentioned but may never post. UTC ISO strings sort by time.
+    appears_at = dict(first_campaign_post)
+    for edge in edges:
+        for endpoint in (edge["source"], edge["target"]):
+            current = appears_at.get(endpoint)
+            if current is None or edge["first_seen_at"] < current:
+                appears_at[endpoint] = edge["first_seen_at"]
 
     flagged_ids = {cluster.id for cluster in clusters if cluster.flagged}
     nodes = []
@@ -81,6 +107,7 @@ def _build_nodes(
                 "platforms": sorted(platforms[account.id]),
                 "first_post_at": first_post.get(account.id),
                 "first_campaign_post_at": first_campaign_post.get(account.id),
+                "appears_at": appears_at.get(account.id),
                 "synthetic": dataset.synthetic,
             }
         )
@@ -229,6 +256,13 @@ def _build_module_result(
                 f"({place} the cluster) at {format_timestamp(origin.observed_at)}.{tie}"
             )
 
+    without_campaign_item = [cluster.id for cluster in flagged if not cluster.item_keys]
+    if without_campaign_item:
+        limitations.append(
+            f"{', '.join(without_campaign_item)}: no single item was shared widely enough across the "
+            "cluster, so no earliest account or timeline is reported for it."
+        )
+
     small = sum(1 for cluster in clusters if not cluster.flagged)
     if small:
         limitations.append(
@@ -258,10 +292,11 @@ def analyze_network(dataset: Dataset, config: CoordinationConfig | None = None) 
     graph = build_coordination_graph(co_shares, config)
     clusters = detect_clusters(graph, co_shares, config)
     roles, origins = assign_roles(dataset, graph, clusters, config)
+    edges = _build_edges(dataset, co_shares, clusters, config)
     return NetworkAnalysis(
         case_id=dataset.case_id,
-        nodes=_build_nodes(dataset, roles, clusters, config),
-        edges=_build_edges(dataset, co_shares, clusters, config),
+        nodes=_build_nodes(dataset, roles, clusters, edges, config),
+        edges=edges,
         timeline=build_timeline(dataset, clusters, config),
         clusters=_build_cluster_summaries(clusters, origins, dataset, config),
         module_result=_build_module_result(dataset, co_shares, clusters, origins, config),

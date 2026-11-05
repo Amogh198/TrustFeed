@@ -1,6 +1,10 @@
 """Print a summary of the demo analysis: ``python -m backend.network``."""
 
-from backend.network import DEMO_CASE_ID, get_network_clusters, get_network_module_result
+from backend.network import (
+    DEMO_CASE_ID,
+    get_network_clusters,
+    get_network_module_result,
+)
 
 
 def main() -> None:

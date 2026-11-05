@@ -1,15 +1,15 @@
 AGENT: Bhuvan Bapat (bhuvanbapat), lane bhuvan_claude
-RESPONSIBILITY: T2 synthetic dataset, co-sharing, graph scoring, role tags, timeline JSON
-BRANCH: feat/network-coordination
-CURRENT TASK: Network engine ready for final integration (PR #3)
+RESPONSIBILITY: T2 network tracing: dataset, co-sharing, graph scoring, role tags, timeline, real-post adapters, multi-platform monitoring
+BRANCH: feat/network-monitoring
+CURRENT TASK: Findings fixed; real-post tracing, monitoring and the linked demo story ready for integration
 STATUS: Validated
-COMPLETED: Network engine and demo data, 61 tests on Python 3.13 and 3.11 (PR #3); coordination system merged (PR #4)
+COMPLETED: Five findings fixed; Mastodon, Lemmy and Hacker News adapters; trace_case; Monitor; demo-story-001; 171 tests pass offline, plus manual live runs
 IN PROGRESS: none
-NEXT ACTION: Support T3 wiring of the network route; run integration checks across branches
+NEXT ACTION: Connect Bluesky, Reddit or YouTube if the team gets credentials; add Mastodon repost data; support T3 wiring
 FILES OWNED: backend/network/**, data/demo/network_demo*, data/demo/README.md
-LATEST COMMIT: bea996c on feat/network-coordination
-INTERFACES CHANGED: none; adds get_network_payload, get_network_module_result (see backend/network/README.md)
-DEPENDENCIES: T3 must add networkx and route demo-001 to get_network_payload
+LATEST COMMIT: see feat/network-monitoring
+INTERFACES CHANGED: Additive: nodes gain appears_at; new trace_case, get_network_coverage, Monitor, get_demo_story, demo-story-001. See backend/network/README.md
+DEPENDENCIES: T3 must call trace_case and expose get_network_coverage; T1 provenance page links feed its urls argument; T4 must show synthetic labels and use appears_at
 BLOCKERS: none; development isn't blocked
 LAST UPDATED: 2026-11-05
 PROTOCOL: adopted 2026-11-05
