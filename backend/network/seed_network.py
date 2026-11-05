@@ -283,7 +283,7 @@ def _matches_on_disk(path: Path, document: dict[str, Any]) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description="Generate the synthetic dissemination demo dataset.")
     parser.add_argument("--check", action="store_true", help="fail if the fixtures are out of date")
     args = parser.parse_args(argv)
 

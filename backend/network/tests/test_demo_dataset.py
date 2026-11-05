@@ -24,6 +24,18 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 ENGINE_FILES = ("analysis", "clusters", "config", "coshare", "dataset", "roles", "service", "timeline")
 
 
+def demo_payload():
+    payload = get_network_payload(DEMO_CASE_ID)
+    assert payload is not None
+    return payload
+
+
+def demo_result():
+    result = get_network_module_result(DEMO_CASE_ID)
+    assert result is not None
+    return result
+
+
 @pytest.fixture(scope="module")
 def truth():
     return json.loads(GROUND_TRUTH_PATH.read_text(encoding="utf-8"))
@@ -149,7 +161,7 @@ def test_one_role_per_origin_and_expected_role_counts(analysis, truth):
 
 
 def test_payload_contract(analysis):
-    payload = get_network_payload(DEMO_CASE_ID)
+    payload = demo_payload()
     assert set(payload) == {"nodes", "edges", "timeline"}
     for key in payload:
         assert isinstance(payload[key], list)
@@ -169,7 +181,7 @@ def test_timestamps_are_utc_iso8601(analysis):
 
 
 def test_module_result_contract():
-    result = get_network_module_result(DEMO_CASE_ID)
+    result = demo_result()
     assert set(result) == {"status", "score", "confidence", "evidence", "limitations"}
     assert result["status"] == "complete"
     assert 0 <= result["score"] <= 1
@@ -180,7 +192,7 @@ def test_module_result_contract():
 
 
 def test_module_result_distinguishes_spread_from_authenticity_and_avoids_attribution():
-    result = get_network_module_result(DEMO_CASE_ID)
+    result = demo_result()
     limitations = " ".join(result["limitations"])
     assert "not whether the content is authentic" in limitations
     assert "does not establish intent" in limitations
@@ -194,9 +206,9 @@ def test_unknown_cases_never_receive_demo_data():
 
 
 def test_callers_cannot_corrupt_the_cached_result():
-    payload = get_network_payload(DEMO_CASE_ID)
+    payload = demo_payload()
     payload["nodes"].clear()
-    assert get_network_payload(DEMO_CASE_ID)["nodes"]
+    assert demo_payload()["nodes"]
 
 
 def test_seed_check_cli_passes_on_committed_fixtures():

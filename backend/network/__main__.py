@@ -4,13 +4,18 @@ from backend.network import DEMO_CASE_ID, get_network_clusters, get_network_modu
 
 
 def main() -> None:
-    for cluster in get_network_clusters(DEMO_CASE_ID):
+    clusters = get_network_clusters(DEMO_CASE_ID)
+    result = get_network_module_result(DEMO_CASE_ID)
+    if clusters is None or result is None:
+        raise SystemExit(f"No network data for {DEMO_CASE_ID}.")
+
+    for cluster in clusters:
         state = "flagged" if cluster["flagged"] else "not flagged"
         print(
             f"{cluster['id']}: {cluster['size']} accounts, score {cluster['coordination_risk_score']:.2f}, "
             f"risk {cluster['risk_level']}, {state}"
         )
-    for line in get_network_module_result(DEMO_CASE_ID)["evidence"]:
+    for line in result["evidence"]:
         print(f"- {line}")
 
 
