@@ -212,6 +212,47 @@ def test_hacker_news_reads_stories_and_comments():
     assert post.permalink == "https://news.ycombinator.com/item?id=7"
 
 
+@pytest.mark.parametrize(
+    "field",
+    [{"url": 5}, {"title": 5}, {"author": 5}, {"author": None}, {"created_at": 5}, {"objectID": None, "author": ["x"]}],
+)
+def test_wrong_types_from_a_platform_count_as_malformed_and_do_not_stop_the_trace(field):
+    good = hn_hit(1, "first", 0)
+    fetch = FakeFetch({lemmy_url(ITEM): {"posts": []}, hn_url(ITEM): {"hits": [{**hn_hit(2, "broken", 5), **field}, good]}})
+    result = trace_public_spread("case-1", url=ITEM, fetch=fetch)
+    row = next(item for item in result.coverage["platforms"] if item["platform"] == "hackernews")
+    assert row["malformed_records_skipped"] == 1
+    assert [item["handle"] for item in result.coverage["spread"]] == ["first"]
+
+
+def test_mastodon_wrong_types_count_as_malformed():
+    url = "https://mastodon.social/api/v1/timelines/tag/t?limit=40"
+    bad_link = mastodon_status(1, card={"url": 5})
+    bad_account = mastodon_status(2, account={"id": "1", "acct": 5})
+    outcome = MastodonSource().search(SearchQuery(hashtags=("t",)), FakeFetch({url: [bad_link, bad_account, mastodon_status(3)]}))
+    assert outcome.malformed == 2
+    assert len(outcome.posts) == 1
+
+
+@pytest.mark.parametrize(
+    ("permalink", "expected"),
+    [
+        ("https://social.example/@u1/1", "https://social.example/@u1/1"),
+        ("http://social.example/@u1/1", "http://social.example/@u1/1"),
+        ("javascript:alert(1)", None),
+        (" JavaScript:alert(1)", None),
+        ("data:text/html,x", None),
+        ("http://[broken", None),
+    ],
+)
+def test_only_web_links_are_returned_as_permalinks(permalink, expected):
+    url = "https://mastodon.social/api/v1/timelines/tag/floodalert?limit=40"
+    status = mastodon_status(url=permalink)
+    fetch = FakeFetch({url: [status]})
+    coverage = trace_public_spread("case-1", hashtags=("floodalert",), fetch=fetch).coverage
+    assert coverage["spread"][0]["permalink"] == expected
+
+
 # What counts as a match
 
 
@@ -452,6 +493,13 @@ def test_callers_cannot_corrupt_a_traced_case():
     again = get_network_coverage("traced-2")
     assert again is not None
     assert again["spread"]
+
+
+def test_trace_case_does_not_accept_internal_arguments():
+    with pytest.raises(TypeError):
+        trace_case("traced-3", url=ITEM, sources=[])  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        trace_case("traced-3", url=ITEM, config=None)  # type: ignore[call-arg]
 
 
 def test_demo_case_cannot_be_overwritten_by_a_trace():

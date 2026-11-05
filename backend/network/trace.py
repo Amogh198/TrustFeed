@@ -25,7 +25,7 @@ from backend.network.sources import (
     default_sources,
     live_fetch,
 )
-from backend.network.sources.base import URL_IN_TEXT
+from backend.network.sources.base import URL_IN_TEXT, safe_web_link
 
 _TIME_BUDGET_SECONDS = 25
 # Reading each co-posting account's history costs a request, so it's capped.
@@ -203,7 +203,7 @@ def _spread(collected: Collected, synthetic: bool) -> list[dict[str, Any]]:
             "handle": post.author_handle,
             "posted_at": format_timestamp(parse_timestamp(post.created_at)),
             # Invented posts have no real page, and a link could land on someone else's.
-            "permalink": None if synthetic else post.permalink,
+            "permalink": None if synthetic else safe_web_link(post.permalink),
             "matched_on": collected.on_topic[post.id],
             "earliest_found": index == 1,
         }
