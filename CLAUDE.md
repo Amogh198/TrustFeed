@@ -1,43 +1,74 @@
 # CLAUDE.md — TruthTrace AI Shared Agent Instructions
 
-Read this file, `TASK_BOARD.md`, `API_CONTRACTS.md`, and `GITHUB_WORKFLOW.md` before starting or resuming work. These instructions apply to Claude, Gemini, and any coding agent working in this repository.
+Applies to every coding agent in this repository, whichever AI tool operates the lane.
 
-## Project
+Build TruthTrace AI for LAKSHYA 2026: a hackathon MVP that ingests sample text and media, analyzes claims/media, maps a synthetic coordination campaign, and presents evidence with uncertainty. Prioritize a working, explainable offline demo over attempting every blueprint feature.
 
-Build TruthTrace AI for LAKSHYA 2026: a hackathon MVP that ingests sample text and media, analyzes claims/media, maps a synthetic coordination campaign, and presents evidence with uncertainty. Follow `truthtrace_ai_master_context_execution_blueprint.md`, but prioritize a working, explainable offline demo over attempting every listed feature or cloning several large research repositories.
+`AGENT_COORDINATION.md` holds the exact official problem statement and says which file is authoritative for each topic. The repository is named TrustFeed, and the product is TruthTrace AI.
 
-## Non-negotiable collaboration rules
+## Mandatory protocol
 
-1. Work only on the task described in a GitHub Issue. Confirm its owner, agent lane, acceptance criteria, and allowed paths before editing.
-2. Each task gets its own branch from latest `origin/main`, named `feat/<issue>-<short-name>` (or `fix/`, `docs/`). Never push to `main` or share a branch/clone between AI accounts.
-3. Before edits, fetch the latest `main` and read recent merged PRs/issues. Before PR, sync latest `main` deliberately and inspect overlap. Never overwrite another lane's changes to resolve a conflict.
-4. Keep edits within the task's path ownership in `TASK_BOARD.md`. Shared contracts belong to the integration lane; propose changes in the issue and wait for agreement before changing them.
-5. Open one PR per issue. Include changed paths, acceptance criteria mapping, commands/results used to verify, contract changes, known limits, and dependencies. Do not claim verification you did not run.
-6. After each meaningful milestone, leave a status update in the linked GitHub Issue: `Doing`, `Done`, `Blocked`, or `Needs decision`; include branch, changed paths, next action, and blocker/decision if any. On PR creation and merge, update the issue. This is the shared memory between separate AI chats.
-7. Never put API keys, passwords, cookies, access tokens, private user data, or real social account credentials in code, issues, logs, or commits. Use `.env.example` with dummy values and keep `.env` ignored.
-8. Keep scope hackathon-sized. Prefer deterministic synthetic fixtures and replay mode. Do not make live social API access a critical path. Report model output as a signal, not proof; return `Inconclusive` when evidence is insufficient.
+**At the start of every session:**
 
-## AI author/reviewer pairing
+1. Read `AGENT_COORDINATION.md`: problem, architecture, ownership and rules.
+2. Read your own `agent-status/<you>.md`. If you don't know which lane you are, match your `gh` login against the table in `AGENT_COORDINATION.md`. Set `PROTOCOL: adopted <date>` when you first follow this.
+3. Read the agent board, which a session-start hook adds to your context. If it isn't there, run `python tools/agent_sync.py`. Open another agent's full record only if your work depends on it: `python tools/agent_sync.py show <agent>`.
 
-- `akshay_claude` / Claude Account A: hard media forensics task(s).
-- `bhuvan_claude` / Claude Account B: hard network coordination task(s).
-- Gemini lane 1: backend/API/text/integration.
-- Gemini lane 2: frontend/dashboard.
-- A different AI lane reviews each PR. A session must not approve its own work. Claude A reviews Claude B changes and vice versa; Gemini lanes cross-review when practical. If a task needs a specific expert, request that AI lane in the Issue.
-- A written AI review is useful evidence but is not a GitHub approval. Do not merge until the repository has an authenticated AI review integration and all required CI checks pass. If that automation is not installed, mark the PR blocked instead of bypassing protection.
+**Before implementing a feature:**
 
-## Required handoff format
+4. Inspect the relevant recent commits, branches and PRs. Other agents' unmerged work is on their branches, not `main`.
+5. Check ownership. Edit only paths your lane owns.
+6. Check `API_CONTRACTS.md` and the other contracts listed in `AGENT_COORDINATION.md` before integrating.
 
-Use this in every issue update or AI-to-AI handoff:
+**While working:**
 
-- Status: Doing / Done / Blocked / Needs decision
-- Issue and branch:
+7. Update your own status file after meaningful milestones. Never edit another agent's.
+8. When architecture, responsibilities or integration status change, update `AGENT_COORDINATION.md`. When a contract changes, follow the notification rules there.
+9. Tell affected lanes about integration dependencies through GitHub PRs, Issues or repository files. Private chats are not visible to other agents.
+
+**Before reporting a milestone:**
+
+10. Validate your own work using the self-validation steps in `AGENT_COORDINATION.md`, including `python tools/compat_check.py`, and fix what they find.
+11. Fetch, re-read the board, and run `python tools/agent_sync.py check <you>`. Then commit and push to your own branch.
+
+## Working without humans
+
+Make routine technical decisions yourself and don't ask humans what to do next. Ask only in the four cases listed in `AGENT_COORDINATION.md`. Never invent an assignment or take over another lane's work.
+
+**Never wait for a review or approval.** No agent's work depends on another agent or person approving it. Keep building on your branch.
+
+**Strategy:** independent development, continuous GitHub updates, self-validation, continuous compatibility checks, no mandatory reviews, delayed merging and controlled final integration. Details are in `AGENT_COORDINATION.md`.
+
+## Non-negotiable rules
+
+1. Work within your lane in `TASK_BOARD.md`. Issues are optional, not a prerequisite.
+2. Each feature gets its own descriptively named branch from latest `origin/main`, such as `feat/network-coordination`. `main` must stay stable. Don't push to it without explicit authorization, and don't merge unfinished work to it. Never share a branch or clone between agents.
+3. Never overwrite another lane's changes to resolve a conflict. Keep existing branches, commits, PRs and completed work.
+4. Shared contracts belong to the integration lane. Announce changes in a PR or Issue with migration steps, and keep existing consumers working where practical.
+5. Record the commands you ran and their results when you report a milestone. Do not claim verification you did not run.
+6. Never put API keys, passwords, cookies, access tokens, private user data or real social account credentials in code, issues, logs or commits. Use `.env.example` with dummy values and keep `.env` ignored.
+7. Keep scope hackathon-sized. Prefer deterministic synthetic fixtures and replay mode. Do not make live social API access a critical path. Report model output as a signal, not proof; return `Inconclusive` when evidence is insufficient. Follow the honesty rules in `AGENT_COORDINATION.md`: label synthetic data, don't claim one upload form is multi-platform monitoring, and don't treat similarity alone as proof of coordination.
+8. Never bypass repository protection. Merging to `main` is part of controlled final integration; see `AGENT_COORDINATION.md`.
+9. Commit and push every completed milestone to your own branch, and before ending a session. Work that exists only on your machine doesn't count as shared progress.
+
+## Lanes
+
+- **T1, Akshay** (`akshay_claude`, Claude Account A): media and deepfake detection.
+- **T2, Bhuvan** (`bhuvan_claude`, Claude Account B): dissemination and network tracing.
+- **T3, Amogh** (Gemini lane 1 on the task board): backend API, text and URL rules, result fusion, integration coordination.
+- **T4, owner unconfirmed** (Gemini lane 2 on the task board): dashboard and frontend. See `AGENT_COORDINATION.md`.
+
+## Handoff format
+
+Use this in PR descriptions and in AI-to-AI handoffs on GitHub:
+
+- Status: Ready / Doing / Validated / Blocked / Done
+- Task and branch:
 - Changed paths:
 - Contract or dependency changes:
 - Verification run and result:
 - Next action / blocker:
-- Reviewer lane:
 
 ## Completion means
 
-An issue is complete only when its acceptance criteria are met, verification results are recorded, a different AI lane has reviewed it, the PR is merged through the protected workflow, and the issue/status is updated. Sync all active clones from updated `main` before continuing.
+A milestone is complete when its requirements are met, your own validation passes, results are recorded, the work is pushed to your branch, and your status file is updated. It reaches `main` during final integration.
