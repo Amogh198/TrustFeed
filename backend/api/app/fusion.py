@@ -1,8 +1,12 @@
-"""Combines module results into one triage level. It is never a verdict on truth."""
+"""Combines module results and generates evidence-bound action packets."""
 
+import json
+import os
 from collections.abc import Iterable, Mapping
+from importlib import import_module
+from typing import Any
 
-from backend.api.app.models import RiskLevel
+from backend.api.app.models import ActionPacketSection, AnalysisResponse, RiskLevel
 from backend.media.models import Assessment, MediaAnalysisResult, ModelBand
 
 _ORDER = (RiskLevel.LOW, RiskLevel.MODERATE, RiskLevel.HIGH, RiskLevel.CRITICAL)
@@ -61,3 +65,85 @@ def fused_summary(level: RiskLevel) -> str:
     if level is RiskLevel.INCONCLUSIVE:
         return "The available checks do not support a clear triage result."
     return f"Available signals suggest {level.value} risk; this is a triage signal, not a factual verdict."
+
+
+def _parse_action_packet(text: str) -> dict[str, Any]:
+    """Accept a Gemini JSON response, including a markdown-fenced fallback."""
+    candidate = text.strip()
+    if candidate.startswith("```"):
+        candidate = candidate.split("\n", 1)[1] if "\n" in candidate else ""
+        candidate = candidate.removesuffix("```")
+    payload = json.loads(candidate.strip())
+    if not isinstance(payload, dict):
+        raise TypeError("Gemini action packet must be a JSON object")
+    return payload
+
+
+def _generate_with_gemini(
+    *,
+    api_key: str,
+    evidence: list[str],
+    overall_risk: str,
+    audience: str,
+) -> tuple[str, list[ActionPacketSection]]:
+    """Generate a structured countermeasure draft from the recorded case signals."""
+    prompt = f"""
+You are a Trust & Safety expert preparing an evidence-based countermeasure action packet.
+The intended audience is: {audience!r}
+The case risk label is: {overall_risk!r}
+Recorded evidence indicators are: {json.dumps(evidence)}
+
+Do not claim that content is false, illegal, coordinated, or policy-violating unless the recorded
+evidence explicitly establishes it. Treat the indicators as leads for human review, not proof.
+Produce only valid JSON with this exact shape:
+{{
+  "draft": "a concise public information note",
+  "sections": [
+    {{"heading": "Platform takedown notice", "items": ["..."]}},
+    {{"heading": "Counter-narrative post", "items": ["..."]}},
+    {{"heading": "Internal policy report", "items": ["..."]}}
+  ]
+}}
+Every section should be actionable, measured, and appropriate for the intended audience.
+""".strip()
+    genai = import_module("google.generativeai")
+    configure_name = "configure"
+    model_factory_name = "GenerativeModel"
+    configure = getattr(genai, configure_name)
+    model_factory = getattr(genai, model_factory_name)
+    configure(api_key=api_key)
+    model = model_factory(os.getenv("GEMINI_MODEL", "gemini-1.5-flash"))
+    response = model.generate_content(
+        prompt,
+        generation_config={"response_mime_type": "application/json", "temperature": 0.2},
+    )
+    payload = _parse_action_packet(response.text)
+    draft = payload.get("draft")
+    raw_sections = payload.get("sections")
+    if not isinstance(draft, str) or not draft.strip() or not isinstance(raw_sections, list):
+        raise ValueError("Gemini response is missing the required action-packet fields")
+    sections = [ActionPacketSection.model_validate(section) for section in raw_sections]
+    if not sections:
+        raise ValueError("Gemini response contains no action-packet sections")
+    return draft.strip(), sections
+
+
+def generate_action_packet(
+    case: AnalysisResponse,
+    audience: str,
+    evidence: list[str],
+) -> tuple[str, list[ActionPacketSection]] | None:
+    """Return Gemini output when configured; failures keep the caller's local template."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        return _generate_with_gemini(
+            api_key=api_key,
+            evidence=evidence,
+            overall_risk=case.overall_risk.value,
+            audience=audience,
+        )
+    except Exception:  # noqa: BLE001 - the optional provider must not block the local fallback.
+        # The local evidence-bound packet remains available if the optional provider fails.
+        return None

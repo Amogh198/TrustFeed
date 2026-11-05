@@ -20,6 +20,7 @@ from backend.api.app.fusion import (
     combine_risks,
     disagreement_note,
     fused_summary,
+    generate_action_packet,
     media_risk,
 )
 from backend.api.app.models import (
@@ -752,6 +753,17 @@ def action_packet(case_id: str, request: ActionPacketRequest) -> ActionPacketRes
     for section in sections:
         draft_lines.append(f"\n{section.heading}:")
         draft_lines.extend(f"- {item}" for item in section.items)
+    generated = generate_action_packet(case, request.audience, evidence)
+    if generated is not None:
+        draft, generated_sections = generated
+        return ActionPacketResponse(
+            case_id=case_id,
+            generated=True,
+            label="AI-generated draft; review against the recorded evidence before use.",
+            draft=draft,
+            evidence_references=evidence,
+            sections=generated_sections,
+        )
     return ActionPacketResponse(
         case_id=case_id,
         label="Assembled by fixed rules from this case's evidence; no generative model or external verification was used.",

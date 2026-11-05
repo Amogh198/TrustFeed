@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from backend.api.app import fusion
 from backend.api.app.main import app
 from backend.api.app.models import RiskLevel
 from backend.provenance.safe_http import HttpResponse
@@ -81,3 +82,54 @@ def test_analyze_rejects_empty_input():
     response = client.post("/api/cases/analyze", json={})
 
     assert response.status_code == 422
+
+
+def test_action_packet_uses_template_when_gemini_key_is_not_configured(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    case = client.post(
+        "/api/cases/analyze",
+        json={"text": "Urgent! Forward this now to claim your prize!!!"},
+    ).json()
+
+    response = client.post(
+        f"/api/cases/{case['case_id']}/action-packet",
+        json={"audience": "community moderators"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["generated"] is False
+    assert body["sections"]
+    assert body["evidence_references"] == case["modules"]["text"]["evidence"]
+
+
+def test_action_packet_formats_gemini_output(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        fusion,
+        "_generate_with_gemini",
+        lambda **_: (
+            "Please pause before sharing this unverified claim.",
+            [
+                fusion.ActionPacketSection(
+                    heading="Counter-narrative post",
+                    items=["Please pause before sharing this unverified claim."],
+                )
+            ],
+        ),
+    )
+    case = client.post(
+        "/api/cases/analyze",
+        json={"text": "Urgent! Forward this now to claim your prize!!!"},
+    ).json()
+
+    response = client.post(
+        f"/api/cases/{case['case_id']}/action-packet",
+        json={"audience": "public"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["generated"] is True
+    assert body["sections"][0]["heading"] == "Counter-narrative post"
+    assert "AI-generated" in body["label"]
