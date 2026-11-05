@@ -17,19 +17,36 @@ These are separate questions, and one never answers another. The earliest appear
 
 ## Status
 
-Backend features are on `main`. **The dashboard is on `main` but still uses local sample data and doesn't call the API yet.**
+Last updated 2026-11-05. Backend features are on `main`. **The dashboard is on `main` but still uses local sample data and doesn't call the API yet.**
 
 | Area | Works now | Not done or not measured |
 |---|---|---|
-| API | Text, link, image and video input, risk summary, saved history, export, offline replay, template action packets | Explanation route, generated action packets |
-| Media | Image model, metadata, keyframes, known-image matching | OCR, audio, heatmaps, lip-sync |
-| Source search | Works with a provider key the user sets up, and only on opt-in | Results depend on what search services have indexed |
+| API | Text, link, image and video input, risk summary, saved history, export, offline replay, template action packets, source search report, timeline, network coverage | Explanation route, generated action packets |
+| Media | Image model, metadata, keyframes, known-image matching, accuracy benchmark, explanation checks, occlusion heatmap | OCR, audio, lip-sync, video accuracy |
+| Source search | Works with a provider key the user sets up, and only on opt-in. Includes an explanation check. | Coverage not measured. Results depend on what search services have indexed. |
 | Network | Co-sharing detection, risk score, roles, timeline, public-post tracing, explanation checks | Monitoring routes, repost timing |
 | Dashboard | Views on sample data | Connection to the real API |
 
+The explanation checks and the heatmap are Python functions so far. Users won't see them until the explanation route and its dashboard view are built.
+
+### Detector accuracy
+
+These figures are for `dima806/deepfake_vs_real_image_detection` at its current bands, from [data/eval/commons_2026-11-05.json](data/eval/commons_2026-11-05.json). The test split has 157 fake and 75 real images.
+
+| Measure | Result |
+|---|---|
+| Fakes flagged | 1 of 157 |
+| Real images wrongly flagged | 1 of 75 |
+| Fakes that scored low | 128 of 157 |
+| Real images that scored low | 72 of 75 |
+| AUC | 0.8541 |
+
+The model separates fakes from real images better than these bands show, so the bands are under review and haven't been changed. Real images in this benchmark are only photos of people, and face swaps weren't measured. See [backend/media/README.md](backend/media/README.md) for details.
+
 **Known limits**
 
-- **The image detector is not reliable at its current settings.** It flagged only 3 of 301 fakes in the benchmark, so a low media result doesn't show that media is authentic.
+- **The image detector is not reliable at its current settings.** It flagged only 3 of 301 fakes across the whole benchmark, so a low media result doesn't show that media is authentic.
+- **The heatmap shows sensitivity, not proof of editing.** It shows where covering part of an image moved the model's score.
 - **Coordination detection hasn't been measured on real campaigns.** It has only been shown working on synthetic data built to contain a campaign.
 - **Platform coverage is partial.** Public search is read on Mastodon, Lemmy, Hacker News and Bluesky, and none of these is a complete feed. Reddit, YouTube and X aren't connected, and private channels such as WhatsApp can't be traced.
 - **GitHub's automated checks haven't started on any branch yet,** so run the checks locally.
@@ -76,6 +93,10 @@ python -m pytest backend/network/tests -q
 ```
 
 ```bash
+python -m pytest tools -q
+```
+
+```bash
 python tools/compat_check.py
 ```
 
@@ -90,5 +111,7 @@ python tools/compat_check.py
 
 - **Contributors and agents:** start with [CLAUDE.md](CLAUDE.md), then [AGENT_COORDINATION.md](AGENT_COORDINATION.md).
 - **API:** [API_CONTRACTS.md](API_CONTRACTS.md).
+- **Media checks, benchmark and heatmap:** [backend/media/README.md](backend/media/README.md).
+- **Source search:** [backend/provenance/README.md](backend/provenance/README.md).
 - **Network tracing:** [backend/network/README.md](backend/network/README.md).
 - **Branches:** each feature gets its own branch, and merged branches are kept, so the repository lists more branches than active work. `main` is the current state.
