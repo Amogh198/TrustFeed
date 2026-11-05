@@ -28,7 +28,10 @@ Status: **initial implementation contract**. Any change requires a PR that names
 
 ## Claims, history and replay
 
-- Text submissions return `claims`: separate statements with `id`, `text`, `verdict`, and `rationale`. The current verdict is always `unverified`, because no external evidence source is queried.
+- Text submissions return `claims`: separate statements with `id`, `text`, `verdict`, `rationale` and `sources`.
+- `verdict` is `supported`, `contradicted`, `partially_supported` (partly supported or missing context) or `unverified`. It is `unverified` unless the request set `search_web` and the comparison models ran. Finding nothing gives `unverified` and never means false. `supported` and `contradicted` need two independent domains that agree, so one site alone gives at most `partially_supported`, however well known it is.
+- A source has `provider`, `title`, `url`, `domain`, `date`, `date_kind` (`last_edited`, `first_seen`, `reviewed` or `none`, so show what the date means), `stance` (`supports`, `contradicts`, `partial`, `related` or `not_compared`), `explanation`, `snippet`, `similarity`, `entailment`, `contradiction` and `rating`. `snippet`, `title` and `rating` come from outside pages and must be shown as plain text.
+- `claim_analysis.verification` has `status`, `reason`, `comparison_status`, `comparison_reason`, `providers` (`name`, `status`, `reason`, `result_count`), `skipped_claims` (checkable claims past the limit of 5) and `limitations`. Without `search_web` its `status` is `not_applicable`. Claim results do not change any score or `overall_risk`.
 - Each claim also has `kind` (`factual`, `opinion`, `question`, `call_to_action` or `fragment`), `checkable` (true only for `factual`) and `entities`. An entity has `text`, `type` (`date`, `number`, `person`, `organization`, `place` or `other`), `value`, `unit`, `bound`, `source` (`rule` or `model`) and `score`. A date's `value` is ISO text at the precision stated, such as `2024-03` or `--03-05`, and is `null` for a relative or ambiguous date. Names and places need the optional `dslim/bert-base-NER` model.
 - `claim_analysis` is `null` when no text was submitted. Otherwise it has `entity_model_status` (a module status), `entity_model_reason`, `inconsistencies`, `omitted_claims` (statements past the limit of 20) and `limitations`.
 - An inconsistency has `id`, `kind`, `severity`, `claim_ids` and `explanation`. `kind` is `negation`, `figures`, `dates`, `places`, `impossible_date`, `weekday_mismatch`, `future_date`, `impossible_share` or `part_exceeds_whole`, and the UI must show an unknown kind as text. `severity` is `conflict` (they cannot both stand as written) or `note` (they differ but need not be wrong). A flag never says which statement is wrong, and it does not change any score or `overall_risk`. Each one is also added to `modules.text.evidence`.
@@ -61,8 +64,9 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 |---|---|---|
 | Source search | A valid image is uploaded with `search_web` | The image, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
 | Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms. |
+| Claim verification | Any text case with `search_web` | Search words taken from up to 5 checkable claims, to Wikipedia, GDELT and, with a key set, Google Fact Check Tools. News pages GDELT lists are then read. |
 
-Both add to the request's time: the source search can take about 100 seconds with all three keys, and the trace up to about 25 seconds. With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
+These add to the request's time: the source search can take about 100 seconds with all three keys, the trace up to about 25 seconds, and claim verification up to about 3 minutes in the worst case (20 seconds of searching per claim, then up to 60 seconds of comparison). With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
 
 Every case has `modules.provenance`, a normal module result:
 

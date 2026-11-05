@@ -9,14 +9,12 @@ from backend.text import ner
 client = TestClient(app)
 
 
-def analyze(text, monkeypatch, tmp_path):
-    # Point at an empty cache, so the result does not depend on this machine's downloads.
-    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
+def analyze(text):
     return client.post("/api/cases/analyze", json={"text": text}).json()
 
 
-def test_claims_carry_kinds_and_entities(monkeypatch, tmp_path):
-    body = analyze("Share this now! At least 50 people died on 5 March 2024.", monkeypatch, tmp_path)
+def test_claims_carry_kinds_and_entities():
+    body = analyze("Share this now! At least 50 people died on 5 March 2024.")
     first, second = body["claims"]
     assert (first["kind"], first["checkable"]) == ("call_to_action", False)
     assert (second["kind"], second["checkable"]) == ("factual", True)
@@ -26,16 +24,16 @@ def test_claims_carry_kinds_and_entities(monkeypatch, tmp_path):
     assert (entities["number"]["value"], entities["number"]["unit"], entities["number"]["bound"]) == ("50", "people", "at_least")
 
 
-def test_missing_model_says_unavailable_with_the_reason(monkeypatch, tmp_path):
-    analysis = analyze("The bridge collapsed near the station.", monkeypatch, tmp_path)["claim_analysis"]
+def test_missing_model_says_unavailable_with_the_reason():
+    analysis = analyze("The bridge collapsed near the station.")["claim_analysis"]
     assert analysis["entity_model_status"] == "unavailable"
     assert ner.MODEL_ID in analysis["entity_model_reason"]
     assert "download-ner" in analysis["entity_model_reason"]
 
 
-def test_inconsistency_is_reported_as_evidence_and_does_not_change_the_score(monkeypatch, tmp_path):
+def test_inconsistency_is_reported_as_evidence_and_does_not_change_the_score():
     text = "The factory fire killed 50 people. The factory fire killed 200 people."
-    body = analyze(text, monkeypatch, tmp_path)
+    body = analyze(text)
     items = body["claim_analysis"]["inconsistencies"]
     assert [(item["kind"], item["severity"], item["claim_ids"]) for item in items] == [
         ("figures", "conflict", ["claim-1", "claim-2"])

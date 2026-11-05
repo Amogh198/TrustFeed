@@ -189,4 +189,4 @@ def download_model() -> str:
     """Fetch only the pinned safetensors weights and config files. Run by hand, never by the API."""
     from huggingface_hub import snapshot_download
 
-    return snapshot_download(MODEL_ID, revision=MODEL_REVISION, allow_patterns=MODEL_FILES)
+    return snapshot_download(MODEL_ID, revision=MODEL_REVISION, allow_patterns=MODEL_FILES, max_workers=1)

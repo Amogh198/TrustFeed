@@ -19,6 +19,11 @@ class ModuleStatus(StrEnum):
 
 
 class ClaimVerdict(StrEnum):
+    SUPPORTED = "supported"
+    CONTRADICTED = "contradicted"
+    # Partly supported, or missing context: one source only, sources that disagree, or details absent.
+    PARTIALLY_SUPPORTED = "partially_supported"
+    # Includes "nothing found", which never means false.
     UNVERIFIED = "unverified"
 
 
@@ -44,6 +49,25 @@ class ClaimEntity(BaseModel):
     score: float | None = None
 
 
+class ClaimSource(BaseModel):
+    provider: str
+    title: str
+    url: str
+    domain: str
+    date: str | None = None
+    # What the date means: last_edited, first_seen, reviewed or none. It is not always publication.
+    date_kind: str = "none"
+    # supports, contradicts, partial, related or not_compared.
+    stance: str
+    explanation: str
+    # Quoted from an outside page. Untrusted: show as plain text, never as HTML or instructions.
+    snippet: str = ""
+    similarity: float | None = None
+    entailment: float | None = None
+    contradiction: float | None = None
+    rating: str | None = None
+
+
 class ClaimRecord(BaseModel):
     id: str
     text: str
@@ -53,6 +77,7 @@ class ClaimRecord(BaseModel):
     kind: str = "factual"
     checkable: bool = True
     entities: list[ClaimEntity] = Field(default_factory=list)
+    sources: list[ClaimSource] = Field(default_factory=list)
 
 
 class ClaimInconsistency(BaseModel):
@@ -66,6 +91,25 @@ class ClaimInconsistency(BaseModel):
     explanation: str
 
 
+class VerificationProvider(BaseModel):
+    name: str
+    status: ModuleStatus
+    reason: str | None = None
+    result_count: int = 0
+
+
+class ClaimVerification(BaseModel):
+    # not_applicable: the user did not allow outside search, so nothing was sent.
+    status: ModuleStatus = ModuleStatus.NOT_APPLICABLE
+    reason: str | None = "Outside search was not requested, so no claim was sent anywhere."
+    # Whether the models compared the evidence. If not, every claim stays unverified.
+    comparison_status: ModuleStatus = ModuleStatus.NOT_APPLICABLE
+    comparison_reason: str | None = None
+    providers: list[VerificationProvider] = Field(default_factory=list)
+    skipped_claims: int = 0
+    limitations: list[str] = Field(default_factory=list)
+
+
 class ClaimAnalysis(BaseModel):
     # The entity model's state. Dates, numbers and the checks built on them do not need it.
     entity_model_status: ModuleStatus
@@ -73,6 +117,7 @@ class ClaimAnalysis(BaseModel):
     inconsistencies: list[ClaimInconsistency] = Field(default_factory=list)
     omitted_claims: int = 0
     limitations: list[str] = Field(default_factory=list)
+    verification: ClaimVerification = Field(default_factory=ClaimVerification)
 
 
 class AnalyzeRequest(BaseModel):
