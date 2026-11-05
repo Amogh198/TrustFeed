@@ -146,6 +146,26 @@ class DetectorPanelCheck(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class ContentCredentialsCheck(BaseModel):
+    """What a file's Content Credentials show. Manifest text is written by whoever made the file."""
+
+    status: CheckStatus
+    # "signed", "unsigned" or "invalid". Null when it could not be told, with the reason in limitations.
+    state: str | None = None
+    # "on_trust_list", "not_on_trust_list" or "not_checked". Null unless signed.
+    signer_trust: str | None = None
+    # "content_changed", "rules_failed" or "credentials_failed". Null unless invalid.
+    invalid_reason: str | None = None
+    signer_organisation: str | None = None
+    claim_generator: str | None = None
+    signed_at: str | None = None
+    # How the newest manifest says the media was made, then what earlier steps in its history say.
+    declared_sources: list[str] = Field(default_factory=list)
+    declared_in_history: list[str] = Field(default_factory=list)
+    failure_codes: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class MediaChecks(BaseModel):
     metadata: MetadataCheck
     classifier: ClassifierCheck
@@ -154,11 +174,12 @@ class MediaChecks(BaseModel):
     # Only present when requested, because running every detector is slow on CPU.
     detector_panel: DetectorPanelCheck | None = None
     fingerprint: FingerprintCheck | None = None
+    content_credentials: ContentCredentialsCheck | None = None
 
     @model_serializer(mode="wrap")
     def _leave_out_checks_that_did_not_run(self, handler: Any) -> dict[str, Any]:
         data = handler(self)
-        for name in ("detector_panel", "fingerprint"):
+        for name in ("detector_panel", "fingerprint", "content_credentials"):
             if data.get(name) is None:
                 data.pop(name, None)
         return data
@@ -175,6 +196,7 @@ def empty_checks(reason: str) -> MediaChecks:
         phash=PHashCheck(**_not_run(reason)),
         keyframes=KeyframeCheck(**_not_run(reason)),
         fingerprint=FingerprintCheck(**_not_run(reason)),
+        content_credentials=ContentCredentialsCheck(**_not_run(reason)),
     )
 
 

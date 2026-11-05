@@ -12,10 +12,20 @@ from pathlib import Path
 from typing import Any
 
 from backend.media.config import MediaConfig
+from backend.media.content_credentials import (
+    CONTENT_CHANGED,
+    INVALID,
+    NOT_ON_TRUST_LIST,
+    ON_TRUST_LIST,
+    RULES_FAILED,
+    SOURCE_MEANINGS,
+    UNSIGNED,
+)
 from backend.media.fingerprint import EXACT_COPY, MATCH_LIMITS, MATCHES_NEEDED
 from backend.media.models import (
     CheckStatus,
     ClassifierCheck,
+    ContentCredentialsCheck,
     DetectorPanelCheck,
     DetectorResult,
     FingerprintCheck,
@@ -42,6 +52,30 @@ FINGERPRINT_MEANING = (
     "A fingerprint is not a signature. A match shows that images look alike or that files are identical, not who made "
     "the media, where it first appeared or whether a claim about it is true. A recorded date is only the earliest one "
     "on that list."
+)
+CREDENTIALS_MEANING = (
+    "Content Credentials can show who signed a file and that it hasn't changed since. They don't show that what it "
+    "depicts is true, and a signature means only as much as the signer does."
+)
+UNSIGNED_REASONING = (
+    "No Content Credentials were found. This proves nothing: most files have none, and most sites remove them when "
+    "they re-save a file. It doesn't make the media more or less likely to be fake."
+)
+INVALID_MEANING = (
+    "This doesn't show the media is fake. Ordinary edits by tools that don't update credentials can cause it too. "
+    "Nothing the credentials say is shown, because it can't be tied to this file."
+)
+RULES_FAILED_MEANING = (
+    "Files signed properly at the time can end up like this, so it isn't a sign of tampering, and it doesn't show the "
+    "media is fake. But the signature can't be relied on, so what follows is unverified."
+)
+TRUST_SENTENCES = {
+    ON_TRUST_LIST: "The signing certificate leads to an authority on the trust list.",
+    NOT_ON_TRUST_LIST: "The signing certificate doesn't lead to anyone on the trust list, so names in it are only claims.",
+}
+TRUST_NOT_CHECKED = (
+    "The signing certificate was not compared with a trust list. Anyone can make a certificate with any name in it, "
+    "so names in it are only claims."
 )
 METADATA_UNTRUSTED = "Metadata comes from the file, so it can be missing, removed or false."
 PHASH_MEANING = "A perceptual match shows visual similarity to a reference, not who made the media or if a claim is true."
@@ -338,6 +372,97 @@ def _fingerprint(check: FingerprintCheck) -> dict[str, Any]:
     )
 
 
+def _credentials_artifact(check: ContentCredentialsCheck) -> dict[str, str]:
+    values = {
+        "kind": "content_credentials",
+        "state": check.state,
+        "signer_trust": check.signer_trust,
+        "invalid_reason": check.invalid_reason,
+        "signer_organisation": check.signer_organisation,
+        "claim_generator": check.claim_generator,
+        "signed_at": check.signed_at,
+        "declared_sources": ", ".join(check.declared_sources),
+        "declared_in_history": ", ".join(check.declared_in_history),
+        "failure_codes": ", ".join(check.failure_codes),
+    }
+    return {name: value for name, value in values.items() if value}
+
+
+def _describe_claims(check: ContentCredentialsCheck) -> list[str]:
+    parts = []
+    if check.signer_organisation:
+        parts.append(f"The certificate names {check.signer_organisation!r}.")
+    if check.claim_generator:
+        parts.append(f"The credentials say they were written by {check.claim_generator!r}.")
+    if check.signed_at:
+        parts.append(f"They give the signing time as {check.signed_at}.")
+    if check.declared_sources:
+        declared = "; ".join(SOURCE_MEANINGS[source] for source in check.declared_sources)
+        parts.append(f"They declare the media was {declared}.")
+    if check.declared_in_history:
+        declared = "; ".join(SOURCE_MEANINGS[source] for source in check.declared_in_history)
+        parts.append(f"Earlier steps in its history declare it was {declared}.")
+    if check.declared_sources or check.declared_in_history:
+        parts.append("That is the signer's statement, not something TrustFeed tested.")
+    return parts
+
+
+def _rules_failed_finding(check: ContentCredentialsCheck) -> str:
+    reasons = []
+    if "signingCredential.expired" in check.failure_codes:
+        reasons.append(
+            "the signing certificate has expired"
+            + ("" if check.signed_at else " and no timestamp shows it was signed before that")
+        )
+    if "signingCredential.invalid" in check.failure_codes:
+        reasons.append("the signing certificate doesn't meet the standard's requirements")
+    if "assertion.action.malformed" in check.failure_codes:
+        reasons.append("the recorded actions don't follow the standard's format")
+    return f"The file matches its Content Credentials, but they break the standard's rules: {'; '.join(reasons)}."
+
+
+def _invalid_reasoning(check: ContentCredentialsCheck) -> str:
+    if check.invalid_reason == RULES_FAILED:
+        return " ".join([_rules_failed_finding(check), RULES_FAILED_MEANING, *_describe_claims(check)])
+    if check.invalid_reason == CONTENT_CHANGED:
+        return f"The file carries Content Credentials, but it has changed since they were signed. {INVALID_MEANING}"
+    return f"The file carries Content Credentials, but they are damaged or failed validation. {INVALID_MEANING}"
+
+
+def _content_credentials(check: ContentCredentialsCheck) -> dict[str, Any]:
+    check_id, label = "media.c2pa", "Content Credentials"
+    if check.status is not CheckStatus.COMPLETE or check.state is None:
+        return _check(check_id, label, check.status, "Not checked", "Whether this file is signed is unknown.", check.limitations)
+    artifacts = [_credentials_artifact(check)]
+    if check.state == UNSIGNED:
+        return _check(check_id, label, check.status, "Unsigned", UNSIGNED_REASONING, check.limitations, artifacts=artifacts)
+    no_effect = "This check does not change the overall score or assessment."
+    if check.state == INVALID:
+        return _check(
+            check_id,
+            label,
+            check.status,
+            "Invalid",
+            _invalid_reasoning(check),
+            [*check.limitations, CREDENTIALS_MEANING, no_effect],
+            artifacts=artifacts,
+        )
+    parts = [
+        "The file carries Content Credentials and the signature is valid, so it has not changed since it was signed.",
+        TRUST_SENTENCES.get(check.signer_trust or "", TRUST_NOT_CHECKED),
+        *_describe_claims(check),
+    ]
+    return _check(
+        check_id,
+        label,
+        check.status,
+        "Signed",
+        " ".join(parts),
+        [*check.limitations, CREDENTIALS_MEANING, no_effect],
+        artifacts=artifacts,
+    )
+
+
 def load_comparison(path: Path = BENCHMARK_PATH) -> tuple[dict[str, dict[str, Any]], float | None]:
     """Return each model's measured comparison by "id@revision", and the baseline's test AUC."""
     raw = _read_results(path)
@@ -431,6 +556,8 @@ def build_checks(
     ]
     if result.checks.fingerprint is not None:
         checks.append(_fingerprint(result.checks.fingerprint))
+    if result.checks.content_credentials is not None:
+        checks.append(_content_credentials(result.checks.content_credentials))
     if result.checks.detector_panel is not None:
         checks.append(_detector_panel(result.checks.detector_panel, result.media_type))
     return checks
