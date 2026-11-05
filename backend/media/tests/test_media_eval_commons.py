@@ -9,7 +9,18 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from PIL import Image
 
-from backend.media.eval.fetch_commons import Plan, _plain, fetch_plan, licence_allowed, list_files, main, usable
+from backend.media.eval import fetch_commons
+from backend.media.eval.fetch_commons import (
+    Plan,
+    _plain,
+    _title_batches,
+    describe_files,
+    fetch_plan,
+    licence_allowed,
+    list_files,
+    main,
+    usable,
+)
 from backend.media.eval.recompress import main as recompress_main
 from backend.media.eval.recompress import recompress_tree
 from backend.media.tests.helpers import patterned_image
@@ -125,6 +136,52 @@ def test_fetch_keeps_only_allowed_files_and_records_their_licence(tmp_path):
         assert record["page"].startswith("https://commons.wikimedia.org/wiki/")
         assert "Named Person" not in record["file"]
         assert (tmp_path / record["file"]).read_bytes() == b"image bytes"
+
+
+def test_long_titles_are_split_so_the_url_stays_short():
+    # Non-ASCII characters grow when encoded, which is how the first real run hit HTTP 414.
+    titles = [f"File:{'é' * 200} {n}.jpg" for n in range(50)]
+    commons = FakeCommons({}, {title: info(title) for title in titles})
+    lengths = []
+
+    def measuring(url):
+        lengths.append(len(url))
+        return commons(url)
+
+    described = describe_files(measuring, titles)
+    assert {item["title"] for item in described} == set(titles)
+    assert len(lengths) > 1
+    assert max(lengths) < 5000
+
+
+def test_batches_never_exceed_the_title_limit():
+    titles = [f"File:{n}.jpg" for n in range(120)]
+    batches = list(_title_batches(titles))
+    assert [len(batch) for batch in batches] == [50, 50, 20]
+    assert [title for batch in batches for title in batch] == titles
+
+
+def test_one_very_long_title_is_still_requested():
+    title = f"File:{'é' * 2000}.jpg"
+    assert list(_title_batches([title])) == [[title]]
+
+
+def test_manifest_survives_a_failure_in_a_later_category(tmp_path, monkeypatch):
+    plans = (Plan("fake", "first", ("One",)), Plan("fake", "second", ("Two",)))
+    monkeypatch.setattr(fetch_commons, "PLANS", plans)
+    title = "File:A.jpg"
+    commons = FakeCommons({"One": [{"title": title}]}, {title: info(title)})
+
+    def failing(url):
+        if "Two" in url:
+            raise OSError("Commons went away")
+        return commons(url)
+
+    with pytest.raises(OSError):
+        main(["--out", str(tmp_path), "--delay", "0"], failing)
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert [record["category"] for record in manifest["files"]] == ["first"]
+    assert manifest["files"][0]["licence"] == "CC0"
 
 
 def test_failed_download_is_skipped(tmp_path):

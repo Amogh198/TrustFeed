@@ -5,7 +5,7 @@
   "sources": [
     {
       "name": "Wikimedia Commons",
-      "licence": "Per-file open licences (CC0, public domain, CC BY, CC BY-SA), checked by the fetcher and listed in the manifest",
+      "licence": "Per-file open licences (CC0, public domain, CC BY, CC BY-SA), checked by the fetcher before download. No per-file manifest exists for this run, because the fetcher crashed before writing it",
       "url": "https://commons.wikimedia.org/"
     },
     {
