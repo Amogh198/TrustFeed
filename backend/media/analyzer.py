@@ -12,6 +12,7 @@ from pathlib import Path
 
 from backend.media.classifier import ImageClassifier, default_classifier
 from backend.media.config import MediaConfig
+from backend.media.content_credentials import INVALID, SIGNED, declares_ai, read_credentials
 from backend.media.errors import ClassifierUnavailable, HashIndexUnavailable, MediaInputError
 from backend.media.keyframes import STRATEGY, Keyframe, extract_keyframes
 from backend.media.metadata import InputInfo, inspect_input, read_image
@@ -19,6 +20,7 @@ from backend.media.models import (
     Assessment,
     CheckStatus,
     ClassifierCheck,
+    ContentCredentialsCheck,
     DetectorPanelCheck,
     DetectorResult,
     FingerprintCheck,
@@ -277,6 +279,23 @@ def _fingerprint_evidence(check: FingerprintCheck | None) -> list[str]:
     return lines
 
 
+def _credentials_evidence(check: ContentCredentialsCheck | None) -> list[str]:
+    """An unsigned file adds no line here, because having no credentials shows nothing."""
+    if check is None or check.status is not CheckStatus.COMPLETE:
+        return []
+    if check.state == INVALID:
+        lines = ["Content Credentials are present but did not validate."]
+        if declares_ai(check):
+            lines.append("Those unverified credentials claim AI-generated content.")
+        return lines
+    if check.state != SIGNED:
+        return []
+    lines = ["Content Credentials are present and valid: the file has not changed since it was signed."]
+    if declares_ai(check):
+        lines.append("The signed credentials declare AI-generated content.")
+    return lines
+
+
 def _lookup(index: HashIndex, phash: str, config: MediaConfig) -> list[HashMatch] | None:
     try:
         return index.lookup(phash, config.phash_max_distance)
@@ -421,12 +440,14 @@ def _finish(
     config: MediaConfig,
     panel: DetectorPanelCheck | None = None,
     fingerprint: FingerprintCheck | None = None,
+    credentials: ContentCredentialsCheck | None = None,
 ) -> MediaAnalysisResult:
     evidence = [
         *_classifier_evidence(classifier, keyframes.frames, config),
         *_phash_evidence(phash),
         *metadata.indicators,
         *_fingerprint_evidence(fingerprint),
+        *_credentials_evidence(credentials),
     ]
     limitations = [*extra_limitations]
     if classifier.band is ModelBand.LOW and (phash.matches or metadata.generator_hint):
@@ -456,6 +477,7 @@ def _finish(
             keyframes=keyframes,
             detector_panel=panel,
             fingerprint=fingerprint,
+            content_credentials=credentials,
         ),
     )
 
@@ -495,6 +517,7 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
         config,
         _detector_panel([image], check, config, panel_factory, is_image=True) if panel_factory else None,
         fingerprint,
+        read_credentials(path, config),
     )
 
 
@@ -544,7 +567,8 @@ def _analyze_video(path, info, classifier, index, note, config, panel_factory=No
         panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False)
     queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
     fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
-    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint)
+    credentials = read_credentials(path, config)
+    return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials)
 
 
 def analyze_media(

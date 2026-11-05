@@ -44,7 +44,7 @@ python -m backend.media analyze sample.jpg --index media_index.json
 
 ### Explanations
 
-`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes` and `media.fingerprint`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
+`result.to_checks(heatmap_url=None)` returns one entry each for `media.classifier`, `media.metadata`, `media.phash`, `media.keyframes`, `media.fingerprint` and `media.c2pa`: what ran, what it found, why, and how far to trust it. It follows the draft `/explanation` check shape and adds `status`.
 
 - **`benchmark`** holds test-split figures from `data/eval/commons_licensed_2026-11-05.json`, and adds `auc` and counts by band. It is `null` unless that file measured this model and revision at these bands, and it is always `null` for video.
 - **Plain statement:** the classifier check's limitations say how few fakes the current bands flag, and whether the detector barely beats guessing.
@@ -96,6 +96,75 @@ To measure again:
 
 ```bash
 python -m backend.media.eval.fingerprints --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
+```
+
+### Content Credentials
+
+Every analysis adds a `media.c2pa` check, which uses `c2pa-python` to check a file's C2PA signature. This is the real signature check. It takes a 92 MB download and about 310 MB of disk. Without the library, the check reports `unavailable` and everything else carries on.
+
+| Result | What it means | What it doesn't mean |
+|---|---|---|
+| **Signed** | The signature is valid, and the file hasn't changed since it was signed. | That the content is true, or that the signer is who the certificate says. |
+| **Unsigned** | No credentials were found. | Anything at all. Most files have none, and re-saving removes them. |
+| **Invalid** | The credentials failed, for one of the reasons below. | That the media is fake. |
+| **Not checked** (`unavailable`) | It couldn't be told, for example with WebM, or when the file only points to a web address. The reason is given. | That the file is unsigned. |
+
+An invalid result gives one of three reasons:
+
+- **`content_changed`:** the file changed after signing. Nothing from the credentials is shown, because it can't be tied to this file.
+- **`rules_failed`:** the file matches its credentials, but they break the standard's rules, such as an expired certificate with no timestamp. Files signed properly at the time can end up here. What the credentials say is shown, labelled as unverified.
+- **`credentials_failed`:** the credentials are damaged or failed in another way. Nothing from them is shown.
+
+How it stays safe:
+
+- **It never goes online.** A file can name a web address for its credentials, and with the library's default settings, reading that file contacts the address. Fetching is off and no host is allowed, so a file can't choose who TrustFeed talks to. A test server confirms no request arrives.
+- **Manifest text is untrusted.** Only the certificate's organisation, the generator, the signing time and known IPTC source types are read. Text is cleaned and cut to 80 characters. Authors' names, titles, thumbnails, certificate common names and serial numbers are never returned or logged.
+- **Time limit:** reading stops after 30 seconds and reports `unavailable`. A native call can't be cancelled, so a stuck read carries on in the background.
+
+Other behaviour:
+
+- **Signers are claims until a trust list is set.** Anyone can make a certificate with any name in it. Set `MEDIA_C2PA_TRUST_LIST` to a PEM file of certificate authorities to compare signers with it. None is included, so by default a signer shows as `not_checked`.
+- **Accepted certificate uses:** the check uses the [published list](https://verify.contentauthenticity.org/trust/store.cfg), because the library's default called good Microsoft and OpenAI signatures invalid.
+- **History:** AI tools often record their declaration in an earlier manifest, so linked earlier manifests are read too, and reported separately as `declared_in_history`.
+- **Overall result:** the check adds evidence lines, but doesn't change the score or assessment, even when signed credentials declare AI content.
+
+Measured on the 600 licensed images, from `data/eval/content_credentials_2026-11-06.json`:
+
+| Kind of image | Signed | Invalid | Unsigned |
+|---|---|---|---|
+| AI-generated (150) | 16 | 11 | 123 |
+| Edited (150) | 0 | 0 | 150 |
+| Real people (150) | 0 | 0 | 150 |
+| Real landscapes, animals and architecture (150) | 0 | 0 | 150 |
+
+- **Unsigned proves nothing:** 123 of 150 AI-generated images had no credentials.
+- **Why the 11 were invalid:** 8 had expired certificates, and in 3 the content no longer matched.
+- **AI declarations:** 20 of the 27 files with credentials declare AI content: 12 signed and 8 with expired certificates.
+- **The library's default list of certificate uses** would have called 8 of the 16 signed files invalid.
+- **Reading time:** a median of 1 ms per image, and 0.18 seconds for a 200 MB video.
+
+Known-answer tests, on copies signed here with a throwaway certificate:
+
+| Test | Expected | Result |
+|---|---|---|
+| 99 real images, signed | Signed | 99 of 99 |
+| The same images, one byte changed in the image data | Invalid | 99 of 99 |
+| The same images, re-saved | Unsigned | 99 of 99 |
+| Small video, one byte changed in the video data, 200 tries | Invalid | 200 of 200 |
+
+Changing one byte at a time never altered what a signed result reports. That covers 3,390 bytes of a signed video's credentials block, its 20-byte file-type header, and every 23rd byte of a signed JPEG. Some of these still read as signed, because padding, container labels and the video's file-type header aren't covered by the signature.
+
+What this can't show:
+
+- **Commons may keep or remove credentials on upload,** so these counts say little about how common credentials are elsewhere.
+- **No trust list was used,** so whether any signer can be trusted wasn't measured.
+- **The real files weren't known to be right or wrong in advance.** Only the copies signed here have known answers.
+- **The library reads untrusted files in native code in the same process.** It isn't sandboxed, so a crash in it would stop the server.
+
+To measure again:
+
+```bash
+python -m backend.media.eval.content_credentials --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
 ```
 
 ### Detector panel
@@ -158,7 +227,7 @@ The full result adds:
 - `assessment`: `signals_present`, `no_strong_signals` or `inconclusive`
 - `failure_code`: `not_found`, `empty_file`, `unsupported_type`, `too_large`, `corrupt_media`, `unreadable` or `dependency_missing`
 - `sha256` and `size_bytes`
-- `checks`: `metadata`, `classifier`, `phash` and `keyframes`, each with its own status
+- `checks`: `metadata`, `classifier`, `phash`, `keyframes`, `fingerprint` and `content_credentials`, each with its own status, plus `detector_panel` when requested
 
 ### How results are decided
 
@@ -177,6 +246,7 @@ The full result adds:
 | `MEDIA_DEVICE` | `auto` | `cuda`, `cpu` or `auto`. |
 | `MEDIA_PHASH_INDEX` | Not set | Path to the JSON reference index. |
 | `MEDIA_CASE_FINGERPRINTS` | Not set | Path to the JSON store of earlier cases' hashes. |
+| `MEDIA_C2PA_TRUST_LIST` | Not set | Path to a PEM file of certificate authorities to trust for Content Credentials. |
 
 ## Tests
 
