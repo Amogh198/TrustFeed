@@ -144,6 +144,16 @@ Every case has `modules.provenance`, a normal module result:
 
 Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live traces, so a replay stays offline. Submitting the demo story's exact text or link with `search_web` replays its labelled synthetic posts offline. The source search report and the trace are saved with the case, so they survive a restart. `GET /api/cases/{case_id}/explanation` is not built yet.
 
+## Link analysis
+
+`link_analysis` on a case is null when no link was submitted. It holds `assessment` (`warning_signs_found`, `weak_signs_only` or `none_found`; none means safe or proven), `requested_host`, `lookalike`, `redirects`, `domain`, `page`, `official`, `threat_lists`, `signs`, `results_file` and `limitations`.
+
+- `lookalike` uses the address alone, so it always runs. Everything else opens the link or asks a public registry (rdap.org), so it needs `search_web: true`, and replay never does it. A part that didn't run has `status: unavailable` and a `reason`. Read that as "not checked", never "nothing found".
+- Addresses in `redirects` have no query string. `page.title` is written by the page, so show it as plain text.
+- `threat_lists` stays `unavailable` until someone creates Safe Browsing or URLhaus keys.
+- Signs appear in `modules.url.evidence` and don't change `modules.url.score`. The figures in `results_file` cover the address check only.
+- The explanation endpoint adds `url.lookalike`, `url.redirects`, `url.domain_age`, `url.page`, `url.official_site` and `url.threat_lists`.
+
 ## Common response sketch
 
 ```json

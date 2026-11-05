@@ -1,0 +1,38 @@
+{
+  "split": "test",
+  "measured_on": "2026-11-05",
+  "check": "offline address check only (warning_signs_found counts as flagged)",
+  "imitations_flagged": "14 of 18",
+  "ordinary_flagged": "0 of 16",
+  "recall": 0.778,
+  "precision": 1.0,
+  "errors": [
+    {
+      "url": "https://icici-netbanking-login.com/",
+      "label": "imitation",
+      "assessment": "weak_signs_only"
+    },
+    {
+      "url": "https://onlinesbi-bank.site/",
+      "label": "imitation",
+      "assessment": "none_found"
+    },
+    {
+      "url": "https://appleid-verify.com/",
+      "label": "imitation",
+      "assessment": "none_found"
+    },
+    {
+      "url": "https://free-gift-claim.top/",
+      "label": "imitation",
+      "assessment": "none_found"
+    }
+  ],
+  "caveats": [
+    "All addresses are hand-written by the author of the rules, so these figures are likely too high for real phishing.",
+    "The imitations mostly target the 14 listed brands. Real phishing often imitates others, which this check can't recognise.",
+    "Imitations are about half of this set, far more than in real traffic, so precision here overstates real precision.",
+    "The set is small, so one address moves a figure by several points.",
+    "Redirects, domain age, page content and official-site comparison are not measured here."
+  ]
+}

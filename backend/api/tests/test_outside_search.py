@@ -426,3 +426,23 @@ def test_store_keeps_details_per_case_and_clears_them(tmp_path):
     assert store.get_detail("a", "provenance") is None
     store.clear()
     assert store.get_detail("b", "network") is None
+
+
+def test_a_link_is_opened_only_with_consent(outside):
+    calls, _results = outside
+    quiet = client.post("/api/cases/analyze", json={"url": "https://paypa1.com/a"}).json()
+    assert "link" not in calls
+    assert quiet["link_analysis"]["lookalike"]["brand"] == "paypal"
+    assert "not allowed" in quiet["link_analysis"]["page"]["reason"]
+    assert any(line.startswith("Link warning sign:") for line in quiet["modules"]["url"]["evidence"])
+    assert quiet["modules"]["url"]["score"] is not None
+    client.post("/api/cases/analyze", json={"url": "https://paypa1.com/a", "search_web": True})
+    assert calls["link"] == ["https://paypa1.com/a"]
+
+
+def test_link_parts_appear_in_the_explanation(outside):
+    case_id = client.post("/api/cases/analyze", json={"url": "https://example.org/"}).json()["case_id"]
+    checks = client.get(f"/api/cases/{case_id}/explanation").json()["checks"]
+    assert {"url.lookalike", "url.redirects", "url.domain_age", "url.page", "url.official_site", "url.threat_lists"} <= {
+        check["check_id"] for check in checks
+    }
