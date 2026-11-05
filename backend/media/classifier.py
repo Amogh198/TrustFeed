@@ -10,6 +10,7 @@ from typing import Protocol
 
 from backend.media.config import MediaConfig
 from backend.media.errors import ClassifierUnavailable
+from backend.media.nonescape import NONESCAPE_MODEL_ID, NonescapeMiniClassifier, download_nonescape
 
 _SYNTHETIC_LABELS = {"fake", "deepfake", "synthetic", "ai", "aigenerated", "artificial", "manipulated"}
 MODEL_FILES = ["config.json", "preprocessor_config.json", "model.safetensors"]
@@ -96,9 +97,18 @@ class HuggingFaceClassifier:
         return scores
 
 
-@lru_cache(maxsize=2)
-def _cached_classifier(config: MediaConfig) -> HuggingFaceClassifier:
+def build_classifier(config: MediaConfig) -> ImageClassifier:
+    """Build a detector without loading it. Weights load on first use."""
+    if config.model_id == NONESCAPE_MODEL_ID:
+        return NonescapeMiniClassifier(
+            device=config.device, batch_size=config.batch_size, allow_download=config.allow_model_download
+        )
     return HuggingFaceClassifier(config)
+
+
+@lru_cache(maxsize=2)
+def _cached_classifier(config: MediaConfig) -> ImageClassifier:
+    return build_classifier(config)
 
 
 def default_classifier(config: MediaConfig) -> ImageClassifier:
@@ -107,6 +117,9 @@ def default_classifier(config: MediaConfig) -> ImageClassifier:
 
 def download_model(config: MediaConfig) -> str:
     """Download only the safetensors weights and config files for offline use."""
+    if config.model_id == NONESCAPE_MODEL_ID:
+        return str(download_nonescape())
+
     from huggingface_hub import snapshot_download
 
     return snapshot_download(config.model_id, revision=config.model_revision, allow_patterns=MODEL_FILES)
