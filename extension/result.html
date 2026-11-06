@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TrustFeed</title>
+  <style>
+    :root { --tone: #a9a6d8; }
+    body { margin: 0; padding: 18px; background: #16123a; color: #f1effc; font: 15px/1.45 system-ui, sans-serif; }
+    h1 { margin: 0 0 12px; font-size: 18px; }
+    h2 { margin: 2px 0 12px; font-size: 25px; line-height: 1.15; }
+    h3 { margin: 14px 0 6px; font-size: 14px; }
+    textarea { box-sizing: border-box; width: 100%; height: 110px; padding: 8px; }
+    button, a.button { display: inline-block; margin: 8px 8px 0 0; padding: 8px 12px; border: 1px solid #b9b5e6; background: none; color: inherit; font: inherit; text-decoration: none; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    ul { margin: 0; padding: 0; list-style: none; }
+    li { margin-bottom: 5px; }
+    #card { padding: 14px; border: 1px solid var(--tone); border-left: 7px solid var(--tone); }
+    #kicker { margin: 0; color: var(--tone); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .tiles { display: flex; gap: 8px; }
+    .tile { flex: 1; padding: 8px; border: 1px solid var(--tone); text-align: center; }
+    .tile b { display: block; font-size: 20px; text-transform: capitalize; }
+    .tile span, small { font-size: 12px; opacity: .85; }
+    #error { color: #ff9dbd; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>TrustFeed</h1>
+  <section id="form" hidden>
+    <textarea id="text" placeholder="Paste a post or a link"></textarea>
+    <button id="check" type="button">Check it</button>
+  </section>
+  <p id="status" role="status"></p>
+  <p id="error" role="alert" hidden></p>
+  <section id="card" hidden>
+    <p id="kicker"></p>
+    <h2 id="label"></h2>
+    <div class="tiles">
+      <div class="tile"><b id="score"></b><span>Evidence score</span></div>
+      <div class="tile"><b id="risk"></b><span>Risk level</span></div>
+    </div>
+    <h3>Why we think this</h3>
+    <ul id="why"></ul>
+    <h3>What to do</h3>
+    <p id="action"></p>
+    <a id="open" class="button" target="_blank" rel="noreferrer">See full evidence</a>
+    <br><small>A signal for a person to review, not proof.</small>
+  </section>
+  <section id="search" hidden>
+    <button id="searchButton" type="button">Also search the web</button>
+    <br><small>This sends the content to outside services, and an image search can use SerpApi credit.</small>
+  </section>
+  <script src="result.js"></script>
+</body>
+</html>

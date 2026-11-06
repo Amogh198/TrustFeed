@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "TrustFeed",
+  "version": "0.1.0",
+  "description": "Right-click an image, video, link or text to check it with your TrustFeed server.",
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "TrustFeed" }
+}
