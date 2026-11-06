@@ -200,16 +200,54 @@ def test_detector_scores_become_a_decimal_score():
     assert risk.trust_score == 98.77 and "1.23%" in risk.trust_note
 
 
-def test_strong_web_evidence_decides_and_ignores_the_detectors():
-    old = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"searched": True, "earliest": "2021-01-06", "domains": 2})
-    assert old.level is RiskLevel.LOW and old.trust_score > 60 and "2021-01-06" in old.trust_note
-    wide = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"searched": True, "earliest": "2024-03-05", "domains": 25})
+def _web(**extra):
+    return {"searched": True, "earliest": "2024-03-05", "domains": 0, "similar": 0, "old_domains": 0, "warning_pages": 0, **extra}
+
+
+def test_old_dates_on_two_sites_decide_for_the_web():
+    old = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence=_web(earliest="2021-01-06", domains=3, old_domains=2))
+    assert old.level is RiskLevel.LOW and old.trust_score > 60
+    assert old.media_decision.combined.startswith("Probably a real image")
+
+
+def test_one_old_date_is_not_enough():
+    one = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence=_web(earliest="2021-01-06", domains=2, old_domains=1))
+    assert one.level is RiskLevel.HIGH
+
+
+def test_wide_and_quiet_detectors_is_published():
+    wide = build(media=media(0.9), media_vote=_vote(1, 0.3), source_evidence=_web(domains=25))
     assert wide.level is RiskLevel.LOW and wide.trust_score > 90
-    assert wide.media_decision.combined.startswith("Web search decides")
+    assert wide.media_decision.combined.startswith("Published widely")
+
+
+def test_wide_and_flagged_is_disputed_with_a_middle_score():
+    disputed = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence=_web(domains=25))
+    assert disputed.level is RiskLevel.MODERATE and 40 <= disputed.trust_score <= 60
+    assert disputed.media_decision.combined.startswith("Disputed")
+
+
+def test_pages_calling_it_fake_beat_old_dates_and_wide_sharing():
+    warned = build(media=media(0.01), media_vote=_vote(0, 0.01), source_evidence=_web(domains=25, old_domains=5, warning_pages=3))
+    assert warned.level is RiskLevel.HIGH and warned.trust_score < 25
+    assert warned.media_decision.web_verdict == "Reported as fake online"
+
+
+def test_metadata_naming_a_generator_outweighs_web_copies():
+    hinted = build(media=media(0.9), media_vote={**_vote(2), "generator_hint": True}, source_evidence=_web(domains=25, old_domains=5))
+    assert hinted.media_decision.combined.startswith("Likely AI-generated: the file's own metadata")
+    assert hinted.level is RiskLevel.HIGH
+
+
+def test_word_matching_is_whole_words():
+    from backend.api.app.risk import WARNING_TITLE
+
+    assert WARNING_TITLE.search("Fact-check: this AI-generated photo")
+    assert not WARNING_TITLE.search("Fakenham town guide")
 
 
 def test_weak_web_evidence_leaves_the_detectors_deciding():
-    few = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence={"searched": True, "earliest": "2024-03-05", "domains": 2})
+    few = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence=_web(domains=2))
     assert few.level is RiskLevel.HIGH
     ai_version = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence={"searched": True, "earliest": None, "domains": 0, "similar": 25})
     assert ai_version.level is RiskLevel.HIGH
@@ -220,3 +258,7 @@ def test_weak_web_evidence_leaves_the_detectors_deciding():
 def test_without_a_search_the_web_side_says_so():
     risk = build(media=media(0.9), media_vote=_vote(3, 0.97))
     assert risk.media_decision.web_verdict == "Not searched"
+
+
+def test_metadata_counts_without_a_search_or_detector_flags():
+    assert build(media=media(0.01), media_vote={**_vote(0, 0.01), "generator_hint": True}).level is RiskLevel.HIGH

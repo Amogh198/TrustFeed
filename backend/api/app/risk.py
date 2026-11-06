@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import os
 from collections.abc import Mapping
 
@@ -61,6 +62,14 @@ VOTE_LINE = 0.75
 # DALL-E 2's release. Older AI image methods existed, so this is strong evidence, not proof.
 BEFORE_IMAGE_GENERATORS = date(2022, 4, 1).isoformat()
 _WIDE_DOMAINS = 5
+_MIN_OLD_DOMAINS = 2
+_MIN_WARNING_PAGES = 2
+_WARNED_MEAN = 0.9
+_WARNED_TOP = 30.0
+_DISPUTED_BASE = 40.0
+_DISPUTED_RANGE = 20.0
+# Words in a matching page's title. Only counted, as titles are untrusted text.
+WARNING_TITLE = re.compile(r"\b(fake|deepfake|ai[- ]generated|debunk\w*|fact[- ]check\w*|doctored|morphed|manipulated|hoax)\b", re.IGNORECASE)
 _DOMAIN_SCALE = 8.0
 _OLD_BONUS = 0.3
 _WEB_BASE = 60.0
@@ -189,18 +198,45 @@ def _link_trust(link: LinkAnalysis | None, url: ModuleResult | None) -> tuple[in
 def _apply_sources(vote: dict, sources: dict | None) -> dict:
     """Let what source search really found outweigh the detectors, as it is stronger evidence."""
     result = {**vote, "raw_mean": vote["mean"]}
+    if vote.get("generator_hint"):
+        result.update(mean=max(vote["mean"], _WARNED_MEAN), level=RiskLevel.HIGH)
     if not sources:
         return result
     earliest, domains = sources.get("earliest"), sources.get("domains", 0)
-    old = bool(earliest and earliest < BEFORE_IMAGE_GENERATORS)
-    if domains and (old or domains >= _WIDE_DOMAINS):
-        # Strong outside evidence decides alone, as the detectors often misjudge real photos.
-        strength = min(1.0, 1 - math.exp(-domains / _DOMAIN_SCALE) + (_OLD_BONUS if old else 0.0))
+    warnings = sources.get("warning_pages", 0)
+    if warnings >= _MIN_WARNING_PAGES:
+        # Pages calling it fake beat everything else, as fakes spread widely too.
+        result.update(
+            warned=warnings,
+            mean=max(vote["mean"], _WARNED_MEAN),
+            level=RiskLevel.HIGH,
+            warned_score=round(_WARNED_TOP * math.exp(-warnings / _DOMAIN_SCALE), 2),
+            source_note=f"{warnings} sites with this or a similar image call it fake, AI-generated or fact-checked in their titles.",
+        )
+    elif vote.get("generator_hint"):
+        pass  # The file's own metadata names an AI generator, which web copies can't outweigh.
+    elif sources.get("old_domains", 0) >= _MIN_OLD_DOMAINS:
+        strength = min(1.0, 1 - math.exp(-domains / _DOMAIN_SCALE) + _OLD_BONUS)
         result.update(
             web_decides=True,
             web_score=round(_WEB_BASE + _WEB_RANGE * strength, 2),
             level=RiskLevel.INCONCLUSIVE,
-            source_note=f"This exact image is on {domains} site(s)" + (f", found as early as {earliest}" if earliest else "") + ", so web search decides and the detectors are ignored.",
+            source_note=f"{sources['old_domains']} sites show this exact image from before modern AI image tools, as early as {earliest}, so web search decides. Page dates can be wrong.",
+        )
+    elif domains >= _WIDE_DOMAINS and vote["flagged"] <= 1:
+        strength = 1 - math.exp(-domains / _DOMAIN_SCALE)
+        result.update(
+            web_decides=True,
+            web_score=round(_WEB_BASE + _WEB_RANGE * strength, 2),
+            level=RiskLevel.INCONCLUSIVE,
+            source_note=f"This exact image is on {domains} sites and most detectors see no strong sign of AI, so web search decides.",
+        )
+    elif domains >= _WIDE_DOMAINS:
+        result.update(
+            disputed=True,
+            level=RiskLevel.MODERATE,
+            disputed_score=round(_DISPUTED_BASE + _DISPUTED_RANGE * (1 - vote["mean"]), 2),
+            source_note=f"This exact image is on {domains} sites with no old date, while the detectors flag it. It could be a real photo or a viral fake.",
         )
     return result
 
@@ -222,9 +258,7 @@ def _media_decision(vote: dict, sources: dict | None) -> MediaDecision:
             web, web_detail = "Only similar images found", f"{similar} similar image(s), but no copy of this exact image."
         else:
             web, web_detail = "Not found online", "The search found no copy of this image."
-        if vote.get("web_decides"):
-            combined = f"Web search decides: this exact image is widely found online{dated}, so the detectors are ignored. This shows it's published, not that it's true or unedited."
-        elif flagged and not domains:
+        if flagged and not domains:
             combined = "Likely AI-generated or altered: the detectors flag it, and no copy of this exact image was found, which fits an AI version of a known image."
         elif flagged:
             combined = "Likely AI-generated: the detectors flag it, and only a few sites hold this exact image."
@@ -232,6 +266,18 @@ def _media_decision(vote: dict, sources: dict | None) -> MediaDecision:
             combined = "No sign of AI, and this exact image is online. That doesn't show its caption or context is true."
         else:
             combined = "Unclear: the detectors see no strong sign, and no copy of this image was found. Detectors miss many fakes."
+    if vote.get("warned"):
+        web = "Reported as fake online"
+        web_detail = vote["source_note"]
+        combined = "Likely fake or AI-generated: pages about this image say so. Open them to check, as an article can also be correcting a false caption."
+    elif vote.get("generator_hint"):
+        combined = "Likely AI-generated: the file's own metadata names an AI image generator."
+    elif vote.get("disputed"):
+        combined = "Disputed: the detectors flag it, but this exact image is widely published. It could be a real photo or a viral fake, so a person should check its source."
+    elif vote.get("web_decides") and sources and sources.get("old_domains", 0) >= _MIN_OLD_DOMAINS:
+        combined = "Probably a real image: several sites show it from before modern AI image tools, so the detectors are ignored. That doesn't show its caption is true."
+    elif vote.get("web_decides"):
+        combined = "Published widely with no strong sign of AI, so web search decides. This shows it's published, not that it's true or unedited."
     return MediaDecision(detector_verdict=detector, detector_detail=detail, web_verdict=web, web_detail=web_detail, combined=combined)
 
 
@@ -254,9 +300,13 @@ def build_unified_risk(
                 result.reason = None
                 result.score = 0.0
             media_trust = vote["web_score"]
+        elif vote.get("warned"):
+            media_trust = vote["warned_score"]
+        elif vote.get("disputed"):
+            media_trust = vote["disputed_score"]
         result.trust_score = min(result.trust_score, media_trust) if others and result.trust_score is not None else media_trust
         extra = f" {vote['source_note']}" if vote.get("source_note") else ""
-        result.trust_note = f"From web search: {vote['source_note']} A high score shows wide publication, not truth." if vote.get("web_decides") else (
+        result.trust_note = f"From web search: {vote['source_note']} This shows publication, not truth." if vote.get("web_decides") else (
             f"AI likelihood {vote['raw_mean'] * 100:.2f}%, the average of 3 detectors, and {vote['flagged']} of {vote['total']} flagged it."
             f"{extra} A high score isn't proof of being real, as detectors miss many fakes."
         )

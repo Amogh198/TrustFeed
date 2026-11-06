@@ -194,7 +194,7 @@ With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns
 
 ## Detector vote
 
-Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. With a vote, `trust_score` is 100 minus the detectors' average in percent, to two decimals, and can reach 100. An exact match on 5 or more sites, or dated before April 2022, makes web search decide alone: the detectors are ignored, the level reads `low` unless another signal raises it, and `trust_score` rises with the number of sites, from 60 to 99.9. `unified_risk.media_decision` gives the detectors' verdict, the web's verdict and the combined one. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
+Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. With a vote, `trust_score` is 100 minus the detectors' average in percent, to two decimals, and can reach 100. Order of evidence: 2 or more sites whose titles call the image fake or AI-generated read `high`. Metadata naming a generator keeps the detectors' vote. Exact matches on 2 or more sites dated before April 2022 make web search decide. Exact matches on 5 or more sites decide if at most one detector flags it, otherwise the result reads `moderate`, disputed, with a score from 40 to 60. `unified_risk.media_decision` gives the detectors' verdict, the web's verdict and the combined one. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
 
 ## Common response sketch
 

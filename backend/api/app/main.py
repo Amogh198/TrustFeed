@@ -61,7 +61,7 @@ from backend.api.app.auth import (
     current_owner,
 )
 from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
-from backend.api.app.risk import build_unified_risk, panel_vote, summary_for
+from backend.api.app.risk import BEFORE_IMAGE_GENERATORS, WARNING_TITLE, build_unified_risk, panel_vote, summary_for
 from backend.api.app.scam_records import build_scam_analysis
 from backend.text.cross_modal import compare_channels
 from backend.text.link_model import score_host
@@ -242,18 +242,25 @@ def _source_evidence(provenance: ProvenanceReport | None) -> dict[str, Any] | No
         return None
     same = [item for item in provenance.appearances if item.match_type is not MatchType.SIMILAR]
     dates = [item.observed_at.date().isoformat() for item in same if item.observed_at]
+    old = {item.domain for item in same if item.domain and item.observed_at and item.observed_at.date().isoformat() < BEFORE_IMAGE_GENERATORS}
+    warned = {item.domain for item in provenance.appearances if item.domain and WARNING_TITLE.search(item.page_title or "")}
     searched = any(item.name != "local_index" and item.status is Status.COMPLETE for item in provenance.providers)
     return {
         "searched": searched,
         "domains": len({item.domain for item in same if item.domain}),
         "similar": len(provenance.appearances) - len(same),
         "earliest": min(dates, default=None),
+        "old_domains": len(old),
+        "warning_pages": len(warned),
     }
 
 
 def _media_vote(media: MediaAnalysisResult | None) -> dict[str, Any] | None:
     panel = getattr(media.checks, "detector_panel", None) if media else None
-    return panel_vote(panel.model_dump(mode="json").get("detectors", [])) if panel else None
+    vote = panel_vote(panel.model_dump(mode="json").get("detectors", [])) if panel else None
+    if vote:
+        vote["generator_hint"] = media.checks.metadata.generator_hint
+    return vote
 
 
 MAX_SEARCHED_CASES = 500
