@@ -236,6 +236,15 @@ def _follow_short_link(url: str | None) -> str | None:
 LINK_CHECK_LIMIT_SECONDS = 30.0
 
 
+def _source_evidence(provenance: ProvenanceReport | None) -> dict[str, Any] | None:
+    """Count sites holding the same image, and its earliest date. Merely similar pictures don't count."""
+    if provenance is None:
+        return None
+    same = [item for item in provenance.appearances if item.match_type is not MatchType.SIMILAR]
+    dates = [item.observed_at.date().isoformat() for item in same if item.observed_at]
+    return {"domains": len({item.domain for item in same if item.domain}), "earliest": min(dates, default=None)}
+
+
 def _media_vote(media: MediaAnalysisResult | None) -> dict[str, Any] | None:
     panel = getattr(media.checks, "detector_panel", None) if media else None
     return panel_vote(panel.model_dump(mode="json").get("detectors", [])) if panel else None
@@ -433,6 +442,7 @@ def _store_case(
         media=media_module,
         media_level=media_risk(media) if media else None,
         media_vote=_media_vote(media),
+        source_evidence=_source_evidence(provenance),
         network=network,
         claims=claim_records,
         claim_analysis=claim_analysis,

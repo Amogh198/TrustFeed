@@ -189,3 +189,25 @@ def test_detector_majority_decides_the_media_level():
     rows[1]["score"] = 0.9
     assert build(media=media(0.98), media_vote=panel_vote(rows)).level is RiskLevel.HIGH
     assert panel_vote(rows[:1]) is None
+
+
+def _vote(flagged, mean=0.63):
+    return {"flagged": flagged, "total": 3, "mean": mean}
+
+
+def test_detector_scores_become_a_decimal_score():
+    risk = build(media=media(0.9), media_vote=_vote(0, 0.0123))
+    assert risk.trust_score == 98.77 and "1.23%" in risk.trust_note
+
+
+def test_an_old_exact_source_match_outweighs_the_detectors():
+    risk = build(media=media(0.9), media_vote=_vote(2), source_evidence={"earliest": "2021-01-06", "domains": 9})
+    assert risk.level is RiskLevel.INCONCLUSIVE and risk.trust_score == 87.4
+    assert "2021-01-06" in risk.trust_note
+
+
+def test_wide_sharing_only_softens_a_split_vote():
+    split = build(media=media(0.9), media_vote=_vote(2), source_evidence={"earliest": "2024-03-05", "domains": 6})
+    assert split.level is RiskLevel.MODERATE
+    unanimous = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"earliest": "2024-09-29", "domains": 20})
+    assert unanimous.level is RiskLevel.HIGH and unanimous.trust_score == 1.0

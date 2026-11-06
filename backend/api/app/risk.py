@@ -15,6 +15,8 @@ import json
 import os
 from collections.abc import Mapping
 
+from datetime import date
+
 from backend.api.app.models import (
     ClaimAnalysis,
     CrossModalAnalysis,
@@ -54,6 +56,11 @@ _NOT_MEASURED = "Not scored, because this has not been measured on labelled data
 # The panel detectors that separated fakes from real images in backend/media/README.md's benchmark.
 VOTING_DETECTORS = ("nonescape/nonescape-mini-v0", "Ateeqq/ai-vs-human-image-detector", "haywoodsloan/ai-image-detector-deploy")
 VOTE_LINE = 0.75
+# DALL-E 2's release. Older AI image methods existed, so this is strong evidence, not proof.
+BEFORE_IMAGE_GENERATORS = date(2022, 4, 1).isoformat()
+_OLD_IMAGE_FACTOR = 0.2
+_WIDE_IMAGE_FACTOR = 0.7
+_WIDE_DOMAINS = 5
 
 
 def panel_vote(detectors: list[dict]) -> dict | None:
@@ -107,7 +114,8 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
 
 def _with_vote(component: RiskComponent, vote: dict | None) -> RiskComponent:
     if vote:
-        component.note = f"{vote['flagged']} of {vote['total']} detectors flagged this, average score {vote['mean']:.3f}. {component.note or ''}".strip()
+        extra = f"{vote['source_note']} " if vote.get("source_note") else ""
+        component.note = f"{extra}{vote['flagged']} of {vote['total']} detectors flagged this, average score {vote['mean']:.3f}. {component.note or ''}".strip()
     return component
 
 
@@ -174,7 +182,49 @@ def _link_trust(link: LinkAnalysis | None, url: ModuleResult | None) -> tuple[in
     return None
 
 
+def _apply_sources(vote: dict, sources: dict | None) -> dict:
+    """Let what source search really found outweigh the detectors, as it is stronger evidence."""
+    result = {**vote, "raw_mean": vote["mean"]}
+    if not sources:
+        return result
+    earliest, domains = sources.get("earliest"), sources.get("domains", 0)
+    if earliest and earliest < BEFORE_IMAGE_GENERATORS:
+        result.update(
+            mean=vote["mean"] * _OLD_IMAGE_FACTOR,
+            level=RiskLevel.INCONCLUSIVE,
+            source_note=f"The same image was found dated {earliest}, before DALL-E 2 ({BEFORE_IMAGE_GENERATORS}), so it is unlikely to come from recent image generators. Page dates can be wrong.",
+        )
+    elif domains >= _WIDE_DOMAINS and vote["flagged"] < vote["total"]:
+        result.update(
+            mean=vote["mean"] * _WIDE_IMAGE_FACTOR,
+            level=RiskLevel.MODERATE,
+            source_note=f"The same image is on {domains} sites and the detectors disagree, so this is unclear. Being widely shared doesn't make an image real.",
+        )
+    return result
+
+
 def build_unified_risk(
+    *,
+    media_vote: dict | None = None,
+    source_evidence: dict | None = None,
+    **given,
+) -> UnifiedRisk:
+    """Build the result. With a detector vote, the score is the detectors' real output, in decimals."""
+    vote = _apply_sources(media_vote, source_evidence) if media_vote else None
+    result = _build_unified_risk(media_vote=vote, **given)
+    if vote:
+        others = [item for item in result.components if item.counted and item.name != "media" and item.score]
+        media_trust = round(100 * (1 - vote["mean"]), 2)
+        result.trust_score = min(result.trust_score, media_trust) if others and result.trust_score is not None else media_trust
+        extra = f" {vote['source_note']}" if vote.get("source_note") else ""
+        result.trust_note = (
+            f"AI likelihood {vote['raw_mean'] * 100:.2f}%, the average of 3 detectors, and {vote['flagged']} of {vote['total']} flagged it."
+            f"{extra} A high score isn't proof of being real, as detectors miss many fakes."
+        )
+    return result
+
+
+def _build_unified_risk(
     *,
     text: ModuleResult | None,
     url: ModuleResult | None,
@@ -192,7 +242,7 @@ def build_unified_risk(
     weights = load_weights()
     if media_vote and media:
         # The detectors' majority replaces any single one, which often disagrees with the rest.
-        media_level = RiskLevel.HIGH if media_vote["flagged"] * 2 > media_vote["total"] else RiskLevel.INCONCLUSIVE
+        media_level = media_vote.get("level") or (RiskLevel.HIGH if media_vote["flagged"] * 2 > media_vote["total"] else RiskLevel.INCONCLUSIVE)
         media = media.model_copy(update={"score": media_vote["mean"]})
     # Real model scores set the final figure, so it isn't only a table of fixed points.
     model_scores = {
