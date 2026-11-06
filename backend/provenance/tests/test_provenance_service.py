@@ -277,15 +277,35 @@ def test_missing_file_is_unavailable(tmp_path):
     assert report.limitations == ["The media file was not found."]
 
 
-def test_video_is_reported_as_unsupported_without_sending_it(tmp_path):
+def test_a_video_is_searched_using_one_frame_and_says_so(tmp_path):
     from backend.media.tests.helpers import write_video
 
     video = write_video(tmp_path / "clip.mp4", [((0, 0, 255), 1.0)])
     provider = FakeProvider([candidate()])
     report = investigate_provenance(video, search_web=True, config=CONFIG, providers=[provider], http=FakeHttp())
+    assert provider.calls == 1
+    assert report.status is Status.COMPLETE
+    assert any("middle of the video" in line for line in report.limitations)
+
+
+def test_a_video_frame_is_not_sent_without_consent(tmp_path):
+    from backend.media.tests.helpers import write_video
+
+    video = write_video(tmp_path / "clip.mp4", [((0, 0, 255), 1.0)])
+    provider = FakeProvider([candidate()])
+    report = investigate_provenance(video, search_web=False, config=CONFIG, providers=[provider], http=FakeHttp())
     assert provider.calls == 0
-    assert report.status is Status.UNAVAILABLE
-    assert any("images only" in line for line in report.limitations)
+    assert report.status is Status.NOT_APPLICABLE
+    assert not any("was searched" in line for line in report.limitations)
+
+
+def test_audio_is_not_searched(tmp_path):
+    from backend.media.tests.test_audio_files import write_wav
+
+    provider = FakeProvider([candidate()])
+    report = investigate_provenance(write_wav(tmp_path / "voice.wav"), search_web=True, config=CONFIG, providers=[provider], http=FakeHttp())
+    assert provider.calls == 0
+    assert report.status is Status.NOT_APPLICABLE
 
 
 def test_expected_failures_never_raise(tmp_path, monkeypatch):

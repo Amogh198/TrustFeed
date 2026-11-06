@@ -466,6 +466,14 @@ def _finalize(report: ProvenanceReport, appearances: list[Appearance], config: P
     return report
 
 
+def _video_search_frame(path: Path, config: MediaConfig):
+    """Pick the keyframe from the middle of a video to stand for it in a search."""
+    from backend.media.keyframes import extract_keyframes
+
+    _, frames, _ = extract_keyframes(path, config)
+    return frames[len(frames) // 2].image if frames else None
+
+
 def _unavailable(reason: str, **fields) -> ProvenanceReport:
     return ProvenanceReport(status=Status.UNAVAILABLE, limitations=[reason], **fields)
 
@@ -486,17 +494,25 @@ def _investigate(
     if config.replay_path is not None:
         return replay_report(config.replay_path, info.sha256)
 
-    if info.media_type is not MediaType.IMAGE:
-        return _unavailable(
-            "Source search currently supports images only. No search was run for this video.",
+    if info.media_type is MediaType.AUDIO:
+        return ProvenanceReport(
+            status=Status.NOT_APPLICABLE,
             media_sha256=info.sha256,
+            limitations=["Source search works on pictures, so no search was run for this audio file."],
         )
+    video_note: str | None = None
     try:
-        image, _, _ = read_image(path, media_config)
+        if info.media_type is MediaType.VIDEO:
+            image = _video_search_frame(path, media_config)
+            if image is None:
+                return _unavailable("The video could not be read, so no search was run.", media_sha256=info.sha256)
+            video_note = "Only one frame from the middle of the video was searched, so other parts of it may have appeared elsewhere."
+        else:
+            image, _, _ = read_image(path, media_config)
     except MediaInputError as exc:
         return _unavailable(exc.message, media_sha256=info.sha256)
     except ImportError:
-        return _unavailable("Pillow is not installed, so the image could not be read.", media_sha256=info.sha256)
+        return _unavailable("A library needed to read this file is not installed.", media_sha256=info.sha256)
 
     try:
         phash = compute_phash(image)
@@ -516,6 +532,8 @@ def _investigate(
             limitations.append("No web search provider has a key configured, so no web search was run.")
         else:
             searched_at = datetime.now(timezone.utc)
+            if video_note:
+                limitations.append(video_note)
             provider_runs, candidates = _run_providers(active, Upload(image), http, config, info.sha256)
             runs.extend(provider_runs)
             merged = _merge(candidates, config.max_candidates)
@@ -525,7 +543,7 @@ def _investigate(
             appearances.extend(checked)
             limitations.extend(notes)
     else:
-        limitations.append("Web search was not requested, so the image was not sent to any outside service.")
+        limitations.append("Web search was not requested, so this file was not sent to any outside service.")
 
     completed = [run for run in runs if run.status is Status.COMPLETE]
     if completed:

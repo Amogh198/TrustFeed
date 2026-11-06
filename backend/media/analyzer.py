@@ -12,6 +12,7 @@ from pathlib import Path
 
 from backend.media.audio import (
     AudioDetector,
+    AudioReaderMissing,
     AudioUnavailable,
     SpeechTranscriber,
     WhisperTranscriber,
@@ -74,6 +75,10 @@ MODEL_CAVEAT = (
     "Detector accuracy has not been validated for this deployment; recompressed media, "
     "images without faces and newer generators may be unreliable."
 )
+EDITED_CAVEAT = (
+    "Edited photos are a known weak spot: no detector tested separated them reliably from ordinary photos, "
+    "so a low score says little about whether a photo was edited."
+)
 PHASH_CAVEAT = (
     "A perceptual match shows visual similarity to a reference, not who created the media or whether a claim is false."
 )
@@ -135,7 +140,7 @@ def _classifier_check(classifier: ImageClassifier, scores: list[float] | str, co
     top = ranked[: max(1, math.ceil(len(ranked) / 3))]
     score = sum(top) / len(top)
     low, high = ranked[-1], ranked[0]
-    limitations = [SCORE_CAVEAT, MODEL_CAVEAT]
+    limitations = [SCORE_CAVEAT, MODEL_CAVEAT, EDITED_CAVEAT]
     band = _band(score, config)
     if high - low >= config.frame_disagreement:
         band = ModelBand.INCONCLUSIVE
@@ -334,7 +339,7 @@ def _extracted_text(ocr: OcrCheck | None, speech: SpeechCheck | None) -> dict[st
 
 
 def _not_requested(check_type, note: str | None = None):
-    limitations = ["This is slow on CPU, so it runs on request. Set MEDIA_RUN_HEAVY_CHECKS=1 or pass run_heavy=True."]
+    limitations = ["This is slow on CPU, so it runs on request. Tick the deep check when uploading, set MEDIA_RUN_HEAVY_CHECKS=1 or pass run_heavy=True."]
     if note:
         limitations.append(note)
     return check_type(status=CheckStatus.UNAVAILABLE, limitations=limitations)
@@ -683,6 +688,64 @@ def _analyze_video(
     return _finish(info, metadata, check, phash, keyframes, [], config, panel, fingerprint, credentials, forensics, extras)
 
 
+def _audio_only(path: Path) -> bool:
+    """True for a video container holding sound and no pictures, such as a voice note saved as WebM."""
+    try:
+        import av
+
+        with av.open(str(path)) as container:
+            kinds = {stream.type for stream in container.streams}
+    except Exception:  # noqa: BLE001 - an unreadable file is reported by the video path.
+        return False
+    return "audio" in kinds and "video" not in kinds
+
+
+def _analyze_audio(path, info, config, transcriber=None, detectors=None) -> MediaAnalysisResult:
+    """Read and check speech in an audio file. It gets no score, because no measured detector gives one."""
+    track = None
+    try:
+        track = extract_audio(path, config)
+    except AudioReaderMissing:
+        pass  # The file may be fine, so it isn't rejected. The checks below report what's missing.
+    except AudioUnavailable as exc:
+        return _rejected(MediaInputError("corrupt_media", str(exc)), info)
+    else:
+        if track is None:
+            return _rejected(MediaInputError("corrupt_media", "This file has no audio track."), info)
+    speech, synthetic = _audio_checks(path, config, transcriber, detectors)
+    base = empty_checks("This check is for images and video, so it wasn't run on an audio file.")
+    not_run = {
+        name: getattr(base, name).model_copy(update={"status": CheckStatus.NOT_APPLICABLE})
+        for name in ("classifier", "phash", "keyframes", "fingerprint", "content_credentials", "forensics", "faces", "ocr")
+    }
+    metadata = MetadataCheck(status=CheckStatus.COMPLETE, format=info.container, duration_s=track.duration_s if track else None)
+    evidence = [
+        f"{result.model_id} gave a mean synthetic speech score of {result.score_mean:.2f} over {result.windows_scored} window(s)."
+        for result in synthetic.detectors
+        if result.status is CheckStatus.COMPLETE and result.score_mean is not None
+    ]
+    if speech.segments:
+        evidence.append(f"Speech was read in {len(speech.segments)} section(s).")
+    ran = CheckStatus.COMPLETE in (speech.status, synthetic.status)
+    return MediaAnalysisResult(
+        extracted_text=_extracted_text(None, speech),
+        media_type=info.media_type,
+        status=CheckStatus.COMPLETE if ran else CheckStatus.UNAVAILABLE,
+        score=None,
+        assessment=Assessment.INCONCLUSIVE,
+        summary=(
+            "Speech was read and checked by synthetic speech models. These scores are signals, not proof that a voice is real or synthetic."
+            if ran
+            else "The speech checks could not run on this audio."
+        ),
+        evidence=evidence,
+        limitations=_dedupe([*speech.limitations, *synthetic.limitations]),
+        sha256=info.sha256,
+        size_bytes=info.size_bytes,
+        checks=MediaChecks(metadata=metadata, speech=speech, audio_synthetic=synthetic, **not_run),
+    )
+
+
 def analyze_media(
     path: str | Path,
     *,
@@ -696,7 +759,7 @@ def analyze_media(
     transcriber: SpeechTranscriber | None = None,
     audio_detectors: Sequence[tuple[str, str, AudioDetector]] | None = None,
 ) -> MediaAnalysisResult:
-    """Analyze one image or video.
+    """Analyze one image, video or audio file.
 
     Expected failures (bad input, missing weights, broken index) are reported in
     the result rather than raised, so the wider pipeline keeps working.
@@ -714,6 +777,9 @@ def analyze_media(
         info = inspect_input(path, config)
     except MediaInputError as exc:
         return _rejected(exc)
+
+    if info.media_type is MediaType.AUDIO or (info.media_type is MediaType.VIDEO and _audio_only(path)):
+        return _analyze_audio(path, replace(info, media_type=MediaType.AUDIO), config, transcriber, audio_detectors)
 
     classifier = classifier or default_classifier(config)
     index, note = _resolve_index(config, hash_index)

@@ -604,7 +604,9 @@ def _in_time_order(events: list[TimelineEvent]) -> list[TimelineEvent]:
     return [*dated, *(event for event in events if not event.at)]
 
 
-def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisResult, ProvenanceReport | None]:
+def _analyze_upload(
+    file: UploadFile, search_web: bool, deep_check: bool = False
+) -> tuple[MediaAnalysisResult, ProvenanceReport | None]:
     """Analyze an upload from a private temporary file, which is always deleted.
 
     The client's file name is never used. The media lane identifies the type from
@@ -619,7 +621,7 @@ def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisRe
             path.unlink(missing_ok=True)
             raise
     try:
-        media = analyze_media(path)
+        media = analyze_media(path, run_heavy=True) if deep_check else analyze_media(path)
         if media.failure_code in MEDIA_REJECTION_STATUS:
             return media, None
         return media, investigate_provenance(path, search_web=search_web)
@@ -645,12 +647,13 @@ def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
 @app.post(MEDIA_UPLOAD_PATH, response_model=AnalysisResponse)
 @app.post("/api/cases/media", response_model=AnalysisResponse)
 def analyze_media_case(
-    file: Annotated[UploadFile, File(description="JPEG, PNG, WebP, MP4, MOV, WebM or AVI.")],
+    file: Annotated[UploadFile, File(description="JPEG, PNG, WebP, MP4, MOV, WebM, AVI, MP3, WAV, M4A, FLAC or OGG.")],
     text: Annotated[str | None, Form(max_length=20_000)] = None,
     url: Annotated[HttpUrl | None, Form()] = None,
     search_web: Annotated[bool, Form(description="Allow sending the image, text and link to outside services.")] = False,
+    deep_check: Annotated[bool, Form(description="Also run a video's speech, synthetic speech and frame checks. This can take minutes.")] = False,
 ) -> AnalysisResponse:
-    media, provenance = _analyze_upload(file, search_web)
+    media, provenance = _analyze_upload(file, search_web, deep_check)
     rejection = MEDIA_REJECTION_STATUS.get(media.failure_code or "")
     if rejection is not None:
         raise HTTPException(

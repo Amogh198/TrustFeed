@@ -33,19 +33,25 @@ SILENCE_RMS = 1e-3
 WINDOW_S = 10
 MAX_WINDOWS = 6
 MIN_WINDOW_S = 1.0
+DISAGREEMENT = 0.5
 SPEECH_LIMITATIONS = (
     "Speech-to-text can mishear words and can invent words in noise or music. Check anything important by listening.",
     "Accuracy has not been measured.",
 )
 SYNTHETIC_LIMITATIONS = (
-    "Accuracy has not been measured, because no labelled audio was available. These scores are unmeasured signals, not "
-    "proof that speech is real or synthetic.",
+    "Measured once, on 150 labelled clips from one public set: motheecreator/Deepfake-audio-detection reached AUC 0.80 and "
+    "wrongly flagged 24 of 75 real clips, and MelodyMachine/Deepfake-audio-detection-V2 did no better than guessing (AUC 0.44). "
+    "These scores are signals, not proof that speech is real or synthetic.",
     "Each model gives its own signal. They aren't combined, and they don't change the overall score or assessment.",
 )
 
 
 class AudioUnavailable(Exception):
     """Audio can't be read. The message is safe to show."""
+
+
+class AudioReaderMissing(AudioUnavailable):
+    """PyAV isn't installed, which says nothing about the file."""
 
 
 @dataclass
@@ -62,7 +68,7 @@ def extract_audio(path: Path, config: MediaConfig) -> AudioTrack | None:
         import av
         import numpy as np
     except ImportError as exc:
-        raise AudioUnavailable("Reading audio needs PyAV, which isn't installed.") from exc
+        raise AudioReaderMissing("Reading audio needs PyAV, which isn't installed.") from exc
     limit = int(config.max_audio_seconds * SAMPLE_RATE)
     parts: list[Any] = []
     total = 0
@@ -256,6 +262,9 @@ def detect_synthetic_speech(
             continue
         results.append(_score_detector(model_id, revision, detector, windows, track.sample_rate))
     ran = any(result.status is CheckStatus.COMPLETE for result in results)
+    means = [result.score_mean for result in results if result.score_mean is not None]
+    if len(means) > 1 and max(means) - min(means) >= DISAGREEMENT:
+        limitations.append("The models disagree strongly on this audio, so these scores say little here.")
     return AudioSyntheticCheck(
         status=CheckStatus.COMPLETE if ran else CheckStatus.UNAVAILABLE, detectors=results, limitations=limitations
     )

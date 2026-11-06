@@ -91,6 +91,7 @@ export function CheckArtifacts({ check }: { check: ExplanationCheck }) {
         <li key={index}>
           {item.data_url?.startsWith('data:image/') && <img src={item.data_url} alt={item.label || item.type || 'Attached by this check'} />}
           <small>{[item.type?.replace('_', ' '), item.label].filter(Boolean).join(': ')}</small>
+          {item.text && <p>{item.start_s ? `${item.start_s}s: ` : ''}{item.text}</p>}
         </li>
       ))}
     </ul>

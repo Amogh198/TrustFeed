@@ -362,13 +362,13 @@ def test_both_named_models_are_pinned():
     assert all(len(revision) == 40 for _, revision in AUDIO_DETECTORS)
 
 
-def test_each_model_reports_for_itself_and_accuracy_is_unmeasured():
+def test_each_model_reports_for_itself_and_the_measurement_is_stated():
     detectors = [("a/one", "r1", FakeAudioDetector(0.2)), ("b/two", "r2", FakeAudioDetector(0.9))]
     check = detect_synthetic_speech(tone(25), MediaConfig(), detectors)
     assert check.status is CheckStatus.COMPLETE
     assert [d.score_mean for d in check.detectors] == [0.2, 0.9]
     assert check.detectors[0].windows_scored == 2
-    assert "not been measured" in " ".join(check.limitations)
+    assert "no better than guessing" in " ".join(check.limitations)
 
 
 def test_one_model_failing_leaves_the_other():
@@ -503,17 +503,20 @@ def test_a_video_reports_every_check_when_asked(tmp_path):
         assert check_id in entries
     assert entries["media.speech"]["status"] == "complete"
     assert entries["media.speech"]["result"] == "2 pieces of speech read"
-    assert "accuracy unmeasured" in entries["media.audio_synthetic"]["result"]
+    assert "measured once" in entries["media.audio_synthetic"]["result"]
     assert "accuracy unmeasured" in entries["media.frames"]["result"]
 
 
-def test_every_new_check_has_string_artifacts_and_no_benchmark(tmp_path):
+def test_every_new_check_has_string_artifacts_and_only_measured_ones_name_a_benchmark(tmp_path):
     result = _heavy_video(tmp_path)
     json.dumps(result.to_checks())
     for check in result.to_checks():
         assert set(check) >= {"check_id", "module", "label", "status", "result", "reasoning", "benchmark", "artifacts", "limitations"}
         if check["check_id"] in ("media.speech", "media.audio_synthetic", "media.frames", "media.faces", "media.ocr"):
-            assert check["benchmark"] is None
+            if check["check_id"] == "media.audio_synthetic":
+                assert check["benchmark"] == {"results_file": "data/eval/audio_detectors_2026-11-06.json"}
+            else:
+                assert check["benchmark"] is None
             for artifact in check["artifacts"]:
                 assert all(isinstance(value, str) for value in artifact.values())
 

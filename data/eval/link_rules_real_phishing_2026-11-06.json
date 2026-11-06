@@ -1,0 +1,21 @@
+{
+  "what_this_is": "The address rules alone, with no page opened and no list used, on links reported as phishing that day. Holds counts only.",
+  "source": "https://openphish.com/feed.txt",
+  "measured_on": "2026-11-06",
+  "links": 300,
+  "distinct_hosts": 263,
+  "strong_signs": 1,
+  "weak_signs_only": 22,
+  "no_signs": 277,
+  "signs_seen": {
+    "lookalike_weak": 11,
+    "risky_domain_ending": 10,
+    "lookalike_strong": 1,
+    "short_link_not_followed": 1
+  },
+  "caveats": [
+    "One day's feed. Many links can share one host, and this feed is a small sample of phishing.",
+    "This measures missed phishing only. False alarms on ordinary sites are measured only on the small hand-written set.",
+    "The rules recognise 14 brands by address, and phishing hosted on an ordinary-looking address shows no address sign."
+  ]
+}

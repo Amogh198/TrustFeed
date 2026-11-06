@@ -1,9 +1,9 @@
-import { FileImage, FileVideo, Upload, X } from 'lucide-react';
+import { FileAudio, FileImage, FileVideo, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { api, ApiError, readableUploadError } from '../api.js';
 import SpreadCanvas from '../graph/SpreadCanvas';
 import { useReplay } from '../graph/useReplay';
-import { fileSize, IMAGE_TYPES, uploadProblem, utc, VIDEO_TYPES } from '../lib/format';
+import { AUDIO_TYPES, fileSize, IMAGE_TYPES, uploadProblem, utc, VIDEO_TYPES } from '../lib/format';
 import { buildView } from '../lib/graph';
 import { caseHref, go } from '../lib/route';
 import { rememberResult } from '../lib/session';
@@ -42,7 +42,7 @@ function HeroGraph() {
   );
 }
 
-function Working({ file, search, onCancel }: { file: File | null; search: boolean; onCancel: () => void }) {
+function Working({ file, search, deep, onCancel }: { file: File | null; search: boolean; deep: boolean; onCancel: () => void }) {
   const [seconds, setSeconds] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
@@ -56,10 +56,12 @@ function Working({ file, search, onCancel }: { file: File | null; search: boolea
     return () => URL.revokeObjectURL(address);
   }, [file]);
   const running = [
-    file ? 'Running the image model and reading the file metadata' : null,
+    file && !file.type.startsWith('audio/') ? 'Running the image model and reading the file metadata' : null,
     file?.type.startsWith('video/') ? 'Sampling keyframes from the video' : null,
+    deep ? 'Reading the speech and checking it for signs of synthetic audio' : null,
+    deep && file?.type.startsWith('video/') ? 'Scoring frames across the video' : null,
     'Checking text and link rules, if you gave any',
-    search && file ? 'Searching for where the image appears' : null,
+    search && file && !file.type.startsWith('audio/') ? 'Searching for where the picture appears' : null,
     search ? 'Searching public posts on Mastodon, Lemmy, Hacker News and Bluesky' : null,
   ].filter(Boolean) as string[];
   return (
@@ -68,7 +70,7 @@ function Working({ file, search, onCancel }: { file: File | null; search: boolea
       <div>
         <h2>Checking it now</h2>
         <ul className="lines">{running.map(line => <li key={line}>{line}</li>)}</ul>
-        <p className="working-time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} so far. {search ? 'With search on, this can take up to 3 minutes.' : 'This usually takes under a minute.'}</p>
+        <p className="working-time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} so far. {deep ? 'Deep checks can take several minutes on this server.' : search ? 'With search on, this can take up to 3 minutes.' : 'This usually takes under a minute.'}</p>
         <button type="button" className="button" onClick={onCancel}>Stop waiting</button>
       </div>
     </div>
@@ -80,6 +82,7 @@ function Intake() {
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [search, setSearch] = useState(false);
+  const [deepVideo, setDeepVideo] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -104,12 +107,15 @@ function Intake() {
     }
   }, []);
 
+  const isVideo = Boolean(file?.type.startsWith('video/'));
+  const isAudio = Boolean(file?.type.startsWith('audio/'));
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const cleanText = text.trim();
     const cleanUrl = url.trim();
     if (!file && !cleanText && !cleanUrl) {
-      setMessage('Add the post text, a link, or an image or video to check.');
+      setMessage('Add the post text, a link, or an image, video or audio file to check.');
       return;
     }
     setMessage('');
@@ -118,7 +124,7 @@ function Intake() {
     const signal = abort.current.signal;
     try {
       const result = file
-        ? await api.analyzeMedia({ file, text: cleanText, url: cleanUrl, searchWeb: search, signal })
+        ? await api.analyzeMedia({ file, text: cleanText, url: cleanUrl, searchWeb: search, deepCheck: isVideo && deepVideo, signal })
         : await api.analyze({ text: cleanText, url: cleanUrl, searchWeb: search, signal });
       rememberResult(result, file);
       go(caseHref(result.case_id));
@@ -137,9 +143,9 @@ function Intake() {
     choose(event.dataTransfer.files?.[0]);
   };
 
-  if (working) return <Working file={file} search={search} onCancel={() => abort.current?.abort()} />;
+  if (working) return <Working file={file} search={search} deep={isAudio || (isVideo && deepVideo)} onCancel={() => abort.current?.abort()} />;
 
-  const FileIcon = file?.type.startsWith('video/') ? FileVideo : FileImage;
+  const FileIcon = isVideo ? FileVideo : isAudio ? FileAudio : FileImage;
 
   return (
     <form
@@ -165,16 +171,25 @@ function Intake() {
       ) : (
         <label className="drop">
           <Upload size={18} aria-hidden="true" />
-          <span>Drop an image or video, or <u>choose a file</u></span>
-          <small>Images up to 25 MB, videos up to 200 MB</small>
-          <input type="file" accept={[...IMAGE_TYPES, ...VIDEO_TYPES].join(',')} onChange={event => choose(event.target.files?.[0])} />
+          <span>Drop an image, video or audio file, or <u>choose a file</u></span>
+          <small>Images up to 25 MB, audio up to 100 MB, videos up to 200 MB</small>
+          <input type="file" accept={[...IMAGE_TYPES, ...VIDEO_TYPES, ...AUDIO_TYPES].join(',')} onChange={event => choose(event.target.files?.[0])} />
+        </label>
+      )}
+      {isVideo && (
+        <label className="consent">
+          <input type="checkbox" checked={deepVideo} onChange={event => setDeepVideo(event.target.checked)} />
+          <span>
+            <strong>Deep check this video</strong>
+            <small>Reads the speech, checks it for signs of synthetic audio and scores frames across the video. This stays on this server, and can take several minutes.</small>
+          </span>
         </label>
       )}
       <label className="consent">
         <input type="checkbox" checked={search} onChange={event => setSearch(event.target.checked)} />
         <span>
           <strong>Also search the public web and platforms</strong>
-          <small>Off unless you tick it. Opens the submitted link and asks a public domain registry about it. Sends an uploaded image to the source search services set up on this server, and sends the text and links to Mastodon, Lemmy, Hacker News and Bluesky search. Known short links are followed to their destination.</small>
+          <small>Off unless you tick it. Opens the submitted link and asks a public domain registry about it. Sends an uploaded image, or one frame from a video, to the source search services set up on this server, and sends the text and links to Mastodon, Lemmy, Hacker News and Bluesky search. Known short links are followed to their destination.</small>
         </span>
       </label>
       {message && <Problem>{message}</Problem>}

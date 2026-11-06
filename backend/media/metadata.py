@@ -22,6 +22,7 @@ _GENERATOR_MARKERS = ("stable diffusion", "midjourney", "dall-e", "dall·e", "fi
 # contain user prompts, so only the key names are ever inspected.
 _GENERATOR_PNG_KEYS = {"parameters", "prompt", "workflow"}
 _NON_VIDEO_BRANDS = {b"heic", b"heix", b"hevc", b"mif1", b"msf1", b"avif", b"avis"}
+_AUDIO_BRANDS = {b"M4A ", b"M4B ", b"M4P "}
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,16 @@ def sniff_media_type(head: bytes) -> tuple[MediaType, str] | None:
         return MediaType.IMAGE, "webp"
     if head[:4] == b"RIFF" and head[8:12] == b"AVI ":
         return MediaType.VIDEO, "avi"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return MediaType.AUDIO, "wav"
+    if head.startswith(b"fLaC"):
+        return MediaType.AUDIO, "flac"
+    if head.startswith(b"OggS"):
+        return MediaType.AUDIO, "ogg"
+    if head.startswith(b"ID3") or (len(head) > 1 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return MediaType.AUDIO, "mpeg"
+    if head[4:8] == b"ftyp" and head[8:12] in _AUDIO_BRANDS:
+        return MediaType.AUDIO, "m4a"
     if head[4:8] == b"ftyp" and head[8:12] not in _NON_VIDEO_BRANDS:
         return MediaType.VIDEO, "mp4"
     if head.startswith(b"\x1a\x45\xdf\xa3"):
@@ -62,10 +73,13 @@ def inspect_input(path: Path, config: MediaConfig) -> InputInfo:
             if sniffed is None:
                 raise MediaInputError(
                     "unsupported_type",
-                    "Unsupported file content. Supported: JPEG, PNG, WebP, MP4, MOV, WebM, AVI.",
+                    "Unsupported file content. Supported: JPEG, PNG, WebP, MP4, MOV, WebM, AVI, MP3, WAV, M4A, FLAC, OGG.",
                 )
             media_type, container = sniffed
-            limit = config.max_image_bytes if media_type is MediaType.IMAGE else config.max_video_bytes
+            limit = {
+                MediaType.IMAGE: config.max_image_bytes,
+                MediaType.AUDIO: config.max_audio_bytes,
+            }.get(media_type, config.max_video_bytes)
             if size > limit:
                 raise MediaInputError("too_large", f"The file exceeds the {limit // (1024 * 1024)} MB limit.")
             digest = hashlib.sha256(head)

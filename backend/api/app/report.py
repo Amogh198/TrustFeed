@@ -71,7 +71,7 @@ def _submitted(case: AnalysisResponse) -> list[str]:
         lines.append(f"A link on {case.link_analysis.requested_host}.")
     media = case.modules.get("media")
     if media and media.status is not ModuleStatus.NOT_APPLICABLE:
-        lines.append("An image or video.")
+        lines.append("An image, video or audio file.")
     return lines or ["No content was submitted. This is a demonstration case."]
 
 
