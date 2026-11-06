@@ -283,6 +283,16 @@ class RiskComponent(BaseModel):
     results_file: str | None = None
 
 
+class MediaDecision(BaseModel):
+    """What the detectors and the web search each concluded, and how they were combined."""
+
+    detector_verdict: str
+    detector_detail: str
+    web_verdict: str
+    web_detail: str
+    combined: str
+
+
 class UnifiedRisk(BaseModel):
     level: RiskLevel
     # Null when nothing measured reached a result.
@@ -293,6 +303,7 @@ class UnifiedRisk(BaseModel):
     reason: str | None = None
     components: list[RiskComponent] = Field(default_factory=list)
     weights: dict[str, float] = Field(default_factory=dict)
+    media_decision: MediaDecision | None = None
 
 
 class AnalyzeRequest(BaseModel):

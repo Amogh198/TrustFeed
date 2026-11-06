@@ -194,7 +194,7 @@ With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns
 
 ## Detector vote
 
-Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. With a vote, `trust_score` is 100 minus the detectors' average in percent, to two decimals, and can reach 100. An exact source match dated before April 2022 reads `inconclusive` and shrinks the average by 0.2. An exact match on 5 or more sites with disagreeing detectors reads `moderate` and shrinks it by 0.7. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
+Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. With a vote, `trust_score` is 100 minus the detectors' average in percent, to two decimals, and can reach 100. An exact source match dated before April 2022 reads `inconclusive` and shrinks the average by 0.2. An exact match on 5 or more sites with any detector flagging reads `moderate` and shrinks it by 0.7. `unified_risk.media_decision` gives the detectors' verdict, the web's verdict and the combined one. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
 
 ## Common response sketch
 

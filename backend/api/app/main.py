@@ -242,7 +242,13 @@ def _source_evidence(provenance: ProvenanceReport | None) -> dict[str, Any] | No
         return None
     same = [item for item in provenance.appearances if item.match_type is not MatchType.SIMILAR]
     dates = [item.observed_at.date().isoformat() for item in same if item.observed_at]
-    return {"domains": len({item.domain for item in same if item.domain}), "earliest": min(dates, default=None)}
+    searched = any(item.name != "local_index" and item.status is Status.COMPLETE for item in provenance.providers)
+    return {
+        "searched": searched,
+        "domains": len({item.domain for item in same if item.domain}),
+        "similar": len(provenance.appearances) - len(same),
+        "earliest": min(dates, default=None),
+    }
 
 
 def _media_vote(media: MediaAnalysisResult | None) -> dict[str, Any] | None:
@@ -453,6 +459,8 @@ def _store_case(
     )
     risk = unified.level
     summary = summary_for(unified)
+    if unified.media_decision:
+        summary = f"{unified.media_decision.combined} This is a triage signal, not a factual verdict."
     if claim_analysis and claim_analysis.verification.status is ModuleStatus.COMPLETE:
         # What the sources said matters most to a reader, so it comes first.
         counts = Counter(record.verdict.value.replace("_", " ") for record in claim_records if record.verdict)

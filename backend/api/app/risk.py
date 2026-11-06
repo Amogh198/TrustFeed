@@ -21,6 +21,7 @@ from backend.api.app.models import (
     ClaimAnalysis,
     CrossModalAnalysis,
     LinkAnalysis,
+    MediaDecision,
     ModuleResult,
     ModuleStatus,
     RiskComponent,
@@ -108,7 +109,7 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
             note=f"Scored {module.score:.4f}, with no strong signal. Detectors miss many fakes, so this does not show the media is real.",
             **base,
         )
-    score = min(_MEDIA_CAP, module.score) if level is RiskLevel.HIGH else max(_WEAK, min(module.score, _ELEVATED - 0.01))
+    score = min(_MEDIA_CAP, module.score) if level is RiskLevel.HIGH else max(_WEAK, min(module.score, 0.59))
     return RiskComponent(status=ModuleStatus.COMPLETE, counted=True, score=score, **base)
 
 
@@ -194,13 +195,47 @@ def _apply_sources(vote: dict, sources: dict | None) -> dict:
             level=RiskLevel.INCONCLUSIVE,
             source_note=f"The same image was found dated {earliest}, before DALL-E 2 ({BEFORE_IMAGE_GENERATORS}), so it is unlikely to come from recent image generators. Page dates can be wrong.",
         )
-    elif domains >= _WIDE_DOMAINS and vote["flagged"] < vote["total"]:
+    elif domains >= _WIDE_DOMAINS and vote["flagged"]:
         result.update(
             mean=vote["mean"] * _WIDE_IMAGE_FACTOR,
             level=RiskLevel.MODERATE,
-            source_note=f"The same image is on {domains} sites and the detectors disagree, so this is unclear. Being widely shared doesn't make an image real.",
+            source_note=f"The same image is on {domains} sites, which disputes the detectors. Being widely shared doesn't make an image real.",
         )
     return result
+
+
+def _media_decision(vote: dict, sources: dict | None) -> MediaDecision:
+    """State each side's own conclusion, then the combined one. Neither is proof."""
+    flagged = vote["flagged"] * 2 > vote["total"]
+    detector = "Looks AI-generated" if flagged else "Split" if vote["flagged"] else "No strong sign of AI"
+    detail = f"{vote['flagged']} of {vote['total']} detectors flagged it. AI likelihood {vote['raw_mean'] * 100:.2f}%."
+    if not sources or not sources.get("searched"):
+        web, web_detail = "Not searched", "Tick the search box to compare this image with the web."
+        combined = "Detectors only: the web wasn't searched, so this has no outside evidence."
+    else:
+        domains, similar, earliest = sources.get("domains", 0), sources.get("similar", 0), sources.get("earliest")
+        dated = f", earliest found {earliest}" if earliest else ""
+        if domains:
+            web, web_detail = "Same image found online", f"This exact image is on {domains} site(s){dated}. Earliest found isn't necessarily the source."
+        elif similar:
+            web, web_detail = "Only similar images found", f"{similar} similar image(s), but no copy of this exact image."
+        else:
+            web, web_detail = "Not found online", "The search found no copy of this image."
+        old = bool(earliest and earliest < BEFORE_IMAGE_GENERATORS)
+        wide = domains >= _WIDE_DOMAINS
+        if old:
+            combined = f"Probably a real image: it was online before modern AI image tools. The detectors' result is likely a false alarm." if vote["flagged"] else "Probably a real image: it was online before modern AI image tools, and the detectors agree."
+        elif vote["flagged"] and wide:
+            combined = "Disputed: the detectors flag it, but this exact image is widely published. A person should check its source."
+        elif flagged and not domains:
+            combined = "Likely AI-generated or altered: the detectors flag it, and no copy of this exact image was found, which fits an AI version of a known image."
+        elif flagged:
+            combined = "Likely AI-generated: the detectors flag it, and only a few sites hold this exact image."
+        elif domains:
+            combined = "No sign of AI, and this exact image is online. That doesn't show its caption or context is true."
+        else:
+            combined = "Unclear: the detectors see no strong sign, and no copy of this image was found. Detectors miss many fakes."
+    return MediaDecision(detector_verdict=detector, detector_detail=detail, web_verdict=web, web_detail=web_detail, combined=combined)
 
 
 def build_unified_risk(
@@ -215,6 +250,7 @@ def build_unified_risk(
     if vote:
         others = [item for item in result.components if item.counted and item.name != "media" and item.score]
         media_trust = round(100 * (1 - vote["mean"]), 2)
+        result.media_decision = _media_decision(vote, source_evidence)
         result.trust_score = min(result.trust_score, media_trust) if others and result.trust_score is not None else media_trust
         extra = f" {vote['source_note']}" if vote.get("source_note") else ""
         result.trust_note = (

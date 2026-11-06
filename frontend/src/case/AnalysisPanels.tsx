@@ -120,6 +120,28 @@ export function CoordinationTests({ caseId }: { caseId: string }) {
   );
 }
 
+/** The detectors and the web search each give their own answer, side by side. */
+export function MediaDecisionPanel({ report }: { report: AnalysisResponse }) {
+  const decision = report.unified_risk?.media_decision;
+  if (!decision) return null;
+  return (
+    <Section title="Two independent checks on this media" kind="estimate" lead={decision.combined}>
+      <div className="findings-grid">
+        <article>
+          <h3>AI detectors say</h3>
+          <p className="reason-result">{decision.detector_verdict}</p>
+          <p>{decision.detector_detail}</p>
+        </article>
+        <article>
+          <h3>Web search says</h3>
+          <p className="reason-result">{decision.web_verdict}</p>
+          <p>{decision.web_detail}</p>
+        </article>
+      </div>
+    </Section>
+  );
+}
+
 /** Say plainly what really ran for this case, so nothing looks like more than it was. */
 export function WhatRan({ report, sourceProviders }: { report: AnalysisResponse; sourceProviders?: { name: string; status: string; result_count: number | null; limitation?: string | null }[] }) {
   const claims = report.claim_analysis;

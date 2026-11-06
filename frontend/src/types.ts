@@ -285,6 +285,7 @@ export interface UnifiedRisk {
   trust_score: number | null;
   trust_note: string;
   components: RiskComponent[];
+  media_decision?: { detector_verdict: string; detector_detail: string; web_verdict: string; web_detail: string; combined: string } | null;
 }
 export interface Overview {
   investigations: number;

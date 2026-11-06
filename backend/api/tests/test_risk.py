@@ -210,4 +210,20 @@ def test_wide_sharing_only_softens_a_split_vote():
     split = build(media=media(0.9), media_vote=_vote(2), source_evidence={"earliest": "2024-03-05", "domains": 6})
     assert split.level is RiskLevel.MODERATE
     unanimous = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"earliest": "2024-09-29", "domains": 20})
-    assert unanimous.level is RiskLevel.HIGH and unanimous.trust_score == 1.0
+    assert unanimous.level is RiskLevel.MODERATE
+
+
+def test_original_and_ai_version_get_different_decisions():
+    original = build(media=media(0.9), media_vote=_vote(2), source_evidence={"searched": True, "earliest": "2019-05-01", "domains": 30, "similar": 4})
+    assert original.level is RiskLevel.INCONCLUSIVE
+    assert original.media_decision.web_verdict == "Same image found online"
+    assert original.media_decision.combined.startswith("Probably a real image")
+    ai_version = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence={"searched": True, "earliest": None, "domains": 0, "similar": 25})
+    assert ai_version.level is RiskLevel.HIGH
+    assert ai_version.media_decision.web_verdict == "Only similar images found"
+    assert ai_version.media_decision.combined.startswith("Likely AI-generated or altered")
+
+
+def test_without_a_search_the_web_side_says_so():
+    risk = build(media=media(0.9), media_vote=_vote(3, 0.97))
+    assert risk.media_decision.web_verdict == "Not searched"
