@@ -22,7 +22,7 @@ def test_image_success_is_explainable(image_file):
     assert result.checks.classifier.band is ModelBand.ELEVATED
     assert result.assessment is Assessment.SIGNALS_PRESENT
     assert len(result.sha256) == 64
-    assert any("0.90" in line for line in result.evidence)
+    assert any("90.00 out of 100" in line for line in result.evidence)
     assert any("not proof" in line for line in result.limitations)
 
 

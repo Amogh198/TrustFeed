@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { scoreText } from '../lib/format';
 import type { AnalysisResponse, ExplanationCheck, LinkPart, NetworkTests, UnifiedRisk } from '../types';
 import { Limits, Lines, Section, Unknown } from '../ui/ui';
 
@@ -132,7 +133,7 @@ export function RiskPanel({ risk }: { risk: UnifiedRisk }) {
               <tr key={item.name}>
                 <th scope="row">{item.label}</th>
                 <td>{item.counted ? `Yes, weight ${item.weight}` : 'No'}</td>
-                <td>{item.score != null ? item.score.toFixed(2) : 'None'}</td>
+                <td>{item.score != null ? scoreText(item.score) : 'None'}</td>
                 <td>
                   {item.evidence.length ? <Lines items={item.evidence.slice(0, 5)} /> : <span>Nothing raised.</span>}
                   {item.note && <small className="fineprint">{item.note}</small>}

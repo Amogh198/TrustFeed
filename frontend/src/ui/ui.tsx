@@ -37,7 +37,7 @@ export function Meter({ value, label }: { value: number | null | undefined; labe
   if (value == null) {
     return <div className="meter meter-none"><span className="meter-track" aria-hidden="true" /><b>No score</b></div>;
   }
-  const percent = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  const percent = Math.max(0, Math.min(1, value)) * 100;
   return (
     <div className="meter">
       <span className="meter-track" aria-hidden="true"><span style={{ width: `${percent}%` }} /></span>

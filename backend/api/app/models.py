@@ -282,7 +282,7 @@ class UnifiedRisk(BaseModel):
     # Null when nothing measured reached a result.
     score: float | None = None
     # At most 50, because no check can show content is genuine. Null means no score, never 0.
-    trust_score: int | None = None
+    trust_score: float | None = None
     trust_note: str
     reason: str | None = None
     components: list[RiskComponent] = Field(default_factory=list)

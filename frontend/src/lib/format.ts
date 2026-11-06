@@ -18,9 +18,9 @@ export const STATUS_WORDS: Record<string, string> = {
   not_applicable: 'Not needed',
 };
 
-/** A null score means nothing was measured. It must never read as zero. */
+/** A score out of 100, from the API's 0 to 1. A null score means nothing was measured. It must never read as zero. */
 export function scoreText(value: number | null | undefined): string {
-  return value == null ? 'No score' : value.toFixed(2);
+  return value == null ? 'No score' : (value * 100).toFixed(2);
 }
 
 export function confidenceText(value: number | null | undefined): string {
@@ -184,7 +184,12 @@ export function trustScore(report: AnalysisResponse): Trust {
   // The server's figure counts only measured signals. Cases saved earlier don't have one.
   const unified = report.unified_risk;
   if (unified) {
-    const scored = unified.components.filter(item => item.counted && item.score != null).map(item => ({ name: item.label, value: item.score as number }));
+    const exactMedia = report.modules?.media?.score;
+    // The risk level treats the detector as at most 0.75. People should see what it really gave.
+    const scored = unified.components.filter(item => item.counted && item.score != null).map(item => ({
+      name: item.label,
+      value: (item.name === 'media' && exactMedia != null ? exactMedia : item.score) as number,
+    }));
     const strongest = scored.length ? scored.reduce((top, item) => (item.value > top.value ? item : top)) : null;
     const value = unified.trust_score;
     const words = value == null
@@ -209,7 +214,7 @@ export function trustScore(report: AnalysisResponse): Trust {
     return { score: null, words: 'No trust score', strongest: null, counted, mediaMissing, capped: false, fromOverallRisk: false };
   }
   const strongest = counted.reduce((top, item) => (item.value > top.value ? item : top));
-  const measured = Math.round((1 - strongest.value) * 100);
+  const measured = Math.round((1 - strongest.value) * 10000) / 100;
   const ceiling = RISK_CEILING[report.overall_risk] ?? NEUTRAL_TRUST;
   const score = Math.min(measured, NEUTRAL_TRUST, ceiling);
   const words = score >= NEUTRAL_TRUST

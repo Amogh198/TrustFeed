@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { RISK_LEVELS, utc } from '../lib/format';
+import { RISK_LEVELS, scoreText, utc } from '../lib/format';
 import { caseHref } from '../lib/route';
 import type { Overview as OverviewData } from '../types';
 import { Figure, Loading, Problem, Section, Unknown } from '../ui/ui';
@@ -102,7 +102,7 @@ export default function Overview() {
               {data.flagged_campaigns.map(item => (
                 <li key={item.case_id}>
                   <a href={caseHref(item.case_id, 'spread')}>Case {item.case_id.slice(0, 8)}</a>
-                  <small>Score {item.score.toFixed(2)} out of 1</small>
+                  <small>Score {scoreText(item.score)} out of 100</small>
                 </li>
               ))}
             </ul>

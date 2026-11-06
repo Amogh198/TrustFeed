@@ -23,10 +23,19 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
   const trust = trustScore(report);
   const benchmark = explanation?.checks.find(check => check.module === 'media' && check.benchmark)?.benchmark;
   const usedMedia = trust.counted.some(item => item.name === 'Media');
+  const media = report.modules?.media;
+  const aiSignal = media?.status === 'complete' ? media.score : null;
 
   return (
-    <section className="trust" aria-label="Trust score">
+    <section className="trust" aria-label="Scores">
       <Thumbnail caseId={report.case_id} />
+      {aiSignal != null && (
+        <div className="trust-number">
+          <b>{scoreText(aiSignal)}</b><span>/100</span>
+          <p>AI signal</p>
+          <small className="fineprint">The detector's raw score. Not a probability, and not proof.</small>
+        </div>
+      )}
       {trust.score === null ? (
         <div className="trust-none">
           <b>No trust score</b>
@@ -39,7 +48,7 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
       ) : (
         <>
           <div className="trust-number">
-            <b>{trust.score}</b><span>/100</span>
+            <b>{trust.score.toFixed(2)}</b><span>/100</span>
             <p>Trust score</p>
           </div>
           <div className="trust-copy">

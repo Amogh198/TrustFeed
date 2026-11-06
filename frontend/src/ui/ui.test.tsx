@@ -20,6 +20,11 @@ describe('state rules from UX-CONTRACT.md', () => {
     expect(screen.getByText('Rule score 0.00')).toBeTruthy();
   });
 
+  it('shows a score out of 100 with its decimals', () => {
+    render(<Meter value={0.9993} label="Model signal" />);
+    expect(screen.getByText('Model signal 99.93')).toBeTruthy();
+  });
+
   it('only makes links from http and https', () => {
     const { container, rerender } = render(<SafeLink href="javascript:alert(1)">bad</SafeLink>);
     expect(container.querySelector('a')).toBeNull();
