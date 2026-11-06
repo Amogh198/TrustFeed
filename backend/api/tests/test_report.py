@@ -73,7 +73,7 @@ def test_search_and_filters():
     scam = make(text=SCAM)
     link = make(url="https://paypa1.com/a")
     plain = make(text="The library opens at nine on weekdays.")
-    found = lambda **params: {item["case_id"] for item in client.get("/api/cases", params=params).json()["cases"]}  # noqa: E731
+    found = lambda **params: {item["case_id"] for item in client.get("/api/cases", params=params).json()["cases"]}
     assert found() == {scam["case_id"], link["case_id"], plain["case_id"]}
     assert found(q="library") == {plain["case_id"]}
     assert found(q=link["case_id"][:8]) == {link["case_id"]}

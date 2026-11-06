@@ -32,7 +32,12 @@ from backend.api.app.models import (
     LinkThreatLists,
     ModuleStatus,
 )
-from backend.provenance.safe_http import HttpBlocked, HttpFailed, HttpResponse, safe_request
+from backend.provenance.safe_http import (
+    HttpBlocked,
+    HttpFailed,
+    HttpResponse,
+    safe_request,
+)
 from backend.text.analysis import _BRANDS, SHORTENER_HOSTS, _registered_domain
 from backend.text.scams import NONE_FOUND, WARNING_SIGNS, WEAK_ONLY
 
@@ -76,10 +81,10 @@ _PRETEXT_WORDS = {
     "help", "online", "official", "service", "services", "customer", "care", "kyc", "reward", "rewards", "bonus",
     "refund", "wallet", "auth", "billing", "confirm", "alert", "recovery", "web", "portal", "mail",
 }
-_CARD_FIELD = re.compile(r"card.?(num|no\b)|cc.?num|cvv|cvc|expiry|exp.?date|(^|[^a-z])upi([^a-z]|$)|ifsc|account.?(num|no\b)", re.I)
-_CODE_FIELD = re.compile(r"(^|[^a-z])otp([^a-z]|$)|one.?time|atm.?pin|(^|[^a-z])m?pin([^a-z]|$)", re.I)
+_CARD_FIELD = re.compile(r"card.?(num|no\b)|cc.?num|cvv|cvc|expiry|exp.?date|(^|[^a-z])upi([^a-z]|$)|ifsc|account.?(num|no\b)", re.IGNORECASE)
+_CODE_FIELD = re.compile(r"(^|[^a-z])otp([^a-z]|$)|one.?time|atm.?pin|(^|[^a-z])m?pin([^a-z]|$)", re.IGNORECASE)
 _VALID_HOST = re.compile(r"^[a-z0-9.-]{1,253}$")
-_REFRESH = re.compile(r"url\s*=\s*['\"]?([^'\";>\s]+)", re.I)
+_REFRESH = re.compile(r"url\s*=\s*['\"]?([^'\";>\s]+)", re.IGNORECASE)
 
 LIMITATIONS = [
     "A warning sign is a reason to look closer, not proof of a scam. Finding none does not make a link safe.",
@@ -214,7 +219,7 @@ def find_lookalike(host: str) -> LinkLookalike:
 class _PageReader(HTMLParser):
     """Collect the title, visible words, forms and any refresh redirect. Nothing here is run."""
 
-    _HIDDEN = {"script", "style", "noscript", "template", "svg"}
+    _HIDDEN = frozenset({"script", "style", "noscript", "template", "svg"})
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -263,7 +268,7 @@ class _PageReader(HTMLParser):
 
 
 def _charset(response: HttpResponse) -> str:
-    found = re.search(r"charset=['\"]?([\w-]+)", response.headers.get("content-type", ""), re.I)
+    found = re.search(r"charset=['\"]?([\w-]+)", response.headers.get("content-type", ""), re.IGNORECASE)
     return found.group(1) if found else "utf-8"
 
 
@@ -443,7 +448,7 @@ def _rdap_date(data: Any) -> datetime | None:
     for event in data["events"]:
         if isinstance(event, dict) and event.get("eventAction") == "registration":
             try:
-                found = datetime.fromisoformat(str(event.get("eventDate")).replace("Z", "+00:00"))
+                found = datetime.fromisoformat(str(event.get("eventDate")))
             except ValueError:
                 return None
             return found if found.tzinfo else found.replace(tzinfo=UTC)

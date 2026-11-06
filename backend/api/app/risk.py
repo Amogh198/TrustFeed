@@ -137,7 +137,7 @@ def build_unified_risk(
     refuted = [record.text for record in claims or [] if getattr(record.verdict, "value", None) == "contradicted"]
     conflicts = [item.explanation for item in (claim_analysis.inconsistencies if claim_analysis else []) if item.severity == "conflict"]
     link_other = [item.why for item in (link_analysis.signs if link_analysis else []) if not item.sign.startswith("lookalike_")]
-    url_rules = [line for line in (url.evidence if url else []) if not line.startswith("Link warning sign:") and (url.score or 0) >= _WEAK]
+    url_rules = [line for line in (url.evidence if url else []) if url is not None and not line.startswith("Link warning sign:") and (url.score or 0) >= _WEAK]
     components = [
         _media(media, media_level, weights),
         _scam(scam_analysis, weights),

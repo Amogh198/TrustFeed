@@ -141,7 +141,7 @@ def test_lists_search_and_overview_show_only_your_own():
     mine = make(owner, "Only the owner wrote this harbour sentence.")
     theirs = make(other, "Somebody else wrote this meadow sentence.")
     anonymous = make(TestClient(app), "Nobody signed in for this orchard sentence.")
-    ids = lambda client, **params: {c["case_id"] for c in client.get("/api/cases", params=params).json()["cases"]}  # noqa: E731
+    ids = lambda client, **params: {c["case_id"] for c in client.get("/api/cases", params=params).json()["cases"]}
     assert ids(owner) == {mine} and ids(other) == {theirs} and ids(TestClient(app)) == {anonymous}
     assert ids(owner, q="meadow") == set() and ids(owner, q="harbour") == {mine}
     assert ids(owner, kind="text") == {mine}
