@@ -2,20 +2,24 @@ import base64
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import threading
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
+from urllib.parse import unquote
 from uuid import uuid4
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import HttpUrl
 
+from backend.api.app.claim_records import build_claims
 from backend.api.app.explanation import build_countermeasures, build_explanation
 from backend.api.app.fusion import (
     action_packet as fusion_action_packet,
@@ -32,10 +36,12 @@ from backend.api.app.models import (
     AnalysisResponse,
     AnalyzeRequest,
     CaseHistoryResponse,
+    CaseSummary,
     ClaimRecord,
     ExplanationResponse,
     HealthResponse,
     HeatmapResponse,
+    LinkAnalysis,
     ModuleResult,
     ModuleStatus,
     MonitorStartRequest,
@@ -45,6 +51,19 @@ from backend.api.app.models import (
     TimelineResponse,
 )
 from backend.api.app.replay import get_scenario, list_scenarios
+from backend.api.app.auth import (
+    COOKIE_NAME,
+    CURRENT_USER,
+    AuthStore,
+    auth_required,
+    build_router,
+    current_owner,
+)
+from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
+from backend.api.app.risk import build_unified_risk, summary_for
+from backend.api.app.scam_records import build_scam_analysis
+from backend.text.cross_modal import compare_channels
+from backend.text.links import investigate_link
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
@@ -61,6 +80,7 @@ from backend.network import (
     get_network_coverage,
     get_network_module_result,
     get_network_payload,
+    get_network_tests,
     list_watches,
     poll_watch,
     start_watch,
@@ -81,11 +101,13 @@ from backend.text.analysis import (
     fuse_risk,
     signal_summary,
 )
+from backend.text.scams import WARNING_SIGNS
 
 # Never log submitted text, links or file names: they can reveal what a user submitted.
 logger = logging.getLogger(__name__)
 
 MEDIA_UPLOAD_PATH = "/api/cases/analyze-media"
+NO_EXTERNAL_CHECK = "No external fact-checking or domain reputation source was queried."
 HEATMAP_PATH = "/api/media/heatmap"
 # A heatmap takes about 65 model runs, so only one runs at a time.
 _heatmap_slot = threading.Lock()
@@ -123,6 +145,7 @@ async def limit_upload_size(request: Request, call_next):
     return await call_next(request)
 
 
+CASE_NOT_FOUND = "Case not found in this server process"
 cors_origins = [
     origin.strip()
     for origin in os.getenv(
@@ -131,10 +154,44 @@ cors_origins = [
     ).split(",")
     if origin.strip()
 ]
+_CASE_PATH = re.compile(r"^/api/(?:cases|network)/([^/]+)")
+_OPEN_WHEN_REQUIRED = ("/health", "/api/auth/")
+
+
+@app.middleware("http")
+async def accounts(request: Request, call_next):
+    """Decide who is asking, and refuse what they can't see, before any route runs.
+
+    Checking here means a route added under a case's path is covered without further work.
+    """
+    token = request.cookies.get(COOKIE_NAME)
+    origin = request.headers.get("origin")
+    changes = request.method in ("POST", "PUT", "PATCH", "DELETE")
+    # A browser marks where a request came from, so a page on another site can't act as the user.
+    if changes and origin and origin not in cors_origins and (token or request.url.path.startswith("/api/auth/")):
+        return JSONResponse(status_code=403, content={"detail": "This request came from a site this server doesn't trust."})
+    user = await run_in_threadpool(AUTH_STORE.user_for_token, token)
+    if (
+        auth_required()
+        and user is None
+        and request.method != "OPTIONS"
+        and not request.url.path.startswith(_OPEN_WHEN_REQUIRED)
+    ):
+        return JSONResponse(status_code=401, content={"detail": "Sign in to use this server."})
+    found = _CASE_PATH.match(request.url.path)
+    if found:
+        saved, owner = await run_in_threadpool(CASE_STORE.owner_of, unquote(found.group(1)))
+        if saved and owner is not None and (user is None or user.id != owner):
+            # The same answer as a case that doesn't exist, so an ID can't be probed.
+            return JSONResponse(status_code=404, content={"detail": CASE_NOT_FOUND})
+    CURRENT_USER.set(user)
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
@@ -142,6 +199,9 @@ app.add_middleware(
 # Hackathon starter storage: process-local and intentionally non-persistent.
 CASES: dict[str, AnalysisResponse] = {}
 CASE_STORE = default_store()
+AUTH_STORE = AuthStore(CASE_STORE.path)
+# Added one by one, because tools/compat_check.py reads each route's path from app.routes.
+app.router.routes.extend(build_router(AUTH_STORE).routes)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -157,7 +217,7 @@ def _network_detail(case_id: str) -> dict[str, Any] | None:
     """Return a case's network data, from this process's trace or from the case store."""
     payload = get_network_payload(case_id)
     if payload is not None:
-        return {"payload": payload, "coverage": get_network_coverage(case_id)}
+        return {"payload": payload, "coverage": get_network_coverage(case_id), "tests": get_network_tests(case_id)}
     return CASE_STORE.get_detail(case_id, "network")
 
 
@@ -168,6 +228,37 @@ def _replay_mode() -> bool:
 
 def _follow_short_link(url: str | None) -> str | None:
     return expand_shortener(url) if url and not _replay_mode() else None
+
+
+LINK_CHECK_LIMIT_SECONDS = 30.0
+MAX_SEARCHED_CASES = 500
+
+
+def _check_link(url: str | None, search_web: bool, text: str | None = None) -> LinkAnalysis | None:
+    """Look into a link. Opening it or asking a registry about it needs the user's consent."""
+    if not url:
+        return None
+    if not search_web:
+        return investigate_link(url, offline_reason="Not checked, because outside requests were not allowed.")
+    if _replay_mode() or is_demo_story(text, url):
+        return investigate_link(url, offline_reason="Replay stays offline, so this was not checked.")
+    # Run apart with a hard limit, as a site sending its headers very slowly can outlast the request timeouts.
+    box: dict[str, LinkAnalysis] = {}
+
+    def work() -> None:
+        try:
+            box["report"] = investigate_link(url)
+        except Exception as exc:  # noqa: BLE001 - A failed check must not lose the rest of the case.
+            logger.warning("Link check failed: %s", type(exc).__name__)
+
+    worker = threading.Thread(target=work, daemon=True, name="link-check")
+    worker.start()
+    worker.join(LINK_CHECK_LIMIT_SECONDS)
+    if "report" in box:
+        return box["report"]
+    report = investigate_link(url, offline_reason="The link check failed or ran out of time, so only the address was checked.")
+    report.live_failed = True
+    return report
 
 
 def _traceable_links(provenance: ProvenanceReport | None) -> tuple[str, ...]:
@@ -219,6 +310,7 @@ def _store_case(
     case_id: str | None = None,
     provenance: ProvenanceReport | None = None,
     network: ModuleResult | None = None,
+    link_analysis: LinkAnalysis | None = None,
 ) -> AnalysisResponse:
     """Build and save a case. ``network`` is given only when the user asked for a trace."""
     module_levels: dict[str, RiskLevel] = {}
@@ -237,7 +329,7 @@ def _store_case(
         risk = combine_risks(levels)
         summary = fused_summary(risk)
 
-    uncertainties = ["No external fact-checking or domain reputation source was queried."]
+    uncertainties = [NO_EXTERNAL_CHECK]
     if text_result or url_result:
         uncertainties.insert(0, "Text and URL scores are deterministic heuristics, not calibrated probabilities.")
     disagreement = disagreement_note(module_levels)
@@ -268,6 +360,67 @@ def _store_case(
     if provenance is not None and provenance.replay:
         uncertainties.append("The source search results in this case were replayed from a recording.")
 
+    # A trace is only given when the user allowed outside search, so the same consent covers this.
+    # The labelled demo story replays offline, so it must not reach any outside service.
+    synthetic_replay = bool(network_detail and (network_detail["coverage"] or {}).get("synthetic"))
+    claim_records, claim_analysis = build_claims(claims or [], search_web=network is not None and not synthetic_replay)
+    if claim_analysis and synthetic_replay:
+        claim_analysis.verification.reason = "This labelled synthetic replay stays offline, so no claim was sent anywhere."
+    if claim_analysis and claim_analysis.verification.comparison_status is ModuleStatus.COMPLETE:
+        uncertainties[uncertainties.index(NO_EXTERNAL_CHECK)] = (
+            "Claim results come from comparing public sources by model. They are signals, not proof. "
+            "No domain reputation source was queried."
+        )
+    scam_analysis = build_scam_analysis("\n".join(claims)) if claims else None
+    if scam_analysis and text_result:
+        # Shown as evidence, but not scored: the unified risk step decides what counts.
+        text_result.evidence.extend(
+            f"Scam warning sign ({item.category}): {item.why} Found: {item.quote!r}" for item in scam_analysis.signs
+        )
+    if scam_analysis and scam_analysis.assessment == WARNING_SIGNS:
+        recommended_actions.append(
+            "Do not pay, share a code or password, or click links in this message. Contact the organization "
+            "through its official website or number."
+        )
+    if text_result and claim_analysis:
+        # Shown as evidence, but not scored: the unified risk step decides what counts.
+        text_result.evidence.extend(
+            f"Possible inconsistency between statements: {item.explanation}"
+            for item in claim_analysis.inconsistencies
+        )
+
+    if link_analysis and url_result:
+        # Shown as evidence, but not scored: the unified risk step decides what counts.
+        url_result.evidence.extend(f"Link warning sign: {item.why}" for item in link_analysis.signs)
+    if link_analysis and link_analysis.assessment == WARNING_SIGNS:
+        recommended_actions.append(
+            "Do not open this link or enter any details. Go to the organization's official site directly instead."
+        )
+
+    cross_modal = None
+    if media is not None:
+        # The media check doesn't send text yet. When it does, this picks it up without a change.
+        cross_modal = compare_channels(" ".join(claims or []), getattr(media, "extracted_text", None))
+    if cross_modal and text_result:
+        # Shown as evidence, but not scored, as this hasn't been measured.
+        text_result.evidence.extend(f"Media and caption differ: {item.explanation}" for item in cross_modal.conflicts)
+
+    media_module = ModuleResult(**media.to_module_result()) if media else None
+    unified = build_unified_risk(
+        text=text_result,
+        url=url_result,
+        media=media_module,
+        media_level=media_risk(media) if media else None,
+        network=network,
+        claims=claim_records,
+        claim_analysis=claim_analysis,
+        scam_analysis=scam_analysis,
+        link_analysis=link_analysis,
+        cross_modal=cross_modal,
+    )
+    risk = unified.level
+    summary = summary_for(unified)
+
     result = AnalysisResponse(
         case_id=case_id,
         overall_risk=risk,
@@ -290,14 +443,19 @@ def _store_case(
                 limitations=["No public-post trace was requested, so nothing was sent to outside platforms."],
             ),
         },
-        claims=[ClaimRecord(id=f"claim-{index}", text=claim) for index, claim in enumerate(claims or [], start=1)],
+        claims=claim_records,
+        claim_analysis=claim_analysis,
+        scam_analysis=scam_analysis,
+        link_analysis=link_analysis,
+        cross_modal=cross_modal,
+        unified_risk=unified,
         uncertainties=uncertainties,
         recommended_actions=recommended_actions,
         is_replay=replay_label is not None,
         replay_label=replay_label,
     )
     CASES[case_id] = result
-    CASE_STORE.save(result)
+    CASE_STORE.save(result, owner_id=current_owner())
     if media is not None:
         # The upload is deleted, so its explanation is saved now while the result exists.
         CASE_STORE.save_detail(case_id, "media_checks", {"checks": media.to_checks()})
@@ -475,12 +633,13 @@ def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
     url = str(request.url) if request.url else None
     if not request.search_web:
         url_result = analyze_url(url) if url else None
-        return _store_case(text_result, url_result, claims=claims)
+        return _store_case(text_result, url_result, claims=claims, link_analysis=_check_link(url, False))
     destination = _follow_short_link(url)
     url_result = analyze_url(url, destination, follow_tried=not _replay_mode()) if url else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, request.text if text_result else None, destination or url)
-    return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network)
+    link_analysis = _check_link(url, True, request.text if text_result else None)
+    return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network, link_analysis=link_analysis)
 
 
 @app.post(MEDIA_UPLOAD_PATH, response_model=AnalysisResponse)
@@ -502,21 +661,48 @@ def analyze_media_case(
     link = str(url) if url else None
     if not search_web:
         url_result = analyze_url(link) if link else None
-        return _store_case(text_result, url_result, media, claims, provenance=provenance)
+        return _store_case(
+            text_result, url_result, media, claims, provenance=provenance, link_analysis=_check_link(link, False)
+        )
     destination = _follow_short_link(link)
     url_result = analyze_url(link, destination, follow_tried=not _replay_mode()) if link else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, text if text_result else None, destination or link, provenance)
-    return _store_case(text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network)
+    link_analysis = _check_link(link, True, text if text_result else None)
+    return _store_case(
+        text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network, link_analysis=link_analysis
+    )
 
 
 @app.get("/api/cases", response_model=CaseHistoryResponse)
 def list_cases(
     limit: int = Query(default=25, ge=1, le=100),
     risk_level: RiskLevel | None = None,
+    q: Annotated[str | None, Query(max_length=200, description="Words to find in a saved report.")] = None,
+    kind: Annotated[Literal["media", "link", "text", "scam", "campaign"] | None, Query()] = None,
 ) -> CaseHistoryResponse:
-    cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level)
-    return CaseHistoryResponse(cases=cases, total=total)
+    if not q and not kind:
+        cases, total = CASE_STORE.list(limit=limit, risk_level=risk_level, owner_id=current_owner())
+        return CaseHistoryResponse(cases=cases, total=total)
+    # Only the newest reports are searched, which keeps this quick on a local database.
+    found = []
+    needle = (q or "").casefold()
+    for case in CASE_STORE.recent(MAX_SEARCHED_CASES, current_owner()):
+        if risk_level and case.overall_risk is not risk_level:
+            continue
+        if kind and kind not in case_kinds(case):
+            continue
+        if needle and needle not in case.model_dump_json().casefold():
+            continue
+        found.append(CaseSummary(**case.model_dump(include=set(CaseSummary.model_fields))))
+    return CaseHistoryResponse(cases=found[:limit], total=len(found))
+
+
+@app.get("/api/overview")
+def overview() -> dict[str, Any]:
+    """Counts across saved reports, from their stored results."""
+    owner = current_owner()
+    return build_overview(CASE_STORE.recent(MAX_SEARCHED_CASES, owner), CASE_STORE.list(limit=1, owner_id=owner)[1])
 
 
 @app.get("/api/replay/scenarios", response_model=ReplayScenariosResponse)
@@ -530,8 +716,10 @@ def start_replay(scenario_id: str) -> AnalysisResponse:
     if scenario is None:
         raise HTTPException(status_code=404, detail="Replay scenario not found")
     text_result, claims = analyze_text(scenario.text)
-    url_result = analyze_url(str(scenario.url)) if scenario.url else None
-    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label)
+    link = str(scenario.url) if scenario.url else None
+    url_result = analyze_url(link) if link else None
+    link_analysis = investigate_link(link, offline_reason="Replay stays offline, so this was not checked.") if link else None
+    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label, link_analysis=link_analysis)
 
 
 @app.get("/api/cases/{case_id}/export", response_model=AnalysisResponse)
@@ -543,6 +731,27 @@ def export_case(case_id: str) -> AnalysisResponse:
 @app.get("/api/cases/{case_id}", response_model=AnalysisResponse)
 def get_case(case_id: str) -> AnalysisResponse:
     return _find_case(case_id)
+
+
+def _report(case_id: str) -> dict[str, Any]:
+    case = _find_case(case_id)
+    return build_report(case, CASE_STORE.get_detail(case_id, "provenance"), _network_detail(case_id))
+
+
+@app.get("/api/cases/{case_id}/report")
+def get_report(case_id: str) -> dict[str, Any]:
+    return _report(case_id)
+
+
+@app.get("/api/cases/{case_id}/report.pdf")
+def get_report_pdf(case_id: str) -> Response:
+    # The name comes from the stored ID, never from the request, as _find_case has matched it.
+    name = f"trustfeed-report-{_find_case(case_id).case_id[:8]}.pdf"
+    return Response(
+        render_pdf(_report(case_id)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @app.get("/api/cases/{case_id}/provenance", response_model=ProvenanceReport)
@@ -590,7 +799,7 @@ def get_explanation(case_id: str) -> ExplanationResponse:
         })
     detail = _network_detail(case_id)
     network_checks = (
-        build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"))
+        build_network_checks(case_id, detail["payload"], detail["coverage"], case.modules["network"].model_dump(mode="json"), detail.get("tests"))
         if detail and "network" in case.modules
         else []
     )
@@ -764,6 +973,16 @@ def get_network(case_id: str) -> dict[str, list[dict[str, object]]]:
         return detail["payload"]
     _find_case(case_id)
     return {"nodes": [], "edges": [], "timeline": []}
+
+
+@app.get("/api/network/{case_id}/tests")
+def get_tests(case_id: str) -> dict[str, object] | None:
+    """Say whether the pattern is more than chance. Null means no trace ran for this case."""
+    detail = _network_detail(case_id)
+    if detail is None:
+        _find_case(case_id)
+        return None
+    return detail.get("tests")
 
 
 @app.get("/api/network/{case_id}/coverage")

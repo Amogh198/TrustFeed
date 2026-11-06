@@ -49,8 +49,16 @@ Status: **initial implementation contract**. Any change requires a PR that names
 
 ## Claims, history and replay
 
-- Text submissions return `claims`: sentence-like units with `id`, `text`, `verdict`, and `rationale`. The current verdict is always `unverified`, because no external evidence source is queried.
+- Text submissions return `claims`: separate statements with `id`, `text`, `verdict`, `rationale` and `sources`.
+- `verdict` is `supported`, `contradicted`, `partially_supported` (partly supported or missing context) or `unverified`. It is `unverified` unless the request set `search_web` and the comparison models ran. Finding nothing gives `unverified` and never means false. `supported` and `contradicted` need two independent domains that agree, so one site alone gives at most `partially_supported`, however well known it is. Identical text on two sites, such as a wire story, counts as one source. A claim too vague to identify an event, such as "47 people died.", is not searched. A claim whose search could not run says so, and is never reported as having found nothing.
+- A source has `provider`, `title`, `url`, `domain`, `date`, `date_kind` (`last_edited`, `first_seen`, `reviewed` or `none`, so show what the date means), `stance` (`supports`, `contradicts`, `partial`, `related` or `not_compared`), `explanation`, `snippet`, `similarity`, `entailment`, `contradiction` and `rating`. `snippet`, `title` and `rating` come from outside pages and must be shown as plain text.
+- `claim_analysis.verification` has `status`, `reason`, `comparison_status`, `comparison_reason`, `providers` (`name`, `status`, `reason`, `result_count`), `skipped_claims` (checkable claims past the limit of 5) and `limitations`. Without `search_web` its `status` is `not_applicable`. Claim results do not change any score or `overall_risk`.
+- Each claim also has `kind` (`factual`, `opinion`, `question`, `call_to_action` or `fragment`), `checkable` (true only for `factual`) and `entities`. An entity has `text`, `type` (`date`, `number`, `person`, `organization`, `place` or `other`), `value`, `unit`, `bound`, `source` (`rule` or `model`) and `score`. A date's `value` is ISO text at the precision stated, such as `2024-03` or `--03-05`, and is `null` for a relative or ambiguous date. Names and places need the optional `dslim/bert-base-NER` model.
+- `claim_analysis` is `null` when no text was submitted. Otherwise it has `entity_model_status` (a module status), `entity_model_reason`, `inconsistencies`, `omitted_claims` (statements past the limit of 20) and `limitations`.
+- An inconsistency has `id`, `kind`, `severity`, `claim_ids` and `explanation`. `kind` is `negation`, `figures`, `dates`, `places`, `impossible_date`, `weekday_mismatch`, `future_date`, `impossible_share` or `part_exceeds_whole`, and the UI must show an unknown kind as text. `severity` is `conflict` (they cannot both stand as written) or `note` (they differ but need not be wrong). A flag never says which statement is wrong, and it does not change any score or `overall_risk`. Each one is also added to `modules.text.evidence`.
 - Every normal or replay analysis is retained in a local SQLite case store. The store saves the analysis result, not the original upload; uploaded media remains temporary and is deleted after analysis. A traced case also saves the public account handles and post links it found.
+- `scam_analysis` is `null` when no text was submitted. Otherwise it has `assessment` (`warning_signs_found`, `weak_signs_only` or `none_found`), `categories`, `signs`, `model_status`, `model_reason`, `model_score`, `results_file` and `limitations`. A sign has `sign`, `category` (`fake_job`, `investment`, `giveaway`, `impersonation`, `payment_request` or `credential_request`), `strength` (`strong` or `weak`), `why` and `quote`, and the UI must show an unknown `sign` or `category` as text. `none_found` never means safe. A sign is a reason to look closer, not proof.
+- Each sign is also added to `modules.text.evidence`. Signs do not change any score or `overall_risk`. The optional phishing model is off by default, with `model_status` `unavailable` and the reason, because of its measured false alarms. Even when a server turns it on with `TEXT_SCAM_MODEL_ENABLED`, its score never changes `assessment`. Measured figures live only in `results_file`.
 - Replay scenarios are synthetic and offline. Their responses set `is_replay: true` and include `replay_label`; the UI must display that label.
 - `action-packet` returns structured `sections` alongside its readable draft. It is an evidence-based template, not an AI-generated or independently verified statement.
 
@@ -79,8 +87,9 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 |---|---|---|
 | Source search | A valid image is uploaded with `search_web` | The image, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
 | Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms: Mastodon, Lemmy, Hacker News and Bluesky. A known short link is also followed to its destination, through the protected HTTP client. |
+| Claim verification | Any text case with `search_web` | Search words taken from up to 5 checkable claims, to Wikipedia, GDELT and, with a key set, Google Fact Check Tools. News pages GDELT lists are then read. |
 
-Both add to the request's time: the source search can take about 100 seconds with all three keys, and the trace up to about 25 seconds. With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
+These add to the request's time: the source search can take about 100 seconds with all three keys, the trace up to about 25 seconds, and claim verification up to about 2 minutes 15 seconds in the worst case (75 seconds of searching, then 60 seconds of comparison). With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
 
 Every case has `modules.provenance`, a normal module result:
 
@@ -134,6 +143,50 @@ Every case has `modules.provenance`, a normal module result:
 `kind` is `web_appearance`, `social_post` or `cluster_activity`. `module` is `provenance` or `network`.
 
 Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live traces, so a replay stays offline. Submitting the demo story's exact text or link with `search_web` replays its labelled synthetic posts offline. The source search report and the trace are saved with the case, so they survive a restart. `GET /api/cases/{case_id}/explanation` is not built yet.
+
+## Link analysis
+
+`link_analysis` on a case is null when no link was submitted. It holds `assessment` (`warning_signs_found`, `weak_signs_only` or `none_found`; none means safe or proven), `requested_host`, `lookalike`, `redirects`, `domain`, `page`, `official`, `threat_lists`, `signs`, `results_file` and `limitations`.
+
+- `lookalike` uses the address alone, so it always runs. Everything else opens the link or asks a public registry (rdap.org), so it needs `search_web: true`, and replay never does it. A part that didn't run has `status: unavailable` and a `reason`. Read that as "not checked", never "nothing found".
+- Addresses in `redirects` have no query string. `page.title` is written by the page, so show it as plain text.
+- `threat_lists` stays `unavailable` until someone creates Safe Browsing or URLhaus keys.
+- Signs appear in `modules.url.evidence` and don't change `modules.url.score`. The figures in `results_file` cover the address check only.
+- The explanation endpoint adds `url.lookalike`, `url.redirects`, `url.domain_age`, `url.page`, `url.official_site` and `url.threat_lists`.
+
+## Cross-modal comparison
+
+`cross_modal` on a case is null without media. It compares the caption with text from the media, read from `media.extracted_text = {"ocr": [...], "speech": [...]}` once the media check provides that. Until then `status` is `not_applicable` with a `reason`. `conflicts` hold `channels`, `kind`, `severity`, `explanation` and optional quotes. It isn't measured and changes no score.
+
+`image_caption` stays `unavailable`: `openai/clip-vit-base-patch32` has no safetensors weights and declares no licence on the Hub, so it isn't downloaded or run.
+
+## Coordination tests
+
+`GET /api/network/{case_id}/tests` returns `synthetic`, `null_test` (`verdict`: `above_chance`, `not_above_chance`, `nothing_observed` or `test_incomplete`, with `p_value`, `observed`, `chance_mean`, `chance_max`, `permutations`, `reason`), `bursts`, `repeated_media` and `activity_baseline`. It is null when no trace ran. With `not_above_chance`, no cluster is flagged. None of these shows that accounts are coordinating.
+
+Posts may carry `media_fingerprint`, a hex perceptual hash. Fingerprints within Hamming distance 5 count as one image.
+
+## Unified risk
+
+`overall_risk` now equals `unified_risk.level`, and is `low`, `moderate`, `high`, `critical` or `inconclusive`. `unified_risk.components` lists every component with `counted`, `score`, `weight`, `evidence`, `note` and `results_file`.
+
+Counted, because each has a results file: the media detector (only in its elevated band), scam warning signs and the link address check. Shown but not scored: language rules, other link signs, contradicted claims, inconsistencies, caption and media differences, and spread. If one of those raises concern, or the media detector is quiet or missing, a low score reads `inconclusive`.
+
+The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is at most 50, at most 40 at moderate and 25 at high or critical, and null when nothing was measured. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
+
+## Reports, search and overview
+
+`GET /api/cases/{id}/report` returns `investigation_id`, `submitted`, `detected`, `findings` (`manipulated_media`, `misleading_context`, `false_claims` and `scams`, each with `status` of `signs_found`, `none_found` or `not_checked`, plus `items` and `note`), `sources_consulted`, `supporting_evidence`, `contradicting_evidence`, `earlier_appearances`, `spread`, `uncertain` and `recommended_actions`. `GET /api/cases/{id}/report.pdf` downloads it. PDF fonts cover Western characters only, so others print as "?".
+
+`GET /api/cases` also takes `q` (words in a saved report) and `kind` (`media`, `link`, `text`, `scam` or `campaign`), searching the newest 500 reports. `GET /api/overview` gives counts, with replays counted apart.
+
+## Accounts
+
+`POST /api/auth/signup` and `POST /api/auth/login` take `{email, password}`. `POST /api/auth/logout` ends the session. `GET /api/auth/me` returns `{email, auth_required, signup_enabled}`, with `email` null when signed out. Sessions use an HttpOnly, SameSite=Lax cookie, so browser clients must send `credentials: 'include'`.
+
+A case saved while signed in is visible only to its owner. Anyone else gets the same 404 as a case that doesn't exist. `GET /api/cases` and `/api/overview` list only the caller's own cases. Cases saved while signed out have no owner, and anyone who knows the ID can open them.
+
+With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns 401 when signed out. Off by default, so the offline demo needs no account. Watches under `/api/monitors` aren't per-person.
 
 ## Common response sketch
 

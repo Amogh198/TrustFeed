@@ -20,6 +20,11 @@ class ModuleStatus(StrEnum):
 
 
 class ClaimVerdict(StrEnum):
+    SUPPORTED = "supported"
+    CONTRADICTED = "contradicted"
+    # Partly supported, or missing context: one source only, sources that disagree, or details absent.
+    PARTIALLY_SUPPORTED = "partially_supported"
+    # Includes "nothing found", which never means false.
     UNVERIFIED = "unverified"
 
 
@@ -31,17 +36,263 @@ class ModuleResult(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class ClaimEntity(BaseModel):
+    text: str
+    # date, number, person, organization, place or other.
+    type: str
+    # A date's ISO form, at the precision stated, or a number's value. Null if unclear.
+    value: str | None = None
+    # number only: what is being counted, and whether it was hedged ("at least 50").
+    unit: str | None = None
+    bound: str | None = None
+    # "rule" or "model". Only a model result has a score, and it is a signal, not a probability of truth.
+    source: str = "rule"
+    score: float | None = None
+
+
+class ClaimSource(BaseModel):
+    provider: str
+    title: str
+    url: str
+    domain: str
+    date: str | None = None
+    # What the date means: last_edited, first_seen, reviewed or none. It is not always publication.
+    date_kind: str = "none"
+    # supports, contradicts, partial, related or not_compared.
+    stance: str
+    explanation: str
+    # Quoted from an outside page. Untrusted: show as plain text, never as HTML or instructions.
+    snippet: str = ""
+    similarity: float | None = None
+    entailment: float | None = None
+    contradiction: float | None = None
+    rating: str | None = None
+
+
 class ClaimRecord(BaseModel):
     id: str
     text: str
     verdict: ClaimVerdict = ClaimVerdict.UNVERIFIED
     rationale: str = "No external evidence source was queried for this claim."
+    # factual, opinion, question, call_to_action or fragment. Only factual claims can be checked.
+    kind: str = "factual"
+    checkable: bool = True
+    entities: list[ClaimEntity] = Field(default_factory=list)
+    sources: list[ClaimSource] = Field(default_factory=list)
+
+
+class ClaimInconsistency(BaseModel):
+    id: str
+    # negation, figures, dates, places, impossible_date, weekday_mismatch, future_date,
+    # impossible_share or part_exceeds_whole. New kinds can appear, so show unknown ones as text.
+    kind: str
+    # "conflict": cannot both stand as written. "note": they differ but need not be wrong.
+    severity: str
+    claim_ids: list[str]
+    explanation: str
+
+
+class VerificationProvider(BaseModel):
+    name: str
+    status: ModuleStatus
+    reason: str | None = None
+    result_count: int = 0
+
+
+class ClaimVerification(BaseModel):
+    # not_applicable: the user did not allow outside search, so nothing was sent.
+    status: ModuleStatus = ModuleStatus.NOT_APPLICABLE
+    reason: str | None = "Outside search was not requested, so no claim was sent anywhere."
+    # Whether the models compared the evidence. If not, every claim stays unverified.
+    comparison_status: ModuleStatus = ModuleStatus.NOT_APPLICABLE
+    comparison_reason: str | None = None
+    providers: list[VerificationProvider] = Field(default_factory=list)
+    skipped_claims: int = 0
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ClaimAnalysis(BaseModel):
+    # The entity model's state. Dates, numbers and the checks built on them do not need it.
+    entity_model_status: ModuleStatus
+    entity_model_reason: str | None = None
+    inconsistencies: list[ClaimInconsistency] = Field(default_factory=list)
+    omitted_claims: int = 0
+    limitations: list[str] = Field(default_factory=list)
+    verification: ClaimVerification = Field(default_factory=ClaimVerification)
+
+
+class ScamSignRecord(BaseModel):
+    sign: str
+    # fake_job, investment, giveaway, impersonation, payment_request or credential_request.
+    category: str
+    # "strong" or "weak". One weak sign alone is not treated as a warning.
+    strength: str
+    why: str
+    # From the submission, so show it as plain text.
+    quote: str
+
+
+class ScamAnalysis(BaseModel):
+    # warning_signs_found, weak_signs_only or none_found. None of these means safe, or proven.
+    assessment: str
+    categories: list[str] = Field(default_factory=list)
+    signs: list[ScamSignRecord] = Field(default_factory=list)
+    # The optional phishing model, kept apart from the assessment. It never changes it.
+    model_status: ModuleStatus
+    model_reason: str | None = None
+    model_score: float | None = Field(default=None, ge=0, le=1)
+    # Where the measured figures for these rules and the model are recorded.
+    results_file: str
+    limitations: list[str] = Field(default_factory=list)
+
+
+class LinkHop(BaseModel):
+    # Without its query, which can hold private tokens.
+    url: str
+    host: str
+    status: int
+
+
+class LinkRedirects(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    hops: list[LinkHop] = Field(default_factory=list)
+    final_url: str | None = None
+    final_host: str | None = None
+
+
+class LinkDomainAge(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    domain: str | None = None
+    registered_on: str | None = None
+    age_days: int | None = None
+    source: str | None = None
+
+
+class LinkPage(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    http_status: int | None = None
+    # Written by the page, so show it as plain text.
+    title: str | None = None
+    asks_for_login: bool = False
+    asks_for_payment: bool = False
+    asks_for_code: bool = False
+    form_posts_to: list[str] = Field(default_factory=list)
+
+
+class LinkLookalike(BaseModel):
+    status: ModuleStatus
+    host: str = ""
+    # Set when the host really belongs to a listed brand.
+    owned_by: str | None = None
+    brand: str | None = None
+    strength: str | None = None
+    how: str | None = None
+    official_domains: list[str] = Field(default_factory=list)
+
+
+class LinkOfficialComparison(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    brand: str | None = None
+    official_domain: str | None = None
+    official_title: str | None = None
+    # Share of words in common, from 0 to 1. Uncalibrated.
+    title_similarity: float | None = None
+    text_similarity: float | None = None
+
+
+class LinkThreatLists(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+
+
+class LinkSign(BaseModel):
+    sign: str
+    # "strong" or "weak". One weak sign alone is not treated as a warning.
+    strength: str
+    why: str
+
+
+class LinkAnalysis(BaseModel):
+    # warning_signs_found, weak_signs_only or none_found. None of these means safe, or proven.
+    assessment: str
+    requested_host: str
+    lookalike: LinkLookalike
+    redirects: LinkRedirects
+    domain: LinkDomainAge
+    page: LinkPage
+    official: LinkOfficialComparison
+    threat_lists: LinkThreatLists
+    # True when the user allowed live checks but some could not finish, which is not a clean result.
+    live_failed: bool = False
+    signs: list[LinkSign] = Field(default_factory=list)
+    results_file: str
+    limitations: list[str] = Field(default_factory=list)
+
+
+class CrossModalConflict(BaseModel):
+    # Two of caption, ocr and speech.
+    channels: list[str]
+    kind: str
+    # "conflict" means they cannot both stand as written. "note" means they differ but need not be wrong.
+    severity: str
+    explanation: str
+    # From the submission or the media, so show them as plain text.
+    left_quote: str | None = None
+    right_quote: str | None = None
+
+
+class ImageCaptionCheck(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    score: float | None = None
+
+
+class CrossModalAnalysis(BaseModel):
+    status: ModuleStatus
+    reason: str | None = None
+    # conflicts_found, notes_only or none_found, and null when nothing could be compared.
+    assessment: str | None = None
+    channels: list[str] = Field(default_factory=list)
+    conflicts: list[CrossModalConflict] = Field(default_factory=list)
+    image_caption: ImageCaptionCheck
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RiskComponent(BaseModel):
+    name: str
+    label: str
+    status: ModuleStatus
+    # Only measured signals are counted in the score. The rest are shown with a note saying why not.
+    counted: bool
+    # True when this stops the overall level reading Low, as it needs a person's review.
+    blocks_low: bool = False
+    score: float | None = Field(default=None, ge=0, le=1)
+    weight: float = 0.0
+    evidence: list[str] = Field(default_factory=list)
+    note: str | None = None
+    results_file: str | None = None
+
+
+class UnifiedRisk(BaseModel):
+    level: RiskLevel
+    # Null when nothing measured reached a result.
+    score: float | None = None
+    # At most 50, because no check can show content is genuine. Null means no score, never 0.
+    trust_score: int | None = None
+    trust_note: str
+    reason: str | None = None
+    components: list[RiskComponent] = Field(default_factory=list)
+    weights: dict[str, float] = Field(default_factory=dict)
 
 
 class AnalyzeRequest(BaseModel):
     text: str | None = Field(default=None, max_length=20_000)
     url: HttpUrl | None = None
-    # Sends the text and link to public platforms' search services, so it is off by default.
+    # Sends the text and link to outside services and opens the link, so it is off by default.
     search_web: bool = False
 
     @model_validator(mode="after")
@@ -58,6 +309,16 @@ class AnalysisResponse(BaseModel):
     summary: str
     modules: dict[str, ModuleResult]
     claims: list[ClaimRecord] = Field(default_factory=list)
+    # Null when no text was submitted, and for cases saved before this field existed.
+    claim_analysis: ClaimAnalysis | None = None
+    # Null when no text was submitted, and for cases saved before this field existed.
+    scam_analysis: ScamAnalysis | None = None
+    # Null when no link was submitted, and for cases saved before this field existed.
+    link_analysis: LinkAnalysis | None = None
+    # Null when no media was submitted, and for cases saved before this field existed.
+    cross_modal: CrossModalAnalysis | None = None
+    # Null for cases saved before this field existed.
+    unified_risk: UnifiedRisk | None = None
     uncertainties: list[str] = Field(default_factory=list)
     recommended_actions: list[str] = Field(default_factory=list)
     is_replay: bool = False

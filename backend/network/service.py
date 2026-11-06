@@ -110,10 +110,16 @@ def get_network_coverage(case_id: str) -> dict[str, Any] | None:
     return copy.deepcopy(traced.coverage) if traced else None
 
 
+def get_network_tests(case_id: str) -> dict[str, Any] | None:
+    """Return the comparison with chance, bursts, repeated media and the post-count baseline."""
+    analysis = _analysis(case_id)
+    return copy.deepcopy(analysis.tests) if analysis else None
+
+
 def get_network_checks(case_id: str) -> list[dict[str, Any]] | None:
     """Return explanation checks: what was searched, what was found and what it can't show."""
     payload = get_network_payload(case_id)
     module_result = get_network_module_result(case_id)
     if payload is None or module_result is None:
         return None
-    return build_network_checks(case_id, payload, get_network_coverage(case_id), module_result)
+    return build_network_checks(case_id, payload, get_network_coverage(case_id), module_result, get_network_tests(case_id))

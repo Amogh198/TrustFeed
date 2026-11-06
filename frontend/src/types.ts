@@ -19,6 +19,11 @@ export interface Claim {
 }
 
 export interface AnalysisResponse {
+  link_analysis?: LinkAnalysis | null;
+  claim_analysis?: { verification?: { status?: string } } | null;
+  scam_analysis?: ScamAnalysis | null;
+  cross_modal?: CrossModal | null;
+  unified_risk?: UnifiedRisk | null;
   case_id: string;
   created_at: string;
   overall_risk: RiskLevel;
@@ -241,3 +246,68 @@ export interface WatchSnapshot {
   platforms?: CoveragePlatform[];
   not_connected?: NotConnected[];
 }
+
+export interface LinkPart { status: string; reason?: string | null }
+export interface LinkAnalysis {
+  assessment: string;
+  requested_host: string;
+  live_failed?: boolean;
+  lookalike: LinkPart & { host: string; owned_by?: string | null; brand?: string | null; strength?: string | null; how?: string | null };
+  redirects: LinkPart & { hops: { url: string; host: string; status: number }[]; final_host?: string | null };
+  domain: LinkPart & { domain?: string | null; registered_on?: string | null; age_days?: number | null };
+  page: LinkPart & { title?: string | null; asks_for_login: boolean; asks_for_payment: boolean; asks_for_code: boolean; form_posts_to: string[] };
+  official: LinkPart & { official_domain?: string | null; title_similarity?: number | null; text_similarity?: number | null };
+  threat_lists: LinkPart;
+  signs: { sign: string; strength: string; why: string }[];
+  limitations: string[];
+}
+export interface CrossModal extends LinkPart {
+  channels: string[];
+  conflicts: { channels: string[]; kind: string; severity: string; explanation: string }[];
+  image_caption: LinkPart;
+  limitations: string[];
+}
+export interface RiskComponent {
+  name: string;
+  label: string;
+  status: string;
+  counted: boolean;
+  score?: number | null;
+  weight: number;
+  evidence: string[];
+  note?: string | null;
+  results_file?: string | null;
+}
+export interface UnifiedRisk {
+  level: string;
+  score?: number | null;
+  trust_score: number | null;
+  trust_note: string;
+  components: RiskComponent[];
+}
+export interface Overview {
+  investigations: number;
+  replays: number;
+  total_saved: number;
+  read_limit_reached: boolean;
+  risk_distribution: Record<string, number>;
+  media_assessments: { signals: number; no_strong_signal: number; unavailable: number };
+  suspicious_urls: { case_id: string; host: string; signs: number }[];
+  claims_to_verify: { case_id: string; text: string; verdict: string }[];
+  flagged_campaigns: { case_id: string; score: number }[];
+  recent_high_risk: { case_id: string; level: string; created_at: string; summary: string }[];
+}
+
+export interface ScamAnalysis {
+  assessment: string;
+  signs: { sign: string; category: string; strength: string; why: string; quote: string }[];
+  limitations: string[];
+}
+export interface NetworkTests {
+  synthetic: boolean;
+  null_test: { verdict: string; reason: string; p_value?: number | null; permutations: number };
+  bursts: { status: string; reason?: string | null; bursts: { start: string; posts: number; accounts: number; usual_posts_per_interval: number }[] };
+  repeated_media: { status: string; reason?: string | null; groups: { fingerprint: string; posts: number; accounts: number; variants: number }[] };
+  activity_baseline?: { reason: string } | null;
+}
+export interface AccountState { email: string | null; auth_required: boolean; signup_enabled: boolean }

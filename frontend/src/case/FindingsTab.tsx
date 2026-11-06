@@ -1,3 +1,4 @@
+import { CheckArtifacts, RiskPanel } from './AnalysisPanels';
 import { benchmarkSentence, asLines, MODULE_NAMES, words } from '../lib/format';
 import type { AnalysisResponse, Explanation } from '../types';
 import { KindTag, Limits, Lines, Loading, Section, Unknown } from '../ui/ui';
@@ -13,6 +14,7 @@ export default function FindingsTab({ report, explanation, loading }: {
   const uncertain = explanation.uncertainties.length ? explanation.uncertainties : report.uncertainties;
   return (
     <>
+      {report.unified_risk && <RiskPanel risk={report.unified_risk} />}
       <Section title="Why it got this result" lead="What each check did and what it found, for this content.">
         <div className="reasons">
           {ran.map(check => (
@@ -20,6 +22,7 @@ export default function FindingsTab({ report, explanation, loading }: {
               <h3>{check.label}</h3>
               <p className="reason-result">{check.result}</p>
               <Lines items={asLines(check.reasoning)} />
+              <CheckArtifacts check={check} />
               <p className="fineprint"><strong>How far to trust it: </strong>{benchmarkSentence(check.benchmark)}</p>
               <Limits items={check.limitations} />
             </article>

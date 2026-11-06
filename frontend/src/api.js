@@ -48,7 +48,7 @@ async function request(path, options = {}) {
   const outer = options.signal;
   if (outer) outer.addEventListener('abort', () => controller.abort(), { once: true });
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, { ...options, signal: controller.signal });
+    const response = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include', ...options, signal: controller.signal });
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new ApiError(errorMessage(payload, `The API answered with an error (${response.status}).`), response.status, payload?.detail);
     return payload;
@@ -101,8 +101,10 @@ export const api = {
    * @param {number} [limit]
    * @returns {Promise<import('./types').CaseHistory>}
    */
-  getHistory(riskLevel = '', limit = 100) {
+  getHistory(riskLevel = '', limit = 100, q = '', kind = '') {
     const params = new URLSearchParams({ limit: String(limit) });
+    if (q) params.set('q', q);
+    if (kind) params.set('kind', kind);
     if (riskLevel) params.set('risk_level', riskLevel);
     return request(`/api/cases?${params}`);
   },
@@ -116,6 +118,19 @@ export const api = {
   getNetwork(caseId) { return request(`/api/network/${id(caseId)}`); },
   /** @param {string} caseId @returns {Promise<import('./types').Coverage | null>} */
   getCoverage(caseId) { return request(`/api/network/${id(caseId)}/coverage`); },
+  /** @returns {Promise<import('./types').AccountState>} */
+  getAccount() { return request('/api/auth/me'); },
+  /** @param {string} email @param {string} password */
+  login(email, password) { return request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); },
+  /** @param {string} email @param {string} password */
+  signup(email, password) { return request('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); },
+  logout() { return request('/api/auth/logout', { method: 'POST' }); },
+  /** @returns {Promise<import('./types').Overview>} */
+  getOverview() { return request('/api/overview'); },
+  /** @param {string} caseId */
+  reportPdfUrl(caseId) { return `${API_BASE_URL}/api/cases/${id(caseId)}/report.pdf`; },
+  /** @param {string} caseId @returns {Promise<import('./types').NetworkTests | null>} */
+  getNetworkTests(caseId) { return request(`/api/network/${id(caseId)}/tests`); },
   /** @param {string} caseId @returns {Promise<import('./types').Explanation>} */
   getExplanation(caseId) { return request(`/api/cases/${id(caseId)}/explanation`); },
   /** @param {File} file @returns {Promise<import('./types').Heatmap>} */

@@ -7,6 +7,7 @@ import { freshResult } from '../lib/session';
 import type { AnalysisResponse, Coverage, Explanation, NetworkPayload, ProvenanceReport, TimelineEvent } from '../types';
 import { Loading, Meter, Problem, Tape, Unknown } from '../ui/ui';
 import ActionTab from './ActionTab';
+import { CoordinationTests } from './AnalysisPanels';
 import FindingsTab from './FindingsTab';
 import MediaTab from './MediaTab';
 import SourceTab from './SourceTab';
@@ -146,7 +147,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
     media: <MediaTab report={report} explanation={details.explanation} />,
     text: <TextLinkTab report={report} />,
     source: <SourceTab report={report} data={details.provenance} loading={loading} />,
-    spread: <SpreadTab report={report} graph={details.network} coverage={details.coverage} loading={loading} />,
+    spread: <><CoordinationTests caseId={caseId} /><SpreadTab report={report} graph={details.network} coverage={details.coverage} loading={loading} /></>,
     timeline: <TimelineTab events={details.timeline?.events} loading={loading} />,
     action: <ActionTab report={report} />,
   };
@@ -167,6 +168,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
           </p>
           <div className="verdict-actions no-print">
             <a className="button button-primary" href={caseHref(caseId, 'action')}><FileText size={16} aria-hidden="true" />Draft action packet</a>
+            <a className="button" href={api.reportPdfUrl(caseId)} download><FileText size={16} aria-hidden="true" />Report PDF</a>
             <button type="button" className="button" onClick={exportCase}><Download size={16} aria-hidden="true" />Export JSON</button>
             <button type="button" className="button" onClick={() => setPrinting(true)}><Printer size={16} aria-hidden="true" />Print report</button>
           </div>

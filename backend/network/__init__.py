@@ -12,6 +12,7 @@ from backend.network.service import (
     get_network_coverage,
     get_network_module_result,
     get_network_payload,
+    get_network_tests,
     trace_case,
 )
 from backend.network.story import DEMO_STORY_CASE_ID, get_demo_story
@@ -41,6 +42,7 @@ __all__ = [
     "get_network_coverage",
     "get_network_module_result",
     "get_network_payload",
+    "get_network_tests",
     "list_watches",
     "load_dataset",
     "parse_dataset",

@@ -1,0 +1,248 @@
+{
+ "split": "test",
+ "examples": 60,
+ "scams": 30,
+ "measured_at": "2026-11-05T19:46:53+00:00",
+ "caveats": [
+  "All examples are synthetic, hand-written and in English apart from two in Hindi.",
+  "The same author wrote the rules and both splits, just before the rules, so even the test split is not independent. These figures are likely too high for real messages.",
+  "The rules were frozen in commit ddebf63 before the test split was first scored, then changed once after it, to close bypasses a security review found. So these figures are not a pure first score.",
+  "The set is small, so one example moves a figure by several points.",
+  "Scams are half of this set, which is far more than in real feeds, so precision here overstates real precision."
+ ],
+ "rules": {
+  "true_positive": 30,
+  "false_positive": 1,
+  "false_negative": 0,
+  "true_negative": 29,
+  "precision": 0.968,
+  "recall": 1.0,
+  "false_positive_rate": 0.033,
+  "missed": [],
+  "false_alarms": [
+   "test-legit-3"
+  ],
+  "by_category": {
+   "fake_job": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "investment": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "giveaway": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "impersonation": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "payment_request": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "credential_request": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "bank_warning": {
+    "examples": 2,
+    "flagged": 0
+   },
+   "scam_news": {
+    "examples": 3,
+    "flagged": 1
+   },
+   "real_job": {
+    "examples": 3,
+    "flagged": 0
+   },
+   "real_investment": {
+    "examples": 3,
+    "flagged": 0
+   },
+   "real_giveaway": {
+    "examples": 3,
+    "flagged": 0
+   },
+   "real_official": {
+    "examples": 3,
+    "flagged": 0
+   },
+   "real_payment": {
+    "examples": 3,
+    "flagged": 0
+   },
+   "how_to": {
+    "examples": 2,
+    "flagged": 0
+   },
+   "ordinary": {
+    "examples": 8,
+    "flagged": 0
+   }
+  },
+  "scams_given_the_right_category": 30,
+  "scams_flagged_only_by_weak_signs": 0,
+  "scams_given_a_different_category": {}
+ },
+ "model": {
+  "status": "complete",
+  "model_id": "cybersectony/phishing-email-detection-distilbert_v2.4.1",
+  "revision": "6724dec17360ab1f6450553f1d950404f66a5dde",
+  "threshold": 0.5,
+  "true_positive": 27,
+  "false_positive": 15,
+  "false_negative": 3,
+  "true_negative": 15,
+  "precision": 0.643,
+  "recall": 0.9,
+  "false_positive_rate": 0.5,
+  "missed": [
+   "test-job-1",
+   "test-imp-1",
+   "test-imp-5"
+  ],
+  "false_alarms": [
+   "test-legit-1",
+   "test-legit-2",
+   "test-legit-3",
+   "test-legit-4",
+   "test-legit-5",
+   "test-legit-6",
+   "test-legit-8",
+   "test-legit-9",
+   "test-legit-10",
+   "test-legit-12",
+   "test-legit-13",
+   "test-legit-19",
+   "test-legit-21",
+   "test-legit-22",
+   "test-legit-24"
+  ],
+  "by_category": {
+   "fake_job": {
+    "examples": 5,
+    "flagged": 4
+   },
+   "investment": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "giveaway": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "impersonation": {
+    "examples": 5,
+    "flagged": 3
+   },
+   "payment_request": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "credential_request": {
+    "examples": 5,
+    "flagged": 5
+   },
+   "bank_warning": {
+    "examples": 2,
+    "flagged": 2
+   },
+   "scam_news": {
+    "examples": 3,
+    "flagged": 3
+   },
+   "real_job": {
+    "examples": 3,
+    "flagged": 2
+   },
+   "real_investment": {
+    "examples": 3,
+    "flagged": 2
+   },
+   "real_giveaway": {
+    "examples": 3,
+    "flagged": 2
+   },
+   "real_official": {
+    "examples": 3,
+    "flagged": 0
+   },
+   "real_payment": {
+    "examples": 3,
+    "flagged": 1
+   },
+   "how_to": {
+    "examples": 2,
+    "flagged": 2
+   },
+   "ordinary": {
+    "examples": 8,
+    "flagged": 1
+   }
+  },
+  "mean_score_scam": 0.901,
+  "mean_score_legit": 0.512,
+  "top_label_counts": {
+   "scam": {
+    "legitimate_email": 3,
+    "phishing_url": 27,
+    "legitimate_url": 0,
+    "phishing_url_alt": 0
+   },
+   "legit": {
+    "legitimate_email": 15,
+    "phishing_url": 15,
+    "legitimate_url": 0,
+    "phishing_url_alt": 0
+   }
+  }
+ },
+ "rules_or_model": {
+  "true_positive": 30,
+  "false_positive": 15,
+  "false_negative": 0,
+  "true_negative": 15,
+  "precision": 0.667,
+  "recall": 1.0,
+  "false_positive_rate": 0.5,
+  "missed": [],
+  "false_alarms": [
+   "test-legit-1",
+   "test-legit-2",
+   "test-legit-3",
+   "test-legit-4",
+   "test-legit-5",
+   "test-legit-6",
+   "test-legit-8",
+   "test-legit-9",
+   "test-legit-10",
+   "test-legit-12",
+   "test-legit-13",
+   "test-legit-19",
+   "test-legit-21",
+   "test-legit-22",
+   "test-legit-24"
+  ]
+ },
+ "rules_and_model": {
+  "true_positive": 27,
+  "false_positive": 1,
+  "false_negative": 3,
+  "true_negative": 29,
+  "precision": 0.964,
+  "recall": 0.9,
+  "false_positive_rate": 0.033,
+  "missed": [
+   "test-job-1",
+   "test-imp-1",
+   "test-imp-5"
+  ],
+  "false_alarms": [
+   "test-legit-3"
+  ]
+ }
+}

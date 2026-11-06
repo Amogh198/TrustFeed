@@ -1,0 +1,6 @@
+# Optional: enables the named-entity model. Without these the text lane still
+# runs, finds dates and numbers with rules, and reports names and places as unavailable.
+torch>=2.2,<3.0
+transformers>=4.40,<5.0
+safetensors>=0.4,<1.0
+huggingface_hub>=0.23,<1.0

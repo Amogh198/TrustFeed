@@ -176,6 +176,25 @@ export interface Trust {
  * It's null when nothing was measured, and is never filled in.
  */
 export function trustScore(report: AnalysisResponse): Trust {
+  // The server's figure counts only measured signals. Cases saved earlier don't have one.
+  const unified = report.unified_risk;
+  if (unified) {
+    const scored = unified.components.filter(item => item.counted && item.score != null).map(item => ({ name: item.label, value: item.score as number }));
+    const strongest = scored.length ? scored.reduce((top, item) => (item.value > top.value ? item : top)) : null;
+    const value = unified.trust_score;
+    const words = value == null
+      ? 'No trust score'
+      : value >= NEUTRAL_TRUST ? 'Inconclusive: not enough evidence' : value > 25 ? 'Some warning signs' : 'Warning signs found: a person should review this';
+    return {
+      score: value,
+      words,
+      strongest,
+      counted: scored,
+      mediaMissing: report.modules?.media?.status === 'unavailable',
+      capped: value === NEUTRAL_TRUST,
+      fromOverallRisk: false,
+    };
+  }
   const counted = TRUST_MODULES.flatMap(key => {
     const module = report.modules?.[key];
     return module?.status === 'complete' && module.score != null ? [{ name: MODULE_NAMES[key], value: module.score }] : [];

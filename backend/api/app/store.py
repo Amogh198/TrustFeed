@@ -52,15 +52,19 @@ class CaseStore:
                 )
                 """
             )
+            # Databases from before accounts get the column, and their cases stay unowned.
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(cases)")}
+            if "owner_id" not in columns:
+                connection.execute("ALTER TABLE cases ADD COLUMN owner_id TEXT")
 
-    def save(self, case: AnalysisResponse) -> None:
+    def save(self, case: AnalysisResponse, owner_id: str | None = None) -> None:
         payload = case.model_dump_json()
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT OR REPLACE INTO cases (
-                    case_id, created_at, overall_risk, summary, is_replay, replay_label, response_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    case_id, created_at, overall_risk, summary, is_replay, replay_label, response_json, owner_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     case.case_id,
@@ -70,8 +74,15 @@ class CaseStore:
                     int(case.is_replay),
                     case.replay_label,
                     payload,
+                    owner_id,
                 ),
             )
+
+    def owner_of(self, case_id: str) -> tuple[bool, str | None]:
+        """Say whether a case is saved, and who owns it. A null owner means it was saved signed out."""
+        with self._connect() as connection:
+            row = connection.execute("SELECT owner_id FROM cases WHERE case_id = ?", (case_id,)).fetchone()
+        return (True, row["owner_id"]) if row else (False, None)
 
     def get(self, case_id: str) -> AnalysisResponse | None:
         with self._connect() as connection:
@@ -95,9 +106,12 @@ class CaseStore:
             ).fetchone()
         return json.loads(row["detail_json"]) if row else None
 
-    def list(self, limit: int, risk_level: RiskLevel | None = None) -> tuple[list[CaseSummary], int]:
-        where = "WHERE overall_risk = ?" if risk_level else ""
-        arguments: tuple[object, ...] = (risk_level.value,) if risk_level else ()
+    def list(
+        self, limit: int, risk_level: RiskLevel | None = None, owner_id: str | None = None
+    ) -> tuple[list[CaseSummary], int]:
+        """List one owner's cases. No owner means the cases saved while signed out."""
+        where = "WHERE owner_id IS ?" + (" AND overall_risk = ?" if risk_level else "")
+        arguments: tuple[object, ...] = (owner_id, risk_level.value) if risk_level else (owner_id,)
         with self._connect() as connection:
             total = connection.execute(f"SELECT COUNT(*) FROM cases {where}", arguments).fetchone()[0]
             rows = connection.execute(
@@ -123,6 +137,14 @@ class CaseStore:
             ],
             total,
         )
+
+    def recent(self, limit: int, owner_id: str | None = None) -> "list[AnalysisResponse]":
+        """Return one owner's whole cases, newest first, for search and the overview."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT response_json FROM cases WHERE owner_id IS ? ORDER BY created_at DESC LIMIT ?", (owner_id, limit)
+            ).fetchall()
+        return [AnalysisResponse.model_validate_json(row["response_json"]) for row in rows]
 
     def clear(self) -> None:
         """Test helper; production code does not expose a deletion endpoint."""
