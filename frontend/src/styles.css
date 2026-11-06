@@ -469,6 +469,10 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
 .radar-feed-id { overflow-wrap: anywhere; }
 .pill { display: inline-flex; align-items: center; border: 1px solid currentColor; border-radius: 999px; padding: 2px 9px; font-size: .78rem; font-weight: 700; }
 .radar-feed-meta { display: flex; flex-wrap: wrap; gap: .75rem; margin: 0; color: var(--paper); }
+.spread-steps { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin: 0; padding: 0; }
+.spread-steps li { padding: .85rem 1rem; border: 1px solid var(--ink-3); background: var(--ink-2); }
+.spread-steps strong { display: block; }
+.spread-steps p { margin: .25rem 0 0; overflow-wrap: anywhere; }
 .pill-high { color: var(--flag); }
 .pill-slate { color: var(--soft); }
 @media (max-width: 680px) {

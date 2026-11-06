@@ -23,6 +23,17 @@ def test_monitor_alerts_returns_active_campaigns():
     assert top["risk_level"] in {"low", "moderate", "high", "critical", "inconclusive"}
 
 
+def test_monitor_alerts_list_the_earliest_post_on_each_platform_from_the_data():
+    top = client.get("/api/monitor/alerts").json()[0]
+    steps = top["spread_steps"]
+    assert {step["platform"] for step in steps} == set(top["platform_spread"])
+    seconds = [step["seconds_after_first"] for step in steps]
+    assert seconds[0] == 0 and seconds == sorted(seconds)
+    assert all(step["handle"] and step["first_seen_at"] for step in steps)
+    # Scores and similarity figures belong to real checks, not to this replay feed.
+    assert "deepfake_score" not in steps[0] and "similarity" not in steps[0]
+
+
 def test_action_packet_fallback_when_gemini_key_missing(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     case = client.post("/api/cases/analyze", json={"text": "Breaking rumor spreading fast"}).json()

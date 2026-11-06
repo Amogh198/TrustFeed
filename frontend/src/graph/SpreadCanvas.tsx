@@ -22,21 +22,25 @@ interface Props {
   /** Where the middle of the graph sits, as a share of the width. The home page moves it right. */
   focusX?: number;
   label: string;
+  /** When given, pointing at a link shows why its two accounts are connected. */
+  edgeReason?: (edge: PlacedEdge) => string;
+  nodeHint?: string;
 }
 
 interface Transform { k: number; x: number; y: number }
 
-export default function SpreadCanvas({ view, time, showWeak = false, selectedId, onSelect, interactive = true, focusX = 0.5, label }: Props) {
+export default function SpreadCanvas({ view, time, showWeak = false, selectedId, onSelect, interactive = true, focusX = 0.5, label, edgeReason, nodeHint }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [hover, setHover] = useState<PlacedNode | null>(null);
+  const [hoverEdge, setHoverEdge] = useState<PlacedEdge | null>(null);
   const zoomRef = useRef<Transform | null>(null);
   const firstSeen = useRef(new Map<string, number>());
   const frame = useRef(0);
   const reduced = useMemo(prefersReducedMotion, []);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
-  const latest = useRef({ time, showWeak, selectedId, hover });
-  latest.current = { time, showWeak, selectedId, hover };
+  const latest = useRef({ time, showWeak, selectedId, hover, hoverEdge });
+  latest.current = { time, showWeak, selectedId, hover, hoverEdge };
 
   const seeded = useRef(false);
   useEffect(() => { firstSeen.current.clear(); seeded.current = false; zoomRef.current = null; }, [view]);
@@ -82,7 +86,7 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, size.width, size.height);
 
-    const { time: now, showWeak: weak, selectedId: selected, hover: hovered } = latest.current;
+    const { time: now, showWeak: weak, selectedId: selected, hover: hovered, hoverEdge: hoveredEdge } = latest.current;
     const { k, x, y } = transform();
     const sx = (value: number) => value * k + x;
     const sy = (value: number) => value * k + y;
@@ -131,8 +135,9 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
       const [colour, base] = edgeStyle(edge);
       const touches = !focusId || edge.a.id === focusId || edge.b.id === focusId;
       const alpha = touches ? (focusId ? Math.max(base * 3, 0.55) : base) : base * 0.18;
-      context.strokeStyle = `rgba(${colour},${Math.min(1, alpha + flash * 0.75)})`;
-      context.lineWidth = (edge.type === 'weak_co_share' ? 0.6 : 1) + flash * 1.6;
+      const pointedAt = hoveredEdge?.id === edge.id;
+      context.strokeStyle = pointedAt ? 'rgba(111,231,255,0.95)' : `rgba(${colour},${Math.min(1, alpha + flash * 0.75)})`;
+      context.lineWidth = (pointedAt ? 2.5 : edge.type === 'weak_co_share' ? 0.6 : 1) + flash * 1.6;
       context.setLineDash(edge.cross_platform ? [5, 4] : []);
       context.beginPath();
       context.moveTo(sx(edge.a.x), sy(edge.a.y));
@@ -198,7 +203,7 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame.current);
-  }, [draw, time, showWeak, selectedId, hover]);
+  }, [draw, time, showWeak, selectedId, hover, hoverEdge]);
 
   const redraw = () => {
     cancelAnimationFrame(frame.current);
@@ -217,6 +222,32 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
       if (node.at > time) continue;
       const distance = Math.hypot(node.x * k + x - px, node.y * k + y - py);
       if (distance < Math.max(9, node.radius * 2) && distance < bestDistance) { best = node; bestDistance = distance; }
+    }
+    return best;
+  };
+
+  const edgeAt = (clientX: number, clientY: number): PlacedEdge | null => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const { k, x, y } = transform();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    let best: PlacedEdge | null = null;
+    let bestDistance = 8;
+    for (const edge of view.edges) {
+      if (edge.at > time || (!showWeak && edge.type === 'weak_co_share')) continue;
+      const x1 = edge.a.x * k + x;
+      const y1 = edge.a.y * k + y;
+      const dx = edge.b.x * k + x - x1;
+      const dy = edge.b.y * k + y - y1;
+      const length = dx * dx + dy * dy;
+      if (length === 0) continue;
+      const along = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / length));
+      const distance = Math.hypot(px - (x1 + along * dx), py - (y1 + along * dy));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = edge;
+      }
     }
     return best;
   };
@@ -264,6 +295,10 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
     }
     const found = nodeAt(event.clientX, event.clientY);
     if (found?.id !== hover?.id) setHover(found);
+    if (edgeReason) {
+      const foundEdge = found ? null : edgeAt(event.clientX, event.clientY);
+      if (foundEdge?.id !== hoverEdge?.id) setHoverEdge(foundEdge);
+    }
   };
 
   const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -284,6 +319,7 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
       onSelect?.(hover);
     } else if (event.key === 'Escape') {
       setHover(null);
+      setHoverEdge(null);
       onSelect?.(null);
     } else if (event.key === '+' || event.key === '=') {
       zoomBy(1.2);
@@ -293,7 +329,7 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
   };
 
   const reset = () => { zoomRef.current = null; redraw(); };
-  const place = hover ? transform() : null;
+  const place = hover || hoverEdge ? transform() : null;
 
   return (
     <div className="spread-canvas">
@@ -306,15 +342,28 @@ export default function SpreadCanvas({ view, time, showWeak = false, selectedId,
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerLeave={() => setHover(null)}
+          onPointerLeave={() => { setHover(null); setHoverEdge(null); }}
           onKeyDown={onKeyDown}
-          style={{ cursor: hover ? 'pointer' : 'grab', touchAction: 'none' }}
+          style={{ cursor: hover ? 'pointer' : hoverEdge ? 'help' : 'grab', touchAction: 'none' }}
         />
       ) : <canvas ref={canvasRef} role="img" aria-label={label} />}
       {hover && place && (
         <div className="node-tip" style={{ left: hover.x * place.k + place.x, top: hover.y * place.k + place.y }}>
           <strong>{hover.handle}</strong>
           <span>{hover.role_label}</span>
+          {nodeHint && <span>{nodeHint}</span>}
+        </div>
+      )}
+      {hoverEdge && !hover && place && edgeReason && (
+        <div
+          className="node-tip"
+          style={{
+            left: ((hoverEdge.a.x + hoverEdge.b.x) / 2) * place.k + place.x,
+            top: ((hoverEdge.a.y + hoverEdge.b.y) / 2) * place.k + place.y,
+          }}
+        >
+          <strong>Why these are linked</strong>
+          <span>{edgeReason(hoverEdge)}</span>
         </div>
       )}
       {interactive && (
