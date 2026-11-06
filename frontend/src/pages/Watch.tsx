@@ -122,9 +122,9 @@ export default function Watch() {
       )}
 
       {!watchId && (
-        <form className="watch-form" onSubmit={start}>
+        <form className="watch-form" noValidate onSubmit={start}>
           <label className="field">Text to watch
-            <textarea value={text} onChange={event => setText(event.target.value)} maxLength={2000} rows={3} placeholder="A distinctive sentence from the post" />
+            <textarea className="textarea resize-none" value={text} onChange={event => setText(event.target.value)} maxLength={2000} rows={3} placeholder="A distinctive sentence from the post" />
           </label>
           <div className="watch-fields">
             <label className="field">Links, separated by spaces

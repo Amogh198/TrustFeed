@@ -47,6 +47,10 @@ A real `0.00` draws an empty solid track and a null draws a dashed one. They mus
 
 Only the home replay starts by itself, and it plays once. Everything else answers an action: a flash when an account joins, a scan line while an image is checked. Reduced motion jumps the replay to its end and removes the flashes and scan line.
 
+## Interaction ownership
+
+- Select/Listbox: native. `ActionTab` uses the browser-owned HTML select popup for the action-packet audience.
+
 ## Do not drift
 
 - No gradients as decoration, shadows under cards, or new fonts.

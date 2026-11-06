@@ -1,8 +1,8 @@
-import { Activity, AlertTriangle, ArrowRight } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Activity, ArrowRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { go } from '../lib/route';
-import { Caveat, Loading, Section } from '../ui/ui';
+import { Loading, Section, Tape, Unknown } from '../ui/ui';
 
 interface AlertItem {
   campaign_id: string;
@@ -15,92 +15,83 @@ export default function LiveMonitor() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-
-  const fetchAlerts = async () => {
-    try {
-      const data = await api.getMonitorAlerts();
-      setAlerts(data);
-      setError('');
-      setLastUpdated(new Date().toLocaleTimeString());
-    } catch (err) {
-      setError((err as Error).message || 'Failed to fetch active alerts');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const inFlight = useRef(false);
 
   useEffect(() => {
-    fetchAlerts();
-    const timer = window.setInterval(fetchAlerts, 5000);
-    return () => window.clearInterval(timer);
+    let active = true;
+    const fetchAlerts = async () => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
+        const data = await api.getMonitorAlerts();
+        if (!active) return;
+        setAlerts(data);
+        setError('');
+      } catch (err) {
+        if (active) setError((err as Error).message || 'Could not load the demo review signals.');
+      } finally {
+        inFlight.current = false;
+        if (active) setLoading(false);
+      }
+    };
+    void fetchAlerts();
+    const timer = window.setInterval(() => void fetchAlerts(), 5000);
+    return () => {
+      active = false;
+      inFlight.current = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const handleInvestigate = (campaignId: string) => {
-    // Navigate to check page with campaign ID
-    go('#/');
     window.sessionStorage.setItem('trustfeed_investigate_input', campaignId);
+    go('#/');
   };
 
   return (
     <div className="page page-watch">
       <header className="page-head">
-        <span className="eyebrow"><Activity size={14} /> Threat Radar</span>
-        <h1>Proactive Monitoring Feed</h1>
-        <p>Continuous monitoring feed grouping social chatter into active disinformation campaigns by media hash and URL signatures.</p>
+        <span className="eyebrow"><Activity size={14} /> Replay monitor</span>
+        <h1>Review signals</h1>
+        <p>Groups of posts sharing a link or media hash, served from the synthetic demo dataset.</p>
       </header>
 
-      <Caveat>
-        <strong>Simulated live feed from public platform trace dataset.</strong> Polling <code>/api/monitor/alerts</code> every 5 seconds.
-        {lastUpdated && ` Last updated at ${lastUpdated}.`}
-      </Caveat>
+      <Tape>DEMO DATA · NOT A LIVE FEED · SYNTHETIC POSTS</Tape>
 
-      {error && <div className="problem" role="alert"><AlertTriangle size={16} /> {error}</div>}
+      {error && <div className="problem" role="alert">{error}</div>}
 
       <Section
-        title="Active Campaigns"
-        lead={`${alerts.length} campaigns detected across platform feeds.`}
+        title="Demo review signals"
+        lead="This endpoint reads the bundled demo dataset. It does not monitor live platform activity."
       >
         {loading && alerts.length === 0 ? (
-          <Loading>Checking active campaign alerts...</Loading>
+          <Loading>Loading demo review signals from the API…</Loading>
+        ) : alerts.length === 0 ? (
+          <Unknown title="No review signals in this demo dataset">The API returned no groups to review.</Unknown>
         ) : (
-          <div className="radar-feed-grid" style={{ display: 'grid', gap: '1rem' }}>
+          <div className="radar-feed-grid">
             {alerts.map((alert) => (
-              <div
-                key={alert.campaign_id}
-                className="panel card"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1.25rem',
-                  border: '1px solid var(--border)',
-                  background: 'var(--panel)',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <article key={alert.campaign_id} className="panel card radar-feed-card">
+                <div className="radar-feed-details">
+                  <div className="radar-feed-title">
                     <span className={`pill ${alert.risk_level === 'critical' || alert.risk_level === 'high' ? 'pill-high' : 'pill-slate'}`}>
-                      {alert.risk_level.toUpperCase()}
+                      Review signal · {alert.risk_level}
                     </span>
-                    <strong style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '0.95rem' }}>
-                      {alert.campaign_id}
-                    </strong>
+                    <strong className="radar-feed-id mono">{alert.campaign_id}</strong>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-                    <span>Total Posts: <strong>{alert.total_posts}</strong></span>
-                    <span style={{ margin: '0 0.5rem' }}>•</span>
-                    <span>Platforms: <strong>{alert.platform_spread.join(', ')}</strong></span>
-                  </div>
+                  <p className="radar-feed-meta">
+                    <span>{alert.total_posts} posts in this group</span>
+                    <span>Platforms: {alert.platform_spread.join(', ') || 'Not reported'}</span>
+                  </p>
                 </div>
                 <button
                   type="button"
                   className="button button-primary"
                   onClick={() => handleInvestigate(alert.campaign_id)}
                 >
-                  Investigate Campaign <ArrowRight size={14} />
+                  Investigate group <ArrowRight size={14} />
                 </button>
-              </div>
+              </article>
             ))}
           </div>
         )}
