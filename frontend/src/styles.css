@@ -475,3 +475,17 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
   .radar-feed-card { align-items: stretch; flex-direction: column; }
   .radar-feed-card > .button { align-self: flex-start; }
 }
+
+/* Overview */
+.overview-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.risk-bars, .overview-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.risk-bars li { display: grid; grid-template-columns: 110px 1fr 32px; align-items: center; gap: 10px; }
+.risk-bar { display: block; height: 10px; background: color-mix(in srgb, currentColor 10%, transparent); }
+.risk-bar span { display: block; height: 100%; background: currentColor; }
+.overview-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.overview-list small { opacity: 0.75; }
+.check-artifacts { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.check-artifacts img { display: block; max-width: 180px; height: auto; }
+.page-narrow { max-width: 480px; }
+.account-form { display: grid; gap: 14px; }
+.link-button { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }

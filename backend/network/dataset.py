@@ -26,6 +26,8 @@ class Post:
     text: str = ""
     url: str | None = None
     media_hash: str | None = None
+    # A perceptual image hash in hex, which survives re-encoding.
+    media_fingerprint: str | None = None
     mentions: tuple[str, ...] = ()
     platform: str | None = None
     # True when this post was collected because it carries the content being traced.
@@ -102,6 +104,7 @@ def _parse_post(record: dict[str, Any]) -> Post:
         text=_optional_text(record, "text", "Post") or "",
         url=_optional_text(record, "url", "Post"),
         media_hash=_optional_text(record, "media_hash", "Post"),
+        media_fingerprint=_optional_text(record, "media_fingerprint", "Post"),
         mentions=tuple(mentions),
         platform=_optional_text(record, "platform", "Post"),
         on_topic=record.get("on_topic") is True,

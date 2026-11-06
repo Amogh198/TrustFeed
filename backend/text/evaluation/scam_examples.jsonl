@@ -1,0 +1,120 @@
+{"id":"dev-job-1","split":"dev","label":"scam","category":"fake_job","text":"Congratulations! You are selected for a data entry job at Amazon. Pay Rs 1500 registration fee on this number to get your offer letter today."}
+{"id":"dev-job-2","split":"dev","label":"scam","category":"fake_job","text":"Work from home and earn 5000 rupees per day. No experience needed, no interview. Message us on Telegram now."}
+{"id":"dev-job-3","split":"dev","label":"scam","category":"fake_job","text":"HIRING NOW: part time job liking YouTube videos. Earn $300 daily from your phone. Contact HR on WhatsApp."}
+{"id":"dev-job-4","split":"dev","label":"scam","category":"fake_job","text":"Your application for the airline ground staff vacancy is approved. Deposit the refundable security amount of 4,500 for your uniform before joining."}
+{"id":"dev-job-5","split":"dev","label":"scam","category":"fake_job","text":"Government job guaranteed without any exam. Just pay the training fee of 8000 and join next Monday."}
+{"id":"dev-inv-1","split":"dev","label":"scam","category":"investment","text":"Invest 10,000 today and get guaranteed returns of 30% every month. Zero risk. Join our VIP trading group."}
+{"id":"dev-inv-2","split":"dev","label":"scam","category":"investment","text":"Double your money in 7 days with our crypto bot. Thousands have already made lakhs. Limited slots left!"}
+{"id":"dev-inv-3","split":"dev","label":"scam","category":"investment","text":"My mentor helped me turn $500 into $12,000 in two weeks on forex. DM me to start, it is completely risk free."}
+{"id":"dev-inv-4","split":"dev","label":"scam","category":"investment","text":"Earn 5% daily profit from our new mining pool. Withdraw any time, returns are 100% assured."}
+{"id":"dev-inv-5","split":"dev","label":"scam","category":"investment","text":"Stock tips with assured profit. Pay 2999 for the premium group and make 10 times your capital this month."}
+{"id":"dev-give-1","split":"dev","label":"scam","category":"giveaway","text":"You have won an iPhone 16! Click here to claim your prize before midnight."}
+{"id":"dev-give-2","split":"dev","label":"scam","category":"giveaway","text":"Lucky draw result: your number has won 25 lakh rupees. Pay the processing fee of 6,500 to release your prize money."}
+{"id":"dev-give-3","split":"dev","label":"scam","category":"giveaway","text":"Free gift card worth 5000 for the first 100 people. Just share this with 10 groups and enter your details."}
+{"id":"dev-give-4","split":"dev","label":"scam","category":"giveaway","text":"Congratulations, you are the lucky winner of our anniversary giveaway. Send your address and pay shipping of 199 to get your free laptop."}
+{"id":"dev-give-5","split":"dev","label":"scam","category":"giveaway","text":"Elon Musk is giving away Bitcoin! Send 0.1 BTC to this wallet and receive 0.2 BTC back instantly."}
+{"id":"dev-imp-1","split":"dev","label":"scam","category":"impersonation","text":"This is SBI customer care. Your account will be blocked today because your KYC has expired. Click the link to update it."}
+{"id":"dev-imp-2","split":"dev","label":"scam","category":"impersonation","text":"Dear customer, your electricity connection will be disconnected tonight at 9:30 pm. Call our officer immediately on this number."}
+{"id":"dev-imp-3","split":"dev","label":"scam","category":"impersonation","text":"Officer from Mumbai Crime Branch here. A parcel with drugs was found in your name. You are under digital arrest, do not disconnect this call."}
+{"id":"dev-imp-4","split":"dev","label":"scam","category":"impersonation","text":"Income Tax Department: you have a refund of 18,240 pending. Open the link and submit your bank account to receive it."}
+{"id":"dev-imp-5","split":"dev","label":"scam","category":"impersonation","text":"Hi it's your son, I lost my phone and this is my new number. I need money urgently, can you send it now?"}
+{"id":"dev-pay-1","split":"dev","label":"scam","category":"payment_request","text":"Your package is held at customs. Pay the clearance charge of 950 to courier.agent@ybl today or it will be returned."}
+{"id":"dev-pay-2","split":"dev","label":"scam","category":"payment_request","text":"I am your manager and I am in a meeting. Buy 5 Amazon gift cards and send me the codes right away."}
+{"id":"dev-pay-3","split":"dev","label":"scam","category":"payment_request","text":"To get your refund, scan this QR code and enter your UPI PIN. The money will come to your account."}
+{"id":"dev-pay-4","split":"dev","label":"scam","category":"payment_request","text":"Send the booking advance of 15,000 by wire transfer and we will deliver the car tomorrow. Do not tell anyone."}
+{"id":"dev-pay-5","split":"dev","label":"scam","category":"payment_request","text":"Help this child with surgery tonight! Send any amount to helpfund123@paytm, only hours left."}
+{"id":"dev-cred-1","split":"dev","label":"scam","category":"credential_request","text":"Your account has been compromised. Reply with the OTP we just sent you to stop the transaction."}
+{"id":"dev-cred-2","split":"dev","label":"scam","category":"credential_request","text":"Confirm your password here to keep your email account active: https://mail-verify.example/login"}
+{"id":"dev-cred-3","split":"dev","label":"scam","category":"credential_request","text":"To receive your cashback please provide your card number, CVV and expiry date."}
+{"id":"dev-cred-4","split":"dev","label":"scam","category":"credential_request","text":"Bank verification needed. Share your account number and net banking login so we can reactivate your account."}
+{"id":"dev-cred-5","split":"dev","label":"scam","category":"credential_request","text":"कृपया अपना ओटीपी भेजें नहीं तो आपका खाता बंद हो जाएगा।"}
+{"id":"dev-legit-1","split":"dev","label":"legit","category":"bank_warning","text":"SBI will never ask for your OTP, password or card number. Do not share them with anyone."}
+{"id":"dev-legit-2","split":"dev","label":"legit","category":"bank_warning","text":"Your OTP for login is 482910. It is valid for 10 minutes. Do not share it with anyone, including bank staff."}
+{"id":"dev-legit-3","split":"dev","label":"legit","category":"scam_news","text":"Police warned that scammers are asking people to pay a registration fee for fake jobs. Three people were arrested on Tuesday."}
+{"id":"dev-legit-4","split":"dev","label":"legit","category":"scam_news","text":"The regulator warned investors against schemes that promise guaranteed returns or double your money offers."}
+{"id":"dev-legit-5","split":"dev","label":"legit","category":"scam_news","text":"Beware of messages saying you have won a prize. Fraudsters use them to steal card details."}
+{"id":"dev-legit-6","split":"dev","label":"legit","category":"real_job","text":"We are hiring a backend engineer in Bengaluru. Salary 18 to 24 lakh per year. Apply on our careers page; interviews run over two rounds."}
+{"id":"dev-legit-7","split":"dev","label":"legit","category":"real_job","text":"The company offers a work from home option two days a week for permanent staff after probation."}
+{"id":"dev-legit-8","split":"dev","label":"legit","category":"real_job","text":"Applications for the teacher vacancy close on 12 March. There is no application fee. Shortlisted candidates will be called for interview."}
+{"id":"dev-legit-9","split":"dev","label":"legit","category":"real_investment","text":"The index fund returned 12% last year, but past performance does not guarantee future results."}
+{"id":"dev-legit-10","split":"dev","label":"legit","category":"real_investment","text":"Bank fixed deposit rates rose to 7.1% this month, according to the central bank's weekly report."}
+{"id":"dev-legit-11","split":"dev","label":"legit","category":"real_investment","text":"Bitcoin fell 4% on Friday as investors worried about new interest rate decisions."}
+{"id":"dev-legit-12","split":"dev","label":"legit","category":"real_giveaway","text":"India has won the final by six wickets, and the captain lifted the trophy in front of a full crowd."}
+{"id":"dev-legit-13","split":"dev","label":"legit","category":"real_giveaway","text":"Our library is giving away free books this Saturday. Come to the main hall, no registration or payment needed."}
+{"id":"dev-legit-14","split":"dev","label":"legit","category":"real_giveaway","text":"She won a prize for her short story at the district literature festival last month."}
+{"id":"dev-legit-15","split":"dev","label":"legit","category":"real_official","text":"The bank announced new branch timings from Monday. Customers can visit the website for the full list."}
+{"id":"dev-legit-16","split":"dev","label":"legit","category":"real_official","text":"The income tax department extended the filing deadline to 31 August, the finance ministry said."}
+{"id":"dev-legit-17","split":"dev","label":"legit","category":"real_official","text":"Power supply will be interrupted in Sector 12 on Sunday from 10 am to 2 pm for maintenance work, the electricity board said."}
+{"id":"dev-legit-18","split":"dev","label":"legit","category":"real_payment","text":"Thanks for dinner! I'll send you my share of the bill on UPI tonight."}
+{"id":"dev-legit-19","split":"dev","label":"legit","category":"real_payment","text":"Your electricity bill of 1,240 is due on 5 March. Pay through the official app or at any payment centre."}
+{"id":"dev-legit-20","split":"dev","label":"legit","category":"real_payment","text":"The school fee for the second term can be paid at the office before the end of the month."}
+{"id":"dev-legit-21","split":"dev","label":"legit","category":"how_to","text":"To reset your password, open Settings, choose Security and follow the steps on the screen."}
+{"id":"dev-legit-22","split":"dev","label":"legit","category":"how_to","text":"Enter your password and the code from your authenticator app when you sign in to your own account."}
+{"id":"dev-legit-23","split":"dev","label":"legit","category":"ordinary","text":"The bridge collapsed on Monday after heavy rain, and rescue teams worked through the night."}
+{"id":"dev-legit-24","split":"dev","label":"legit","category":"ordinary","text":"Urgent: road closed near the station because of flooding. Please use the other route."}
+{"id":"dev-legit-25","split":"dev","label":"legit","category":"ordinary","text":"Breaking: the city council voted to approve the new metro line, officials said."}
+{"id":"dev-legit-26","split":"dev","label":"legit","category":"ordinary","text":"Please share this notice with neighbours: the water tank will be cleaned on Friday."}
+{"id":"dev-legit-27","split":"dev","label":"legit","category":"ordinary","text":"My account was blocked by mistake last week, but the bank fixed it after I visited the branch."}
+{"id":"dev-legit-28","split":"dev","label":"legit","category":"ordinary","text":"I think the new policy on bank charges is unfair to small customers."}
+{"id":"dev-legit-29","split":"dev","label":"legit","category":"ordinary","text":"The charity raised 2 crore for flood relief this year and published its audited accounts."}
+{"id":"dev-legit-30","split":"dev","label":"legit","category":"ordinary","text":"Vaccines are free at all government health centres from Monday, the health ministry announced."}
+{"id":"test-job-1","split":"test","label":"scam","category":"fake_job","text":"Urgent requirement for packing work at home! Salary 40,000 a month. A one-time joining kit charge of 1200 applies. Reply YES."}
+{"id":"test-job-2","split":"test","label":"scam","category":"fake_job","text":"We saw your resume. Earn 800 to 3000 per hour by rating hotels online. Talk to our recruiter on Telegram to start today."}
+{"id":"test-job-3","split":"test","label":"scam","category":"fake_job","text":"Railway jobs available without written test. Send 5,000 for document verification and you will get your appointment letter by post."}
+{"id":"test-job-4","split":"test","label":"scam","category":"fake_job","text":"Overseas job in Canada with free visa! Only the processing charge of 25000 is needed to confirm your seat."}
+{"id":"test-job-5","split":"test","label":"scam","category":"fake_job","text":"Simple typing job for students and housewives. Make 2000 daily, no skills required. WhatsApp our team to register."}
+{"id":"test-inv-1","split":"test","label":"scam","category":"investment","text":"Put in 50,000 now, get 1 lakh back in 30 days. Our returns are guaranteed by experts."}
+{"id":"test-inv-2","split":"test","label":"scam","category":"investment","text":"Exclusive pre-IPO shares. Assured 40% return per month, no risk at all. Only a few seats remain in this group."}
+{"id":"test-inv-3","split":"test","label":"scam","category":"investment","text":"I quit my job after this AI trading app made me 3 lakh in a week. Join with my link and start earning risk-free."}
+{"id":"test-inv-4","split":"test","label":"scam","category":"investment","text":"Our gold scheme pays 2% interest each day. Invest today and your money grows without any risk."}
+{"id":"test-inv-5","split":"test","label":"scam","category":"investment","text":"Triple your Bitcoin in 48 hours. Trusted by 50,000 members. Message the admin to invest."}
+{"id":"test-give-1","split":"test","label":"scam","category":"giveaway","text":"Your mobile number won the KBC lottery of 25,00,000! Contact our manager to collect your prize."}
+{"id":"test-give-2","split":"test","label":"scam","category":"giveaway","text":"Winner alert! You have been chosen to receive a free Samsung TV. Pay a small delivery charge of 299 to claim it."}
+{"id":"test-give-3","split":"test","label":"scam","category":"giveaway","text":"Free recharge of 749 for all users from the government. Fill in the form and forward this to 5 friends."}
+{"id":"test-give-4","split":"test","label":"scam","category":"giveaway","text":"Congratulations! Spin the wheel and collect your reward of 10,000. Offer ends in 10 minutes."}
+{"id":"test-give-5","split":"test","label":"scam","category":"giveaway","text":"You were picked in our customer lucky draw. To receive your car, first transfer the tax amount of 45,000."}
+{"id":"test-imp-1","split":"test","label":"scam","category":"impersonation","text":"HDFC alert: your PAN is not linked and your net banking will be suspended today. Update at the link immediately."}
+{"id":"test-imp-2","split":"test","label":"scam","category":"impersonation","text":"Telecom authority notice: your SIM will be deactivated in 2 hours. Press 9 to speak with our officer."}
+{"id":"test-imp-3","split":"test","label":"scam","category":"impersonation","text":"This is the CBI. A case has been filed against your Aadhaar. Stay on this video call and do not tell your family."}
+{"id":"test-imp-4","split":"test","label":"scam","category":"impersonation","text":"Microsoft Support: your computer is infected. Call our technician now and allow remote access to fix it."}
+{"id":"test-imp-5","split":"test","label":"scam","category":"impersonation","text":"Mom, I had an accident and I'm using a friend's phone. Please send 20,000 right now and don't tell dad."}
+{"id":"test-pay-1","split":"test","label":"scam","category":"payment_request","text":"Your delivery failed. Pay 25 rupees re-delivery charge using this link so your parcel is not sent back."}
+{"id":"test-pay-2","split":"test","label":"scam","category":"payment_request","text":"I'm stuck abroad and my wallet was stolen. Can you buy Google Play cards and send me the numbers?"}
+{"id":"test-pay-3","split":"test","label":"scam","category":"payment_request","text":"Army officer here, selling my bike cheap because of a transfer. Send the 5000 transport charge to officer.bike@oksbi first."}
+{"id":"test-pay-4","split":"test","label":"scam","category":"payment_request","text":"To release your loan of 5 lakh, pay the insurance charge of 12,000 to this account today."}
+{"id":"test-pay-5","split":"test","label":"scam","category":"payment_request","text":"Your account owes a fine. Transfer USDT to this wallet address within one hour to avoid legal action."}
+{"id":"test-cred-1","split":"test","label":"scam","category":"credential_request","text":"Security team here. Tell me the six digit code you just got by SMS so we can secure your account."}
+{"id":"test-cred-2","split":"test","label":"scam","category":"credential_request","text":"Your Netflix payment failed. Log in here and re-enter your card details to keep watching."}
+{"id":"test-cred-3","split":"test","label":"scam","category":"credential_request","text":"For your pension to continue please give us your Aadhaar number, bank account number and ATM PIN."}
+{"id":"test-cred-4","split":"test","label":"scam","category":"credential_request","text":"Verify your Instagram now: enter your username and password on this page or your account is deleted."}
+{"id":"test-cred-5","split":"test","label":"scam","category":"credential_request","text":"अपना एटीएम पिन और बैंक खाता नंबर बताएं, तभी आपका इनाम मिलेगा।"}
+{"id":"test-legit-1","split":"test","label":"legit","category":"bank_warning","text":"Reminder from your bank: our staff never call to ask for your PIN or CVV. If someone does, hang up and report it."}
+{"id":"test-legit-2","split":"test","label":"legit","category":"bank_warning","text":"123456 is your verification code. We will never call you to ask for this code."}
+{"id":"test-legit-3","split":"test","label":"legit","category":"scam_news","text":"A retired teacher lost 40 lakh after a caller claiming to be a CBI officer put her under digital arrest, police said."}
+{"id":"test-legit-4","split":"test","label":"legit","category":"scam_news","text":"Cyber crime officers said victims were told to buy gift cards and send the codes to the fraudsters."}
+{"id":"test-legit-5","split":"test","label":"legit","category":"scam_news","text":"How to spot a fake job offer: real employers do not ask you to pay a fee to join."}
+{"id":"test-legit-6","split":"test","label":"legit","category":"real_job","text":"Junior accountant wanted at a city firm. Two years of experience required. Send your CV to our HR team by Friday."}
+{"id":"test-legit-7","split":"test","label":"legit","category":"real_job","text":"The state recruitment board will hold the written exam for clerks on 3 June. The exam fee is 500 and is paid on the official portal."}
+{"id":"test-legit-8","split":"test","label":"legit","category":"real_job","text":"Our cafe needs a part time waiter for weekends. Pay is 300 per hour. Drop in with your details and meet the manager."}
+{"id":"test-legit-9","split":"test","label":"legit","category":"real_investment","text":"Mutual funds carry market risk. Read all scheme documents carefully before you invest."}
+{"id":"test-legit-10","split":"test","label":"legit","category":"real_investment","text":"The company reported a 30% rise in quarterly profit, and its shares gained 5% on Tuesday."}
+{"id":"test-legit-11","split":"test","label":"legit","category":"real_investment","text":"Government savings bonds now pay 7.7% interest a year, and the rate is reviewed each quarter."}
+{"id":"test-legit-12","split":"test","label":"legit","category":"real_giveaway","text":"The winner of the state lottery draw was announced on television on Sunday evening by the lottery department."}
+{"id":"test-legit-13","split":"test","label":"legit","category":"real_giveaway","text":"Free eye check-up camp at the community centre this weekend. All are welcome, and no payment is needed."}
+{"id":"test-legit-14","split":"test","label":"legit","category":"real_giveaway","text":"Congratulations to our team, who won the national robotics contest in Pune this year!"}
+{"id":"test-legit-15","split":"test","label":"legit","category":"real_official","text":"The telecom regulator has asked operators to improve network quality in rural districts by December."}
+{"id":"test-legit-16","split":"test","label":"legit","category":"real_official","text":"The police commissioner addressed reporters on Monday about traffic plans for the festival."}
+{"id":"test-legit-17","split":"test","label":"legit","category":"real_official","text":"Microsoft released a security update on Tuesday. Install it from the Windows Update page in Settings."}
+{"id":"test-legit-18","split":"test","label":"legit","category":"real_payment","text":"Can you send me the 200 you owe me for lunch? No hurry, whenever you get time."}
+{"id":"test-legit-19","split":"test","label":"legit","category":"real_payment","text":"Your order has shipped. Pay cash on delivery when the parcel arrives on Thursday."}
+{"id":"test-legit-20","split":"test","label":"legit","category":"real_payment","text":"The society maintenance charge of 2,000 is due this month. Pay the treasurer at the office."}
+{"id":"test-legit-21","split":"test","label":"legit","category":"how_to","text":"Banks recommend that you change your ATM PIN regularly and avoid using your birth year."}
+{"id":"test-legit-22","split":"test","label":"legit","category":"how_to","text":"Forgot your password? We got your request. If it wasn't you, you can ignore this email."}
+{"id":"test-legit-23","split":"test","label":"legit","category":"ordinary","text":"The train to Delhi was delayed by two hours because of fog, the railway said."}
+{"id":"test-legit-24","split":"test","label":"legit","category":"ordinary","text":"Urgent appeal: blood donors needed at the district hospital today. Please come to the blood bank in person."}
+{"id":"test-legit-25","split":"test","label":"legit","category":"ordinary","text":"Forward this to the group: tomorrow's class starts at 9 instead of 10."}
+{"id":"test-legit-26","split":"test","label":"legit","category":"ordinary","text":"I lost my phone last week, and my son helped me get a new number."}
+{"id":"test-legit-27","split":"test","label":"legit","category":"ordinary","text":"The parcel from my sister arrived today, and customs charged a small fee at the post office."}
+{"id":"test-legit-28","split":"test","label":"legit","category":"ordinary","text":"Prices of onions doubled in a month, traders in the wholesale market said."}
+{"id":"test-legit-29","split":"test","label":"legit","category":"ordinary","text":"Our club collected 50,000 for the school library and thanks everyone who gave."}
+{"id":"test-legit-30","split":"test","label":"legit","category":"ordinary","text":"I believe this year's budget does too little for farmers and young workers."}

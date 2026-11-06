@@ -11,6 +11,8 @@ from backend.api.app.models import (
     ModuleStatus,
     RiskLevel,
 )
+from backend.text.cross_modal import cross_modal_checks
+from backend.text.links import link_checks
 
 _NOT_PROOF = "A score is a signal for review, not proof."
 _RULE_LABELS = {"text": "Text language rules", "url": "Link rules"}
@@ -91,6 +93,10 @@ def build_explanation(
         for name in ("text", "url")
         if _module(case, name).status is ModuleStatus.COMPLETE
     ]
+    if case.link_analysis:
+        checks += [ExplanationCheck.model_validate(check) for check in link_checks(case.link_analysis)]
+    if case.cross_modal:
+        checks += [ExplanationCheck.model_validate(check) for check in cross_modal_checks(case.cross_modal)]
     checks += [ExplanationCheck.model_validate(check) for check in [*media_checks, *provenance_checks, *network_checks]]
     # Keep the older dashed media IDs available for clients migrating to the
     # lane-qualified IDs. The dashboard hides these flagged aliases.

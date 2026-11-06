@@ -26,6 +26,9 @@ _MATCH_WORDING = {
 }
 
 
+from backend.network.significance import significance_checks  # noqa: E402
+
+
 def _check(
     check_id: str,
     label: str,
@@ -152,6 +155,7 @@ def build_network_checks(
     payload: dict[str, Any],
     coverage: dict[str, Any] | None,
     module_result: dict[str, Any],
+    tests: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Build checks from stored results, so a case saved before a restart still explains itself."""
     synthetic = any(node.get("synthetic") for node in payload["nodes"])
@@ -160,4 +164,5 @@ def build_network_checks(
         _posts_check(coverage),
         _coordination_check(case_id, payload, module_result),
     ]
-    return [check for check in checks if check is not None]
+    found = [check for check in checks if check is not None]
+    return [*found, *significance_checks(tests, synthetic)] if tests else found

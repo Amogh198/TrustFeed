@@ -174,7 +174,7 @@ function Intake() {
         <input type="checkbox" checked={search} onChange={event => setSearch(event.target.checked)} />
         <span>
           <strong>Also search the public web and platforms</strong>
-          <small>Off unless you tick it. Sends an uploaded image to the source search services set up on this server, and sends the text and links to Mastodon, Lemmy, Hacker News and Bluesky search. Known short links are followed to their destination.</small>
+          <small>Off unless you tick it. Opens the submitted link and asks a public domain registry about it. Sends an uploaded image to the source search services set up on this server, and sends the text and links to Mastodon, Lemmy, Hacker News and Bluesky search. Known short links are followed to their destination.</small>
         </span>
       </label>
       {message && <Problem>{message}</Problem>}
