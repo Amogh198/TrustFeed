@@ -230,6 +230,8 @@ class LinkAnalysis(BaseModel):
     page: LinkPage
     official: LinkOfficialComparison
     threat_lists: LinkThreatLists
+    # From the host name alone, 0 to 1. Null means the model didn't run. See link_model_train.json.
+    model_score: float | None = None
     # True when the user allowed live checks but some could not finish, which is not a clean result.
     live_failed: bool = False
     signs: list[LinkSign] = Field(default_factory=list)
@@ -286,7 +288,7 @@ class UnifiedRisk(BaseModel):
     # Null when nothing measured reached a result.
     score: float | None = None
     # At most 50, because no check can show content is genuine. Null means no score, never 0.
-    trust_score: int | None = None
+    trust_score: float | None = None
     trust_note: str
     reason: str | None = None
     components: list[RiskComponent] = Field(default_factory=list)

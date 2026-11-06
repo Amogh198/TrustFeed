@@ -251,6 +251,7 @@ export interface LinkAnalysis {
   assessment: string;
   requested_host: string;
   live_failed?: boolean;
+  model_score?: number | null;
   lookalike: LinkPart & { host: string; owned_by?: string | null; brand?: string | null; strength?: string | null; how?: string | null };
   redirects: LinkPart & { hops: { url: string; host: string; status: number }[]; final_host?: string | null };
   domain: LinkPart & { domain?: string | null; registered_on?: string | null; age_days?: number | null };

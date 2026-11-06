@@ -47,6 +47,10 @@ MEDIA_REVIEW_LINE = 0.0068
 _ELEVATED = 0.75
 _THRESHOLDS = ((0.8, RiskLevel.CRITICAL), (0.6, RiskLevel.HIGH), (0.3, RiskLevel.MODERATE))
 _TRUST_CAPS = {RiskLevel.MODERATE: 40, RiskLevel.HIGH: 25, RiskLevel.CRITICAL: 25}
+# How far each model's score lowers trust. The phishing model on text flags many normal posts, so it counts least.
+_MODEL_WEIGHTS = {"link": 0.25, "text": 0.2, "media": 0.5}
+# On held-out domains this line caught 61.8% of phishing hosts and flagged 0.77% of ordinary ones.
+LINK_MODEL_LINE = 0.8
 _NOT_MEASURED = "Not scored, because this has not been measured on labelled data."
 
 
@@ -123,6 +127,9 @@ def _link(analysis: LinkAnalysis | None, url: ModuleResult | None, weights: Mapp
     # The fixed link rules, such as a bare IP address or a hidden destination, count up to Moderate.
     score = max(score, min(_RULES_CAP, rules) if rules >= _WEAK else 0.0)
     evidence = [item.why for item in analysis.signs]
+    if analysis.model_score is not None and analysis.model_score >= LINK_MODEL_LINE and not analysis.lookalike.owned_by:
+        score = max(score, _WEAK)
+        evidence.append(f"The link model scored this host {analysis.model_score:.3f}, above its line of {LINK_MODEL_LINE}.")
     evidence += [line for line in (url.evidence if url else []) if not line.startswith("Link warning sign:")] if rules >= _WEAK else []
     if analysis.live_failed:
         # The user asked for the live checks, so an address alone can't read as a clean result.
@@ -145,6 +152,8 @@ def _shown_only(
 def _link_trust(link: LinkAnalysis | None, url: ModuleResult | None) -> tuple[int, str] | None:
     """Positive evidence about a clean link, which is the one way to score above 50. Never proof."""
     if link is None or link.signs or link.live_failed or (url and url.score):
+        return None
+    if link.model_score is not None and link.model_score >= LINK_MODEL_LINE:
         return None
     threats = link.threat_lists
     clean = threats.status is ModuleStatus.COMPLETE and not threats.listed
@@ -172,8 +181,21 @@ def build_unified_risk(
     scam_analysis: ScamAnalysis | None,
     link_analysis: LinkAnalysis | None,
     cross_modal: CrossModalAnalysis | None,
+    text_model_score: float | None = None,
 ) -> UnifiedRisk:
     weights = load_weights()
+    # Real model scores set the final figure, so it isn't only a table of fixed points.
+    model_scores = {
+        "link": link_analysis.model_score if link_analysis else None,
+        "text": text_model_score,
+        "media": media.score if media and media.status is ModuleStatus.COMPLETE else None,
+    }
+    factor = 1.0
+    for name, value in model_scores.items():
+        if value is not None:
+            factor *= 1 - _MODEL_WEIGHTS[name] * value
+    used = ", ".join(f"{name} {value:.3f}" for name, value in model_scores.items() if value is not None)
+    how = f" Adjusted by model scores: {used}." if used else ""
     language = [line for line in (text.evidence if text else []) if " rule" not in line and not line.startswith(("Scam warning sign", "Possible inconsistency", "Media and caption"))]
     refuted = [record.text for record in claims or [] if getattr(record.verdict, "value", None) == "contradicted"]
     conflicts = [item.explanation for item in (claim_analysis.inconsistencies if claim_analysis else []) if item.severity == "conflict"]
@@ -197,9 +219,10 @@ def build_unified_risk(
     if not counted:
         return UnifiedRisk(
             level=RiskLevel.INCONCLUSIVE,
+            trust_score=round(NEUTRAL_TRUST * factor, 1) if used else None,
             components=components,
             weights=weights,
-            trust_note="No trust score, because nothing measured reached a result.",
+            trust_note=f"Starts from a neutral 50.{how}" if used else "No trust score, because nothing measured reached a result.",
             reason="No measured check reached a result.",
         )
     remaining = 1.0
@@ -218,16 +241,16 @@ def build_unified_risk(
         return UnifiedRisk(
             level=level,
             score=score,
-            trust_score=positive[0],
-            trust_note=f"{positive[1]} This is a signal, not a guarantee.",
+            trust_score=round(positive[0] * factor, 1),
+            trust_note=f"{positive[1]}{how} This is a signal, not a guarantee.",
             components=components,
             weights=weights,
         )
     return UnifiedRisk(
         level=level,
         score=score,
-        trust_score=trust,
-        trust_note="At most 50, because no check here can show that content is genuine. 50 is a neutral midpoint, not a measurement.",
+        trust_score=round(trust * factor, 1),
+        trust_note=f"At most 50, because no check here can show that content is genuine.{how}",
         components=components,
         weights=weights,
         reason=reason,

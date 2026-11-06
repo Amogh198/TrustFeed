@@ -39,12 +39,12 @@ def test_nothing_measured_is_inconclusive_with_no_trust_score():
 
 def test_quiet_media_alone_is_inconclusive_not_low():
     risk = build(media=media(0.001))
-    assert risk.level is RiskLevel.INCONCLUSIVE and risk.trust_score is None
+    assert risk.level is RiskLevel.INCONCLUSIVE and risk.trust_score == 50.0
 
 
 def test_media_above_the_review_line_is_a_weak_signal_that_says_its_error_rate():
     risk = build(media=media(0.01), media_level=RiskLevel.INCONCLUSIVE)
-    assert risk.level is RiskLevel.MODERATE and risk.trust_score == 40
+    assert risk.level is RiskLevel.MODERATE and risk.trust_score == 39.8
     assert "19% of real images" in risk.components[0].note
 
 
@@ -55,7 +55,7 @@ def test_missing_media_never_reads_as_a_low_score():
 
 def test_one_model_never_reaches_critical():
     risk = build(media=media(0.99), media_level=RiskLevel.HIGH)
-    assert risk.level is RiskLevel.HIGH and risk.trust_score == 25
+    assert risk.level is RiskLevel.HIGH and risk.trust_score == 12.6
 
 
 def test_lookalike_link_is_scored_and_trust_stays_capped():
@@ -172,3 +172,9 @@ def test_a_host_only_feed_flags_the_host_but_not_a_brands_own_site():
     result, signs = feeds.check(["https://bad-host.example/a"], lambda *_a, **_k: feed)
     assert result.entries == 2 and [sign.sign for sign in signs] == ["threat_host_listed"]
     assert feeds.check(["https://sites.google.com/view/x"], lambda *_a, **_k: feed)[1] == []
+
+
+def test_model_scores_set_the_final_figure():
+    plain = build(media=media(0.5), media_level=RiskLevel.HIGH)
+    assert plain.trust_score == 30.0
+    assert "media 0.500" in plain.trust_note

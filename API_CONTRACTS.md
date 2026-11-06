@@ -188,6 +188,10 @@ A case saved while signed in is visible only to its owner. Anyone else gets the 
 
 With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns 401 when signed out. Off by default, so the offline demo needs no account. Watches under `/api/monitors` aren't per-person.
 
+## Link model
+
+`link_analysis.model_score` comes from a small model trained by `backend/text/train_link_model.py` on host names. Figures are in `backend/text/evaluation/results/link_model_train.json`. A score of 0.8 or more counts as a weak link sign. `trust_score` is now a decimal: the evidence-based figure multiplied down by the link, text and media model scores. `TRUST_MODELS=off` turns this off.
+
 ## Common response sketch
 
 ```json

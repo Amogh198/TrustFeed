@@ -61,7 +61,9 @@ from backend.api.app.report import build_overview, build_report, case_kinds, ren
 from backend.api.app.risk import build_unified_risk, summary_for
 from backend.api.app.scam_records import build_scam_analysis
 from backend.text.cross_modal import compare_channels
+from backend.text.link_model import score_host
 from backend.text.links import DEFAULT_FEEDS, investigate_link
+from backend.text.scam_model import default_runner
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
@@ -406,6 +408,15 @@ def _store_case(
         text_result.evidence.extend(f"Media and caption differ: {item.explanation}" for item in cross_modal.conflicts)
 
     media_module = ModuleResult(**media.to_module_result()) if media else None
+    # Both run on this machine and send nothing out. A server can turn them off.
+    text_model_score = None
+    if os.getenv("TRUST_MODELS", "on").casefold() != "off":
+        if link_analysis:
+            hosts = [link_analysis.requested_host, link_analysis.redirects.final_host]
+            scores = [score_host(host) for host in hosts if host and not host.replace(".", "").isdigit()]
+            link_analysis.model_score = max((value for value in scores if value is not None), default=None)
+        if claims:
+            text_model_score = default_runner().run("\n".join(claims)).score
     unified = build_unified_risk(
         text=text_result,
         url=url_result,
@@ -417,6 +428,7 @@ def _store_case(
         scam_analysis=scam_analysis,
         link_analysis=link_analysis,
         cross_modal=cross_modal,
+        text_model_score=text_model_score,
     )
     risk = unified.level
     summary = summary_for(unified)

@@ -136,6 +136,7 @@ export function WhatRan({ report, sourceProviders }: { report: AnalysisResponse;
       rows.push(['Live search', 'Claim sources', verification?.reason || 'Did not run. Tick the search box to compare claims with sources.']);
     }
   }
+  if (report.link_analysis) rows.push(['Local model', 'Link model, reads the host name', report.link_analysis.model_score != null ? `Ran, score ${report.link_analysis.model_score.toFixed(3)}` : 'Did not run']);
   if (media && media.status !== 'not_applicable') rows.push(['Local model', 'Image detector', media.status === 'complete' ? `Ran, raw score ${media.score}` : media.limitations?.[0] || 'Did not run']);
   (sourceProviders || []).forEach(item => rows.push(['Source search', item.name, item.status === 'complete' ? `Ran, ${item.result_count} result(s)` : item.limitation || 'Did not run']));
   if (!rows.length) return null;
