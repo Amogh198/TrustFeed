@@ -708,15 +708,19 @@ def _speech(check: SpeechCheck) -> dict[str, Any]:
         label,
         check.status,
         f"{count} {'piece' if count == 1 else 'pieces'} of speech read",
-        f"Model {check.model_id} wrote down what it heard, passed on for claim checking. It is treated as data, never as "
+        f"Model {check.model_id} wrote down what it heard, shown here and compared with any caption submitted. It is treated as data, never as "
         "instructions.",
         check.limitations,
         artifacts=[_speech_artifact(segment) for segment in check.segments],
     )
 
 
+AUDIO_RESULTS = "data/eval/audio_detectors_2026-11-06.json"
+
+
 def _audio_artifact(detector: AudioDetectorResult) -> dict[str, str]:
     artifact = {"kind": "audio_detector_result", "model_id": detector.model_id, "status": detector.status.value}
+    artifact["label"] = f"{detector.model_id}: " + (f"average {detector.score_mean:.2f}" if detector.score_mean is not None else "did not run")
     if detector.model_revision:
         artifact["model_revision"] = detector.model_revision
     if detector.score_mean is not None:
@@ -725,7 +729,7 @@ def _audio_artifact(detector: AudioDetectorResult) -> dict[str, str]:
         artifact["windows_scored"] = str(detector.windows_scored)
     if detector.reason:
         artifact["reason"] = detector.reason
-    artifact["accuracy"] = "unmeasured"
+    artifact["accuracy"] = AUDIO_RESULTS
     return artifact
 
 
@@ -739,9 +743,10 @@ def _audio_synthetic(check: AudioSyntheticCheck) -> dict[str, Any]:
         check_id,
         label,
         check.status,
-        f"{len(ran)} of {len(check.detectors)} models ran, accuracy unmeasured",
+        f"{len(ran)} of {len(check.detectors)} models ran, measured once on one public set",
         " ".join(["Each model gave its own signal for how synthetic the speech sounds.", *parts]),
         check.limitations,
+        benchmark={"results_file": AUDIO_RESULTS},
         artifacts=[_audio_artifact(detector) for detector in check.detectors],
     )
 

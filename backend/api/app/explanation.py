@@ -44,7 +44,7 @@ def _rule_check(name: str, module: ModuleResult) -> ExplanationCheck:
 
 def _submitted(case: AnalysisResponse) -> list[str]:
     """Name the kinds of content received, without repeating the content."""
-    kinds = {"text": "Text", "url": "A link", "media": "An image or video"}
+    kinds = {"text": "Text", "url": "A link", "media": "An image, video or audio file"}
     submitted = [label for name, label in kinds.items() if _module(case, name).status is not ModuleStatus.NOT_APPLICABLE]
     return submitted or ["No content was submitted. This is a demonstration case."]
 

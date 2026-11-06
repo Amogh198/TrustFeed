@@ -22,7 +22,7 @@ Last updated 2026-11-05. Backend features are on `main`. The dashboard runs on t
 | Area | Works now | Not done or not measured |
 |---|---|---|
 | API | Text, link, image and video input, risk summary, saved history, export, offline replay, source search report, timeline, network coverage, explanation, heatmap and monitor routes, rule-based action packets | Action packets from a generative model, background jobs |
-| Media | Image model, metadata, keyframes, known-image matching, accuracy benchmark, explanation checks, occlusion heatmap | OCR, audio, lip-sync, video accuracy |
+| Media | Image model, metadata, keyframes, known-image matching, accuracy benchmark, explanation checks, occlusion heatmap | OCR, lip-sync, video accuracy, audio accuracy beyond one public set |
 | Source search | Works with a provider key the user sets up, and only on opt-in. Includes an explanation check. | Coverage not measured. Results depend on what search services have indexed. |
 | Network | Co-sharing detection, risk score, roles, timeline, public-post tracing, monitoring, explanation checks | Repost timing, accuracy on real campaigns |
 | Dashboard | Real API: check form, opt-in, spread replay with time bar and account details, coverage, explanation, benchmark, heatmap, monitoring, history, JSON export, printable report, action packet with correction draft, offline replay, demo walkthrough | Tested in one browser at desktop and phone widths |

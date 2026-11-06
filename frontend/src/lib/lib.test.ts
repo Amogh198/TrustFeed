@@ -47,6 +47,8 @@ describe('untrusted content', () => {
     expect(uploadProblem({ type: 'image/png', size: 26 * 1024 * 1024 })).toContain('25 MB');
     expect(uploadProblem({ type: 'video/mp4', size: 201 * 1024 * 1024 })).toContain('200 MB');
     expect(uploadProblem({ type: 'video/mp4', size: 100 })).toBeNull();
+    expect(uploadProblem({ type: 'audio/mpeg', size: 100 })).toBeNull();
+    expect(uploadProblem({ type: 'audio/wav', size: 101 * 1024 * 1024 })).toContain('100 MB');
   });
 });
 

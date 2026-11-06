@@ -140,7 +140,7 @@ This refuses to save anything unless a live search completed. Check the recordin
 ## Limits
 
 - A search covers only what these services have indexed. Private groups, deleted pages and much of social media are missing. Finding nothing does not show that an image is new or genuine.
-- Images only. Videos return `unavailable`.
+- A video is searched using one frame from its middle, so other parts of it may have appeared elsewhere, and the report says so. Audio files aren't searched.
 - Up to 25 results are checked, within 20 seconds.
 - **It can be slow.** Providers run one after another, up to 20 seconds per call, so three keys could take about 100 seconds in the worst case. Call it where a long wait is acceptable.
 

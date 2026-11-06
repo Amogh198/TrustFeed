@@ -105,6 +105,7 @@ export function markPhrases(text: string, phrases: string[]): { text: string; ma
 
 export function benchmarkSentence(benchmark: Benchmark | null | undefined): string {
   if (!benchmark) return 'Not measured';
+  if (benchmark.results_file && !benchmark.n_fake) return `Measured once on one public set, not for this kind of audio in general. See ${benchmark.results_file}.`;
   const parts: string[] = [];
   if (benchmark.n_fake) parts.push(`Flagged ${benchmark.flagged_fake ?? 0} of ${benchmark.n_fake} fakes`);
   if (benchmark.n_real) parts.push(`wrongly flagged ${benchmark.flagged_real ?? 0} of ${benchmark.n_real} real images`);
@@ -123,15 +124,18 @@ export function fileSize(bytes: number): string {
 
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo'];
+export const AUDIO_TYPES = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/flac', 'audio/x-flac', 'audio/ogg', 'audio/webm'];
 
 /** Catches the obvious refusals before an upload starts. The API still checks the file's content. */
 export function uploadProblem(file: { type: string; size: number }): string | null {
   const image = IMAGE_TYPES.includes(file.type);
   const video = VIDEO_TYPES.includes(file.type);
-  if (!image && !video) return "That file isn't a supported type. Choose a JPEG, PNG, WebP, MP4, MOV, WebM or AVI file.";
+  const audio = AUDIO_TYPES.includes(file.type);
+  if (!image && !video && !audio) return "That file isn't a supported type. Choose a JPEG, PNG, WebP, MP4, MOV, WebM, AVI, MP3, WAV, M4A, FLAC or OGG file.";
   if (file.size === 0) return 'That file is empty. Choose another one.';
   if (image && file.size > 25 * 1024 * 1024) return 'That image is over the 25 MB limit.';
   if (video && file.size > 200 * 1024 * 1024) return 'That video is over the 200 MB limit.';
+  if (audio && file.size > 100 * 1024 * 1024) return 'That audio file is over the 100 MB limit.';
   return null;
 }
 

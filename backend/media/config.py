@@ -31,6 +31,7 @@ class MediaConfig:
 
     max_image_bytes: int = 25 * _MB
     max_video_bytes: int = 200 * _MB
+    max_audio_bytes: int = 100 * _MB
     max_image_pixels: int = 50_000_000
     # Below this the classifier input is mostly upscaled, so its score is not trusted.
     min_reliable_side: int = 128

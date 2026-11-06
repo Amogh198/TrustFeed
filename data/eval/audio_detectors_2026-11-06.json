@@ -1,0 +1,43 @@
+{
+  "what_this_is": "The two speech detectors the app runs, scored the way the app scores them, on one public labelled set. It does not predict results on other audio.",
+  "date": "2026-11-06",
+  "training_overlap": "Neither model card names its training data, so overlap with this set can't be ruled out.",
+  "made_with": "python backend/media/measure_audio.py 75",
+  "dataset": "garystafford/deepfake-audio-detection",
+  "dataset_revision": "fcf5344bb7f82b54b6b932291326d29750ef1e82",
+  "licence": "cc-by-4.0",
+  "per_class_requested": 75,
+  "note": "One public dataset, sampled with seed 0. Mean score over up to 6 ten-second windows, as the app scores them. Does not predict results on other audio.",
+  "models": [
+    {
+      "model": "MelodyMachine/Deepfake-audio-detection-V2@de3cde5a29c449bb5268814e421b46bf6ebdcd72",
+      "fake_n": 75,
+      "real_n": 75,
+      "auc": 0.435,
+      "auc_ci95_bootstrap": [
+        0.3374,
+        0.5248
+      ],
+      "fakes_at_or_above_0.75": 5,
+      "real_at_or_above_0.75": 10,
+      "fakes_at_or_below_0.25": 70,
+      "real_at_or_below_0.25": 65,
+      "seconds_per_file": 0.33
+    },
+    {
+      "model": "motheecreator/Deepfake-audio-detection@e4d9874b493362149cec96ced85f00b00b1a04c0",
+      "fake_n": 75,
+      "real_n": 75,
+      "auc": 0.801,
+      "auc_ci95_bootstrap": [
+        0.7242,
+        0.8729
+      ],
+      "fakes_at_or_above_0.75": 57,
+      "real_at_or_above_0.75": 24,
+      "fakes_at_or_below_0.25": 17,
+      "real_at_or_below_0.25": 50,
+      "seconds_per_file": 0.33
+    }
+  ]
+}

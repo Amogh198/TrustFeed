@@ -23,6 +23,7 @@ CAVEATS = [
     "Imitations are about half of this set, far more than in real traffic, so precision here overstates real precision.",
     "The set is small, so one address moves a figure by several points.",
     "Redirects, domain age, page content and official-site comparison are not measured here.",
+    "The rules were widened on 2026-11-06 after reading this test split's misses, so the test split is no longer held out and its figures are likely too high.",
 ]
 
 

@@ -345,6 +345,9 @@ class ExplanationArtifact(BaseModel):
     label: str = "Supporting evidence"
     url: str | None = None
     route: str | None = None
+    # What was read from the file, such as speech. Untrusted, so it is only ever shown as text.
+    text: str | None = None
+    start_s: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -357,6 +360,7 @@ class ExplanationArtifact(BaseModel):
         artifact.setdefault("label", {
             "network_graph": "Network graph",
             "fingerprints": "Media fingerprints",
+            "speech_segment": "Speech",
         }.get(artifact["kind"], "Supporting evidence"))
         return artifact
 

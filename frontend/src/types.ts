@@ -51,6 +51,7 @@ export interface CaseHistory {
 }
 
 export interface Benchmark {
+  results_file?: string;
   dataset?: string;
   n_real?: number;
   n_fake?: number;

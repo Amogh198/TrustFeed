@@ -67,7 +67,9 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
     if module is None or module.status is ModuleStatus.NOT_APPLICABLE:
         return RiskComponent(status=ModuleStatus.NOT_APPLICABLE, counted=False, note="No media was submitted.", **base)
     if module.status is not ModuleStatus.COMPLETE or module.score is None:
-        note = module.limitations[0] if module.limitations else "The media check gave no result."
+        # The benchmark describes scored images, so it says nothing about a check that gave no score.
+        base["results_file"] = None
+        note = "An audio file gets no media score." if module.status is ModuleStatus.COMPLETE else (module.limitations[0] if module.limitations else "The media check gave no result.")
         return RiskComponent(status=ModuleStatus.UNAVAILABLE, counted=False, blocks_low=True, note=note, **base)
     # The media check's own assessment decides, as a video whose frames disagree can score high and still be unclear.
     if level not in (RiskLevel.MODERATE, RiskLevel.HIGH):

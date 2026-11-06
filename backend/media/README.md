@@ -235,7 +235,9 @@ python -m backend.media download-audio
 python -m backend.media analyze clip.mp4 --heavy
 ```
 
-`download-audio` fetches about 1.7 GB, pinned to one commit each, in safetensors only: `openai/whisper-small` (967 MB) and the two speech detectors (378 MB each). Setting `MEDIA_RUN_HEAVY_CHECKS=true` turns these checks on for every video. Audio is read with PyAV, with no separate `ffmpeg` needed. The file's audio is cut at 10 minutes and the report says so.
+`download-audio` fetches about 1.7 GB, pinned to one commit each, in safetensors only: `openai/whisper-small` (967 MB) and the two speech detectors (378 MB each). Setting `MEDIA_RUN_HEAVY_CHECKS=true` turns these checks on for every video. Audio is read with PyAV, with no separate `ffmpeg` needed. The file's audio is cut at 10 minutes and the report says so. In the dashboard, "Deep check this video" asks for these checks with the `deep_check` form field.
+
+**Audio files** (WAV, MP3, FLAC, OGG and M4A, up to 100 MB) always get `media.speech` and `media.audio_synthetic`. So does a video file holding only sound. They have no media score, and their assessment stays inconclusive. Without PyAV the file is accepted and the checks say they couldn't run.
 
 | Check | What it does | Time limit |
 |---|---|---|
@@ -243,7 +245,8 @@ python -m backend.media analyze clip.mp4 --heavy
 | `media.audio_synthetic` | Scores up to 6 windows of audio with `MelodyMachine/Deepfake-audio-detection-V2` and `motheecreator/Deepfake-audio-detection`, each reported separately. | 120 seconds |
 | `media.frames` | Scores one frame per second, up to 120 frames spread over the video. Reports suspicious sections, the largest changes between frames, and a video-level result, the mean of the strongest third of frames. | 120 seconds |
 
-- **Accuracy is unmeasured for all of them.** No labelled video or audio set has been tested, and each check says so. Scores from the two speech detectors are single readings, not results.
+- **The two speech detectors were measured once, on one public set.** On 150 clips from `garystafford/deepfake-audio-detection` (`data/eval/audio_detectors_2026-11-06.json`, made with `backend/media/measure_audio.py`), `motheecreator/Deepfake-audio-detection` reached AUC 0.80 [0.72, 0.87], flagging 57 of 75 synthetic clips and 24 of 75 real ones. `MelodyMachine/Deepfake-audio-detection-V2` reached 0.44 [0.34, 0.52], which is no better than guessing, and flagged 5 and 10. Neither model card names its training data, so overlap with this set can't be ruled out, and the results may not hold on other audio.
+- **Whisper and the frame checks are unmeasured.** No labelled video set has been tested.
 - **A suspicious section** is a run of frames at or above the detector's elevated band, allowing one quiet frame in between. It uses the detector in use, which barely beats guessing on images, as "Results from 2026-11-05" shows.
 - **Silent audio isn't sent to the models.** Whisper can invent words from silence, and a detector's score on silence would mean nothing. A video without audio reports that it has none.
 - **Speech text is untrusted.** Whisper can mishear, and text from a file is never followed as instructions. It is cleaned and not logged.
@@ -404,7 +407,7 @@ The set has 600 images from Wikimedia Commons, with a licence listed for each fi
 
 What these figures can't show:
 
-- **Face swaps, video, audio and images re-saved by social media platforms are unmeasured.**
+- **Face swaps, video and images re-saved by social media platforms are unmeasured.** Audio has the one measurement described under the video checks.
 - **Labels come from human-curated Commons categories,** so some can be wrong, and edited images may be only lightly edited.
 - **Results on this set don't predict results on other kinds of image,** and no score proves that an image is authentic or false.
 - **The file on disk pins Nonescape, not its publisher.** It has no published hash, so the pin records the file as downloaded on 2026-11-05.

@@ -6,6 +6,8 @@
 // deployed frontend can route the same paths or set VITE_API_BASE_URL.
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 180_000;
+// Speech-to-text, synthetic speech and frame checks each have their own limit on the server.
+const DEEP_TIMEOUT_MS = 720_000;
 
 export class ApiError extends Error {
   /**
@@ -38,13 +40,14 @@ function errorMessage(payload, fallback) {
 
 /**
  * @param {string} path
- * @param {RequestInit} [options]
+ * @param {RequestInit & {timeoutMs?: number}} [requestOptions]
  * @returns {Promise<any>}
  */
-async function request(path, options = {}) {
+async function request(path, requestOptions = {}) {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...options } = requestOptions;
   const controller = new AbortController();
   let timedOut = false;
-  const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, REQUEST_TIMEOUT_MS);
+  const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   const outer = options.signal;
   if (outer) outer.addEventListener('abort', () => controller.abort(), { once: true });
   try {
@@ -55,7 +58,7 @@ async function request(path, options = {}) {
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {
-      if (timedOut) throw new ApiError('This took longer than 3 minutes. The API may still be working, so check Cases before trying again.');
+      if (timedOut) throw new ApiError(`This took longer than ${Math.round(timeoutMs / 60_000)} minutes. The API may still be working, so check Cases before trying again.`);
       throw new ApiError('Stopped waiting. The API may still finish this and save it under Cases.', 0, { code: 'cancelled' });
     }
     throw new ApiError(`The API isn't answering at ${API_BASE_URL}. Start it and try again.`, 0, { code: 'offline' });
@@ -83,16 +86,17 @@ export const api = {
     });
   },
   /**
-   * @param {{file: File, text?: string, url?: string, searchWeb: boolean, signal?: AbortSignal}} input
+   * @param {{file: File, text?: string, url?: string, searchWeb: boolean, deepCheck?: boolean, signal?: AbortSignal}} input
    * @returns {Promise<AnalysisResponse>}
    */
-  analyzeMedia({ file, text, url, searchWeb, signal }) {
+  analyzeMedia({ file, text, url, searchWeb, deepCheck = false, signal }) {
     const body = new FormData();
     body.append('file', file);
     if (text) body.append('text', text);
     if (url) body.append('url', url);
     body.append('search_web', String(searchWeb));
-    return request('/api/cases/analyze-media', { method: 'POST', body, signal });
+    body.append('deep_check', String(deepCheck));
+    return request('/api/cases/analyze-media', { method: 'POST', body, signal, timeoutMs: deepCheck || file.type.startsWith('audio/') ? DEEP_TIMEOUT_MS : REQUEST_TIMEOUT_MS });
   },
   /** @param {string} caseId @returns {Promise<AnalysisResponse>} */
   getCase(caseId) { return request(`/api/cases/${id(caseId)}`); },
@@ -179,8 +183,8 @@ export function readableUploadError(error) {
   /** @type {Record<string, string>} */
   const messages = {
     length_required: "The upload couldn't be sent because its size wasn't provided. Try again in another browser.",
-    too_large: 'That file is too large. Images can be up to 25 MB and videos up to 200 MB.',
-    unsupported_type: "That file isn't a supported type. Choose a JPEG, PNG, WebP, MP4, MOV, WebM or AVI file.",
+    too_large: 'That file is too large. Images can be up to 25 MB, audio up to 100 MB and videos up to 200 MB.',
+    unsupported_type: "That file isn't a supported type. Choose a JPEG, PNG, WebP, MP4, MOV, WebM, AVI, MP3, WAV, M4A, FLAC or OGG file.",
     empty_file: 'That file is empty. Choose another one.',
     corrupt_media: "That file couldn't be decoded. Choose another one.",
   };

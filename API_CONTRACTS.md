@@ -14,7 +14,7 @@ Status: **initial implementation contract**. Any change requires a PR that names
 
 - `GET /health` -> service status and version.
 - `POST /api/cases/analyze` -> accepts a text claim and/or URL as JSON, plus optional `search_web` (boolean, default `false`); returns one case summary and available module results. `media` and `provenance` are `not_applicable`.
-- `POST /api/cases/analyze-media` -> multipart form with `file` (required; JPEG, PNG, WebP, MP4, MOV, WebM or AVI), plus optional `text`, `url` and `search_web` (boolean, default `false`). Returns the same response shape as `analyze`.
+- `POST /api/cases/analyze-media` -> multipart form with `file` (required; JPEG, PNG, WebP, MP4, MOV, WebM, AVI, WAV, MP3, FLAC, OGG or M4A), plus optional `text`, `url`, `search_web` (boolean, default `false`) and `deep_check` (boolean, default `false`). `deep_check` runs the speech and frame checks on a video, and can take several minutes. An audio file always gets the speech checks. None of these leave the server or change a score. An audio file has no media score. Explanation artifacts gain optional `text` and `start_s`, holding what was read from the file, such as speech, which is untrusted and shown only as text. Returns the same response shape as `analyze`.
 - `GET /api/cases/{case_id}` -> saved local case result. `demo-001` and `demo-story-001` are always available. Both are synthetic, with `is_replay: true` and a `replay_label` the UI must show.
 - `GET /api/cases/{case_id}/provenance` -> the full source search report. See "Source search and public-post trace".
 - `GET /api/cases/{case_id}/timeline` -> `{events: []}`, combining web appearances, matching posts and flagged co-sharing activity.
@@ -69,7 +69,7 @@ A rejected upload creates no case and returns `{"detail": {"code": "...", "messa
 | Status | `code` | Meaning |
 |---|---|---|
 | 411 | `length_required` | The request has no `Content-Length`. |
-| 413 | `too_large` | Over 25 MB for an image, 200 MB for a video, or the image has too many pixels. |
+| 413 | `too_large` | Over 25 MB for an image, 100 MB for audio, 200 MB for a video, or the image has too many pixels. |
 | 415 | `unsupported_type` | The file's content is not a supported type. The file name and extension are ignored. |
 | 422 | `empty_file`, `corrupt_media` | The file is empty or cannot be decoded. |
 
@@ -85,7 +85,7 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 
 | Step | Runs when | Sent to |
 |---|---|---|
-| Source search | A valid image is uploaded with `search_web` | The image, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
+| Source search | A valid image or video is uploaded with `search_web` | The image, or one frame from the middle of a video, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
 | Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms: Mastodon, Lemmy, Hacker News and Bluesky. A known short link is also followed to its destination, through the protected HTTP client. |
 | Claim verification | Any text case with `search_web` | Search words taken from up to 5 checkable claims, to Wikipedia, GDELT and, with a key set, Google Fact Check Tools. News pages GDELT lists are then read. |
 
@@ -94,7 +94,7 @@ These add to the request's time: the source search can take about 100 seconds wi
 Every case has `modules.provenance`, a normal module result:
 
 - `score` and `confidence` are always `null`. A search result proves nothing about authenticity.
-- `status` is `complete` if a search ran, `unavailable` with the reason (no key set, a video, every provider failed), or `not_applicable` if none was requested.
+- `status` is `complete` if a search ran, `unavailable` with the reason (no key set, every provider failed), or `not_applicable` if none was requested or the file is audio.
 
 `modules.network` is `complete` or `unavailable` for a traced case, using the existing module shape. When no trace was requested it stays `unavailable`, with a reason saying nothing was sent.
 
@@ -150,8 +150,8 @@ Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live t
 
 - `lookalike` uses the address alone, so it always runs. Everything else opens the link or asks a public registry (rdap.org), so it needs `search_web: true`, and replay never does it. A part that didn't run has `status: unavailable` and a `reason`. Read that as "not checked", never "nothing found".
 - Addresses in `redirects` have no query string. `page.title` is written by the page, so show it as plain text.
-- `threat_lists` stays `unavailable` until someone creates Safe Browsing or URLhaus keys.
-- Signs appear in `modules.url.evidence` and don't change `modules.url.score`. The figures in `results_file` cover the address check only.
+- `threat_lists` checks the link against a copy of Phishing.Database's list of reported phishing links held on the server, so the link isn't sent anywhere and no key is needed. It stays `unavailable` until someone runs `python -m backend.text download-threat-list`. A listed address is a strong sign, and a listed host alone is a weak one. Not being listed doesn't make a link safe.
+- Signs appear in `modules.url.evidence` and don't change `modules.url.score`. The figures in `results_file` cover the address check only, on hand-written addresses, and are likely far too high. On 300 links reported as phishing, the address rules alone found strong signs on 1 and weak signs on 22 (`data/eval/link_rules_real_phishing_2026-11-06.json`).
 - The explanation endpoint adds `url.lookalike`, `url.redirects`, `url.domain_age`, `url.page`, `url.official_site` and `url.threat_lists`.
 
 ## Cross-modal comparison

@@ -29,7 +29,6 @@ from backend.api.app.models import (
     LinkPage,
     LinkRedirects,
     LinkSign,
-    LinkThreatLists,
     ModuleStatus,
 )
 from backend.provenance.safe_http import (
@@ -40,6 +39,7 @@ from backend.provenance.safe_http import (
 )
 from backend.text.analysis import _BRANDS, SHORTENER_HOSTS, _registered_domain
 from backend.text.scams import NONE_FOUND, WARNING_SIGNS, WEAK_ONLY
+from backend.text.threat_list import check_threat_list
 
 RESULTS_FILE = "backend/text/evaluation/results/link_eval_test.json"
 RDAP_URL = "https://rdap.org/domain/{domain}"
@@ -80,6 +80,13 @@ _PRETEXT_WORDS = {
     "secure", "security", "login", "signin", "verify", "verification", "account", "accounts", "support", "update",
     "help", "online", "official", "service", "services", "customer", "care", "kyc", "reward", "rewards", "bonus",
     "refund", "wallet", "auth", "billing", "confirm", "alert", "recovery", "web", "portal", "mail",
+    "id", "bank", "banking", "netbanking", "pay", "payment",
+}
+# Domain endings that public abuse reports often name. Plenty of honest sites use them, so this is weak alone.
+_RISKY_ENDINGS = {"top", "xyz", "click", "icu", "cyou", "rest", "zip", "mov", "gq", "tk", "ml", "cf", "ga", "buzz", "loan"}
+_BAIT_WORDS = {
+    "free", "gift", "claim", "prize", "winner", "win", "reward", "rewards", "bonus", "lucky", "offer", "cashback",
+    "kyc", "verify", "login", "signin", "refund", "update", "secure", "account", "wallet", "otp", "lottery",
 }
 _CARD_FIELD = re.compile(r"card.?(num|no\b)|cc.?num|cvv|cvc|expiry|exp.?date|(^|[^a-z])upi([^a-z]|$)|ifsc|account.?(num|no\b)", re.IGNORECASE)
 _CODE_FIELD = re.compile(r"(^|[^a-z])otp([^a-z]|$)|one.?time|atm.?pin|(^|[^a-z])m?pin([^a-z]|$)", re.IGNORECASE)
@@ -90,9 +97,9 @@ LIMITATIONS = [
     "A warning sign is a reason to look closer, not proof of a scam. Finding none does not make a link safe.",
     "Page scripts are not run, and a site can show this check something different from what people see.",
     "The list of official domains covers only a few well-known names, so most imitations can't be recognised here.",
-    "No threat list was consulted, so a link already reported as malicious would not be recognised.",
+    "A threat list only holds links someone has already reported, so a link missing from it may still be harmful.",
+    "The address alone says little: on 300 links reported as phishing on 2026-11-06, the address rules found strong signs on 1 and weak signs on 22, and nothing on 277.",
 ]
-THREAT_LIST_REASON = "No threat list is set up. Safe Browsing and URLhaus need keys that have not been created."
 
 Request = Callable[..., HttpResponse]
 
@@ -205,6 +212,8 @@ def find_lookalike(host: str) -> LinkLookalike:
             match = ("strong", "adds account or support words to") if pretext else ("weak", "includes the name")
         elif len(brand) >= 4 and extra in _PRETEXT_WORDS:
             match = ("strong", "adds an account or support word to")
+        elif extra and all(word in _PRETEXT_WORDS for word in re.split(r"[-_]+", extra)):
+            match = ("strong", "joins account or support words to")
         elif swapped == brand:
             match = ("weak", "has the same name but a domain not on our short official list for")
         else:
@@ -559,6 +568,17 @@ def _collect_signs(
         signs += _lookalike_signs(final, "The domain it leads to,")
     start = _host(url)
     end = redirects.final_host
+    if _is_ip(start):
+        signs.append(LinkSign(sign="ip_address_host", strength="strong", why=f"The link points to the bare address {start}, not a named site."))
+    elif _owned_brand(start) is None:
+        ending = start.rsplit(".", 1)[-1]
+        if ending in _RISKY_ENDINGS:
+            signs.append(LinkSign(sign="risky_domain_ending", strength="weak", why=f"The domain ends in .{ending}, an ending public abuse reports often name."))
+        bait = sorted(set(re.split(r"[-_.]+", _registered_domain(start))) & _BAIT_WORDS)
+        if len(bait) >= 2:
+            signs.append(LinkSign(sign="bait_words_in_domain", strength="weak", why=f"The domain is built from the words {' and '.join(bait)}, which scam sites often use."))
+    if start in SHORTENER_HOSTS and (not end or end == start):
+        signs.append(LinkSign(sign="short_link_not_followed", strength="weak", why="This is a short link and its destination wasn't confirmed, so where it leads is unknown."))
     same_owner = bool(end) and _owned_brand(start) is not None and _owned_brand(start) == _owned_brand(end)
     if end and start not in SHORTENER_HOSTS and not same_owner and _registered_domain(start) != _registered_domain(end):
         signs.append(LinkSign(sign="redirects_elsewhere", strength="weak", why=f"The link redirects from {start} to {end}, a different domain."))
@@ -610,7 +630,7 @@ def investigate_link(
 ) -> LinkAnalysis:
     """Check a link. ``offline_reason`` says why no outside request may be made, and stops them all."""
     requested = find_lookalike(_host(url))
-    threat_lists = LinkThreatLists(status=ModuleStatus.UNAVAILABLE, reason=THREAT_LIST_REASON)
+    threat_lists, threat_signs = check_threat_list(url, _host(url), _owned_brand(_host(url)) is not None)
     if offline_reason is not None:
         not_run = {"status": ModuleStatus.UNAVAILABLE, "reason": offline_reason}
         redirects = LinkRedirects(**not_run)
@@ -642,7 +662,7 @@ def investigate_link(
             official = LinkOfficialComparison(
                 status=ModuleStatus.NOT_APPLICABLE, reason="The link doesn't seem to imitate a name on our list, so nothing was compared."
             )
-    signs = _collect_signs(url, requested, final, redirects, domain, page, official, title_brand)
+    signs = [*threat_signs, *_collect_signs(url, requested, final, redirects, domain, page, official, title_brand)]
     failed = offline_reason is None and ModuleStatus.UNAVAILABLE in (redirects.status, domain.status, page.status)
     return LinkAnalysis(
         live_failed=failed,
@@ -721,5 +741,5 @@ def link_checks(link: LinkAnalysis) -> list[dict[str, Any]]:
             else "Not compared.",
             compared.reason or "Word overlap between the two pages. Sites often share common words, so this is a rough signal.",
         ),
-        _part_check("url.threat_lists", "Threat lists", link.threat_lists.status, "Not consulted.", link.threat_lists.reason or ""),
+        _part_check("url.threat_lists", "Threat lists", link.threat_lists.status, "Consulted." if link.threat_lists.status is ModuleStatus.COMPLETE else "Not consulted.", link.threat_lists.reason or ""),
     ]

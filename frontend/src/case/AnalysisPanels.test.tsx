@@ -7,7 +7,7 @@ import type { AnalysisResponse, Explanation } from '../types';
 // Mocked until the media checks land: these ids aren't known to any code here.
 const CHECKS = [
   { check_id: 'media.frames', module: 'media', label: 'Suspicious frames', status: 'complete', result: 'Two frames stand out.', reasoning: 'Frame 12 and frame 40.', benchmark: null, limitations: [], artifacts: [{ type: 'frame', label: 'Frame 12', data_url: 'data:image/png;base64,AAAA' }, { type: 'frame', label: 'Bad', data_url: 'https://evil.example/x.png' }] },
-  { check_id: 'media.ocr', module: 'media', label: 'On-screen text', status: 'complete', result: 'Read 3 lines.', reasoning: ['Line one'], benchmark: null, limitations: [], artifacts: [] },
+  { check_id: 'media.ocr', module: 'media', label: 'On-screen text', status: 'complete', result: 'Read 3 lines.', reasoning: ['Line one'], benchmark: null, limitations: [], artifacts: [{ type: 'supporting_evidence', text: 'Spoken words.', start_s: '1.5' }] },
   { check_id: 'brand.new_check', module: 'future', label: 'A check from the future', status: 'complete', result: 'It ran.', reasoning: 'Reason.', benchmark: null, limitations: [], artifacts: [] },
 ];
 

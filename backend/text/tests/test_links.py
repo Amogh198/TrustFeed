@@ -10,6 +10,13 @@ from backend.provenance.safe_http import HttpBlocked, HttpFailed, HttpResponse
 from backend.text.links import RDAP_URL, find_lookalike, investigate_link, link_checks
 
 NOW = datetime(2026, 11, 6, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def no_saved_phishing_list(monkeypatch, tmp_path):
+    monkeypatch.setenv("THREAT_LIST_PATH", str(tmp_path / "not-downloaded.txt"))
+
+
 HTML = {"content-type": "text/html; charset=utf-8"}
 
 
@@ -91,6 +98,30 @@ def test_offline_makes_no_request_and_says_why_nothing_ran():
     for part in (report.redirects, report.domain, report.page, report.official):
         assert part.status is ModuleStatus.UNAVAILABLE and part.reason == "No consent."
     assert report.assessment == "warning_signs_found"
+
+
+@pytest.mark.parametrize(
+    ("url", "sign", "strength"),
+    [
+        ("http://192.0.2.1/login", "ip_address_host", "strong"),
+        ("https://bit.ly/abc", "short_link_not_followed", "weak"),
+        ("https://prize-site.top/", "risky_domain_ending", "weak"),
+        ("https://free-gift-claim.example/", "bait_words_in_domain", "weak"),
+    ],
+)
+def test_address_signs_need_no_request(url, sign, strength):
+    report = investigate_link(url, offline_reason="No consent.")
+    assert {(s.sign, s.strength) for s in report.signs} >= {(sign, strength)}
+
+
+@pytest.mark.parametrize("host", ["icici-netbanking-login.com", "onlinesbi-bank.site"])
+def test_brand_joined_to_account_words_is_a_strong_lookalike(host):
+    assert find_lookalike(host).strength == "strong"
+
+
+@pytest.mark.parametrize("url", ["https://example.org/", "https://www.paypal.com/signin", "https://wikipedia.org/wiki/Gift"])
+def test_ordinary_addresses_get_no_address_signs(url):
+    assert investigate_link(url, offline_reason="No consent.").signs == []
 
 
 def test_quiet_offline_link_is_not_called_clean_by_its_parts():

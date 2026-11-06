@@ -21,6 +21,7 @@ class CheckStatus(StrEnum):
 class MediaType(StrEnum):
     IMAGE = "image"
     VIDEO = "video"
+    AUDIO = "audio"
     UNKNOWN = "unknown"
 
 
