@@ -64,10 +64,25 @@ function markerPosition(tone: Tone, score: number | null | undefined): number {
 
 export default function VerdictCard({ report }: { report: AnalysisResponse }) {
   const plain = plainVerdict(report);
+  const score = report.unified_risk?.trust_score;
   return (
     <section className={`plain plain-${plain.tone}`} aria-label="Result">
-      <p className="plain-kicker">{TONE_LABELS[plain.tone]}</p>
-      <h2>{plain.label}</h2>
+      <div className="plain-head">
+        <div>
+          <p className="plain-kicker">{TONE_LABELS[plain.tone]}</p>
+          <h2>{plain.label}</h2>
+        </div>
+        <div className="plain-tiles">
+          <div className="plain-tile">
+            <b>{score != null ? score.toFixed(1) : 'None'}</b>
+            <span>Evidence score{score != null ? ' out of 100' : ''}</span>
+          </div>
+          <div className="plain-tile">
+            <b className={`risk risk-${report.overall_risk}`}>{report.overall_risk}</b>
+            <span>Risk level</span>
+          </div>
+        </div>
+      </div>
       <div className="plain-meter" aria-hidden="true">
         <span className="plain-marker" style={{ left: `${markerPosition(plain.tone, report.unified_risk?.trust_score)}%` }} />
       </div>
@@ -83,7 +98,7 @@ export default function VerdictCard({ report }: { report: AnalysisResponse }) {
         {report.modules?.provenance?.status === 'complete' && <a className="button" href={caseHref(report.case_id, 'source')}>See where this appeared</a>}
         <a className="button" href={api.reportPdfUrl(report.case_id)} download>Download report</a>
       </div>
-      <p className="fineprint">This is a signal for a person to review, not proof.</p>
+      <p className="fineprint">A higher evidence score means less sign of a problem. It's a signal for a person to review, not proof or a measured accuracy.</p>
     </section>
   );
 }

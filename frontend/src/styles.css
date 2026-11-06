@@ -514,3 +514,17 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
 .evidence-toggle { display: block; margin: 0 auto 20px; }
 .evidence-toggle:disabled { opacity: .7; cursor: default; }
 @media (max-width: 600px) { .plain { margin: 16px; padding: 16px; } }
+
+.plain { box-sizing: border-box; width: min(860px, calc(100% - 32px)); text-align: left; }
+.plain-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.plain-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.plain-head h2 { margin-bottom: 0; }
+.plain-tiles { display: flex; gap: 10px; }
+.plain-tile { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 6px; min-width: 112px; padding: 10px 12px; border: 1px solid var(--plain-tone); text-align: center; }
+.plain-tile b { font-size: 1.5rem; line-height: 1.2; }
+.plain-tile b.risk { font-size: .95rem; padding: 4px 8px; text-transform: capitalize; }
+.plain-tile span { font-size: .75rem; opacity: .85; }
+.plain-why li { display: flex; gap: 8px; }
+.plain-buttons .button { text-decoration: none; }
+.evidence-fold { width: 100%; }
+@media (max-width: 600px) { .plain { width: calc(100% - 32px); margin: 16px auto; } .plain-tiles { width: 100%; } .plain-tile { flex: 1; } }
