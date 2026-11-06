@@ -15,6 +15,7 @@ import SourceTab from './SourceTab';
 import SpreadTab from './SpreadTab';
 import TextLinkTab from './TextLinkTab';
 import TimelineTab from './TimelineTab';
+import VerdictCard, { EvidenceFold } from './VerdictCard';
 import TrustPanel from './TrustPanel';
 
 export interface CaseDetails {
@@ -158,6 +159,8 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
   return (
     <div className="case">
       {report.is_replay && <Tape>{report.replay_label || 'Replay data, not a live result'}</Tape>}
+      <VerdictCard report={report} />
+      <EvidenceFold forceOpen={printing || current !== 'findings'}>
       <header className={`verdict verdict-${report.overall_risk}`}>
         <div className="verdict-word">
           <h1 aria-label={`Risk: ${report.overall_risk}`}>{report.overall_risk}</h1>
@@ -194,6 +197,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
           ? TABS.filter(([key]) => key !== 'action').map(([key, name]) => <div key={key} className="print-part"><h2 className="print-title">{name}</h2>{panels[key]}</div>)
           : panels[current]}
       </div>
+      </EvidenceFold>
     </div>
   );
 }
