@@ -161,3 +161,14 @@ def test_unreadable_feeds_say_so_and_retry_later():
 
     result, signs = ThreatFeeds({"TestFeed": "https://feed.example/"}).check(["https://a.example/"], fail)
     assert result.status is ModuleStatus.UNAVAILABLE and signs == []
+
+
+def test_a_host_only_feed_flags_the_host_but_not_a_brands_own_site():
+    from backend.provenance.safe_http import HttpResponse
+    from backend.text.links import ThreatFeeds
+
+    feed = HttpResponse(url="", status=200, body=b"# comment\nbad-host.example\nsites.google.com\n")
+    feeds = ThreatFeeds({"TestFeed": "https://feed.example/"})
+    result, signs = feeds.check(["https://bad-host.example/a"], lambda *_a, **_k: feed)
+    assert result.entries == 2 and [sign.sign for sign in signs] == ["threat_host_listed"]
+    assert feeds.check(["https://sites.google.com/view/x"], lambda *_a, **_k: feed)[1] == []

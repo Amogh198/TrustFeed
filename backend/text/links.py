@@ -91,8 +91,9 @@ LIMITATIONS = [
 THREAT_LIST_REASON = "Not checked in this run."
 # Downloaded whole, so nothing about the submitted link is sent to them. No key is needed.
 THREAT_FEEDS = {
-    "URLhaus": "https://urlhaus.abuse.ch/downloads/text_online/",
     "OpenPhish": "https://openphish.com/feed.txt",
+    # MIT licensed. A list of hosts, not full addresses.
+    "Phishing.Database": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt",
 }
 _FEED_TTL_S = 3600.0
 _FEED_RETRY_S = 300.0
@@ -281,14 +282,15 @@ class ThreatFeeds:
             count = 0
             for line in response.body.decode("utf-8", errors="replace").splitlines():
                 line = line.strip()
-                if not line.startswith("http") or count >= _MAX_FEED_ENTRIES:
+                if not line or line.startswith("#") or count >= _MAX_FEED_ENTRIES:
                     continue
-                key = _feed_key(line)
-                host = key.split("/", 1)[0]
-                if host:
+                count += 1
+                if line.startswith("http"):
+                    key = _feed_key(line)
                     urls[key] = name
-                    hosts[host] = name
-                    count += 1
+                    hosts[key.split("/", 1)[0]] = name
+                else:
+                    hosts[line.casefold()] = name
             sources.append(name)
         ok = bool(sources)
         self._urls, self._hosts, self._sources, self._failed = urls, hosts, sources, failed
@@ -312,9 +314,9 @@ class ThreatFeeds:
                 signs.append(LinkSign(sign="threat_listed", strength="strong", why=f"{urls[key]} lists this exact link as malicious."))
                 break
             if host in hosts and not _owned_brand(host):
-                signs.append(LinkSign(sign="threat_host_listed", strength="strong", why=f"{hosts[host]} lists other malicious links on {host}."))
+                signs.append(LinkSign(sign="threat_host_listed", strength="strong", why=f"{hosts[host]} lists {host} as a phishing host."))
                 break
-        return LinkThreatLists(status=ModuleStatus.COMPLETE, reason=reason, sources=sources, entries=len(urls), listed=listed), signs
+        return LinkThreatLists(status=ModuleStatus.COMPLETE, reason=reason, sources=sources, entries=len(hosts), listed=listed), signs
 
 
 DEFAULT_FEEDS = ThreatFeeds()
@@ -835,5 +837,5 @@ def link_checks(link: LinkAnalysis) -> list[dict[str, Any]]:
             else "Not compared.",
             compared.reason or "Word overlap between the two pages. Sites often share common words, so this is a rough signal.",
         ),
-        _part_check("url.threat_lists", "Threat lists", link.threat_lists.status, ("On a threat feed." if link.threat_lists.listed else f"Not on {', '.join(link.threat_lists.sources)}, {link.threat_lists.entries} addresses checked. This doesn't make it safe.") if link.threat_lists.status is ModuleStatus.COMPLETE else "Not consulted.", link.threat_lists.reason or "Compared with public feeds, without sending them the link."),
+        _part_check("url.threat_lists", "Threat lists", link.threat_lists.status, ("On a threat feed." if link.threat_lists.listed else f"Not on {', '.join(link.threat_lists.sources)}, {link.threat_lists.entries} hosts checked. This doesn't make it safe.") if link.threat_lists.status is ModuleStatus.COMPLETE else "Not consulted.", link.threat_lists.reason or "Compared with public feeds, without sending them the link."),
     ]
