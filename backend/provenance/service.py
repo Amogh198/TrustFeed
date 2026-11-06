@@ -12,7 +12,7 @@ import threading
 import time
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, wait
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -466,12 +466,54 @@ def _finalize(report: ProvenanceReport, appearances: list[Appearance], config: P
     return report
 
 
-def _video_search_frame(path: Path, config: MediaConfig):
-    """Pick the keyframe from the middle of a video to stand for it in a search."""
+@dataclass
+class _SearchImage:
+    """One picture to search for. A photo has one. A video has one per chosen keyframe."""
+
+    image: object
+    # Saved results are found by this, so each frame keeps its own.
+    cache_id: str
+    timestamp_s: float | None = None
+    phash: str | None = None
+
+
+def _video_search_images(path: Path, sha256: str, media_config: MediaConfig, limit: int) -> tuple[list[_SearchImage], int]:
+    """Choose keyframes spread across a video, and say how many it had."""
     from backend.media.keyframes import extract_keyframes
 
-    _, frames, _ = extract_keyframes(path, config)
-    return frames[len(frames) // 2].image if frames else None
+    _, frames, _ = extract_keyframes(path, media_config)
+    if len(frames) > limit:
+        chosen = [frames[len(frames) // 2]] if limit == 1 else [frames[round(step * (len(frames) - 1) / (limit - 1))] for step in range(limit)]
+    else:
+        chosen = list(frames)
+    return [_SearchImage(frame.image, f"{sha256}:frame:{frame.frame_index}", frame.timestamp_s) for frame in chosen], len(frames)
+
+
+def _combined_runs(runs: Sequence[ProviderRun]) -> list[ProviderRun]:
+    """Show each provider once, however many frames it was asked about."""
+    combined: dict[str, ProviderRun] = {}
+    for run in runs:
+        known = combined.get(run.name)
+        if known is None:
+            combined[run.name] = run.model_copy()
+            continue
+        known.result_count = (known.result_count or 0) + (run.result_count or 0)
+        if run.status is Status.COMPLETE:
+            known.status = Status.COMPLETE
+        if run.limitation and run.limitation not in (known.limitation or ""):
+            known.limitation = f"{known.limitation} {run.limitation}" if known.limitation else run.limitation
+    return list(combined.values())
+
+
+def _unique_appearances(items: Sequence[Appearance]) -> list[Appearance]:
+    """Keep one result per page, preferring the strongest match when several frames found it."""
+    best: dict[str, Appearance] = {}
+    for item in items:
+        key = dedupe_key(item.page_url) if item.page_url else item.id or str(id(item))
+        known = best.get(key)
+        if known is None or _MATCH_RANK[item.match_type] < _MATCH_RANK[known.match_type]:
+            best[key] = item
+    return list(best.values())
 
 
 def _unavailable(reason: str, **fields) -> ProvenanceReport:
@@ -503,22 +545,28 @@ def _investigate(
     video_note: str | None = None
     try:
         if info.media_type is MediaType.VIDEO:
-            image = _video_search_frame(path, media_config)
-            if image is None:
+            targets, total = _video_search_images(path, info.sha256, media_config, config.video_search_frames)
+            if not targets:
                 return _unavailable("The video could not be read, so no search was run.", media_sha256=info.sha256)
-            video_note = "Only one frame from the middle of the video was searched, so other parts of it may have appeared elsewhere."
+            times = ", ".join(f"{target.timestamp_s:.1f}s" for target in targets)
+            video_note = (
+                f"{len(targets)} of the video's {total} keyframes were searched, at {times}. "
+                "Other parts of it may have appeared elsewhere."
+            )
         else:
             image, _, _ = read_image(path, media_config)
+            targets = [_SearchImage(image, info.sha256)]
     except MediaInputError as exc:
         return _unavailable(exc.message, media_sha256=info.sha256)
     except ImportError:
         return _unavailable("A library needed to read this file is not installed.", media_sha256=info.sha256)
 
-    try:
-        phash = compute_phash(image)
-    except Exception as exc:
-        logger.warning("Provenance pHash failed: %s", type(exc).__name__)
-        phash = None
+    for target in targets:
+        try:
+            target.phash = compute_phash(target.image)
+        except Exception as exc:
+            logger.warning("Provenance pHash failed: %s", type(exc).__name__)
+    phash = targets[0].phash
 
     local_run, local_items = _local_appearances(phash, media_config)
     runs = [local_run]
@@ -534,14 +582,28 @@ def _investigate(
             searched_at = datetime.now(timezone.utc)
             if video_note:
                 limitations.append(video_note)
-            provider_runs, candidates = _run_providers(active, Upload(image), http, config, info.sha256)
-            runs.extend(provider_runs)
-            merged = _merge(candidates, config.max_candidates)
-            if len(candidates) > len(merged) and len(merged) == config.max_candidates:
-                limitations.append(f"Only the top {config.max_candidates} results were checked.")
-            checked, notes = _check_all(merged, phash, http, config)
-            appearances.extend(checked)
-            limitations.extend(notes)
+            # The time for checking pages is shared, so a video takes no longer to check than a photo.
+            share = replace(config, check_budget_s=config.check_budget_s / len(targets))
+            all_runs: list[ProviderRun] = []
+            found: list[Appearance] = []
+            for target in targets:
+                provider_runs, candidates = _run_providers(active, Upload(target.image), http, config, target.cache_id)
+                all_runs.extend(provider_runs)
+                # A provider that just failed is not asked again, so no more of its searches are spent.
+                failed = {run.name for run in provider_runs if run.status is not Status.COMPLETE}
+                active = [provider for provider in active if provider.name not in failed]
+                merged = _merge(candidates, config.max_candidates)
+                if len(candidates) > len(merged) and len(merged) == config.max_candidates:
+                    limitations.append(f"Only the top {config.max_candidates} results were checked.")
+                checked, notes = _check_all(merged, target.phash, http, share)
+                for item in checked:
+                    item.frame_timestamp_s = target.timestamp_s
+                found.extend(checked)
+                limitations.extend(notes)
+                if not active:
+                    break
+            runs.extend(_combined_runs(all_runs))
+            appearances.extend(_unique_appearances(found))
     else:
         limitations.append("Web search was not requested, so this file was not sent to any outside service.")
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +22,11 @@ _GENERATOR_MARKERS = ("stable diffusion", "midjourney", "dall-e", "dall·e", "fi
 # PNG text chunks commonly written by image-generation tools. Their values may
 # contain user prompts, so only the key names are ever inspected.
 _GENERATOR_PNG_KEYS = {"parameters", "prompt", "workflow"}
+# Whole words only, as short names like these also appear inside ordinary words.
+_VIDEO_GENERATORS = re.compile(r"\b(sora|veo|runway|kling|stable diffusion|comfyui|midjourney|firefly)\b", re.IGNORECASE)
+# Tags kept with the case. Titles and comments can hold personal text, so they are only searched for a generator name.
+_VIDEO_TAGS_KEPT = ("encoder", "software", "creation_time", "make", "model", "com.apple.quicktime.software", "com.apple.quicktime.creationdate")
+_VIDEO_TAGS_SEARCHED = ("encoder", "software", "comment", "description", "com.apple.quicktime.software")
 _NON_VIDEO_BRANDS = {b"heic", b"heix", b"hevc", b"mif1", b"msf1", b"avif", b"avis"}
 _AUDIO_BRANDS = {b"M4A ", b"M4B ", b"M4P "}
 
@@ -151,6 +157,26 @@ def _read_metadata(image, width: int, height: int) -> MetadataCheck:
         indicators=indicators,
         limitations=limitations,
     )
+
+
+def read_video_tags(path: Path) -> tuple[dict[str, str], bool, list[str]] | None:
+    """Return a video's kept container tags, whether one names a generator, and notes. None if they can't be read."""
+    try:
+        import av
+    except ImportError:
+        return None
+    try:
+        with av.open(str(path)) as container:
+            tags = {str(key).casefold(): str(value) for key, value in container.metadata.items()}
+            for stream in container.streams:
+                for key, value in stream.metadata.items():
+                    tags.setdefault(str(key).casefold(), str(value))
+    except Exception:  # A damaged header must not stop the rest of the pipeline.
+        return None
+    kept = {name: tags[name][:_MAX_FIELD_CHARS] for name in _VIDEO_TAGS_KEPT if tags.get(name)}
+    found = next((match.group(1) for name in _VIDEO_TAGS_SEARCHED if (match := _VIDEO_GENERATORS.search(tags.get(name, "")))), None)
+    notes = [f"A container tag names a video generator: {found!r}."] if found else []
+    return kept, found is not None, notes
 
 
 def read_image(path: Path, config: MediaConfig):

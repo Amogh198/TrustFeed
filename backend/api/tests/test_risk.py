@@ -256,6 +256,22 @@ def test_metadata_naming_a_generator_outweighs_web_copies():
     assert hinted.level is RiskLevel.HIGH
 
 
+def test_a_search_that_could_not_run_does_not_read_as_nothing_found():
+    blocked = build(media=media(0.9), media_vote=_vote(2), source_evidence=_web(searched=False, blocked="No key is set.", is_video=True))
+    assert blocked.media_decision.web_verdict == "Search couldn't run"
+    assert "No key is set." in blocked.media_decision.web_detail
+    assert blocked.media_decision.combined.startswith("Detectors only: web search couldn't run")
+
+
+def test_a_video_is_described_by_its_frames():
+    asked = build(media=media(0.9), media_vote=_vote(2), source_evidence=_web(searched=False, is_video=True))
+    assert "frames from this video" in asked.media_decision.web_detail
+    found = build(media=media(0.9), media_vote=_vote(2), source_evidence=_web(domains=2, is_video=True))
+    assert found.media_decision.web_detail.startswith("A frame from this video is on 2 site(s)")
+    photo = build(media=media(0.9), media_vote=_vote(2), source_evidence=_web(domains=2))
+    assert photo.media_decision.web_detail.startswith("This exact image is on 2 site(s)")
+
+
 def test_word_matching_is_whole_words():
     from backend.api.app.risk import WARNING_TITLE
 

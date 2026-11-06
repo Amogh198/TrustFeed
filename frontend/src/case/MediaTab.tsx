@@ -5,6 +5,7 @@ import { benchmarkSentence, confidenceText, isQuietMedia, STATUS_WORDS, uploadPr
 import { setUploadFor, uploadFor } from '../lib/session';
 import type { AnalysisResponse, Benchmark, Explanation, Heatmap } from '../types';
 import { Caveat, Limits, Lines, Meter, Problem, Section, Unknown } from '../ui/ui';
+import { CheckArtifacts } from './AnalysisPanels';
 
 function useObjectUrl(file: File | null | undefined): string | null {
   const [address, setAddress] = useState<string | null>(null);
@@ -43,6 +44,10 @@ function HeatmapPanel({ caseId, file, onFile }: { caseId: string; file: File | n
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState('');
   const [strength, setStrength] = useState(70);
+  const isVideo = !!file?.type.startsWith('video/');
+  const canMap = isVideo || !!file?.type.startsWith('image/');
+  const frame = result?.frame_jpeg_base64 ? `data:image/jpeg;base64,${result.frame_jpeg_base64}` : null;
+  const picture = isVideo ? frame : preview;
 
   useEffect(() => { setResult(null); setMessage(''); }, [file, caseId]);
 
@@ -58,7 +63,7 @@ function HeatmapPanel({ caseId, file, onFile }: { caseId: string; file: File | n
   const choose = (chosen: File | undefined) => {
     if (!chosen) return;
     const problem = uploadProblem(chosen);
-    if (problem || !chosen.type.startsWith('image/')) { setMessage(problem || 'The heatmap works on images only.'); return; }
+    if (problem || !(chosen.type.startsWith('image/') || chosen.type.startsWith('video/'))) { setMessage(problem || 'The heatmap works on images and videos.'); return; }
     setUploadFor(caseId, chosen);
     onFile(chosen);
   };
@@ -67,20 +72,20 @@ function HeatmapPanel({ caseId, file, onFile }: { caseId: string; file: File | n
     <Section
       title="Where the model's score changed"
       kind="estimate"
-      lead="Each part of the image is covered in turn to see how the score moves. This shows sensitivity, not proof of editing."
+      lead="Each part of the image is covered in turn to see how the score moves. A video uses its strongest keyframe. This shows sensitivity, not proof of editing."
     >
       {!file && (
-        <Unknown title="The image isn't kept after analysis">
-          <p>To make a heatmap, choose the same image again. It's checked and then deleted, and no new case is made.</p>
-          <label className="button file-button"><ImagePlus size={16} aria-hidden="true" />Choose the image
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => choose(event.target.files?.[0])} />
+        <Unknown title="The file isn't kept after analysis">
+          <p>To make a heatmap, choose the same image or video again. It's checked and then deleted, and no new case is made.</p>
+          <label className="button file-button"><ImagePlus size={16} aria-hidden="true" />Choose the file
+            <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" onChange={event => choose(event.target.files?.[0])} />
           </label>
         </Unknown>
       )}
-      {preview && file?.type.startsWith('image/') && (
+      {preview && canMap && (
         <div className="heatmap">
           <div className={working ? 'heatmap-stage scanning' : 'heatmap-stage'}>
-            <img src={preview} alt="The image you uploaded" />
+            {picture && <img src={picture} alt={isVideo ? 'The strongest keyframe from your video' : 'The image you uploaded'} />}
             {result?.png_base64 && (
               <img className="heatmap-layer" style={{ opacity: strength / 100 }} src={`data:image/png;base64,${result.png_base64}`} alt="Colour grid showing where covering the image moved the score" />
             )}
@@ -88,7 +93,7 @@ function HeatmapPanel({ caseId, file, onFile }: { caseId: string; file: File | n
           <div className="heatmap-side">
             {!result && (
               <button type="button" className="button button-primary" disabled={working} onClick={run}>
-                <Flame size={16} aria-hidden="true" />{working ? 'Covering each area, up to a minute' : 'Make heatmap'}
+                <Flame size={16} aria-hidden="true" />{working ? 'Covering each area, up to a minute' : isVideo ? 'Make heatmap of the strongest frame' : 'Make heatmap'}
               </button>
             )}
             {message && <Problem>{message}</Problem>}
@@ -105,7 +110,7 @@ function HeatmapPanel({ caseId, file, onFile }: { caseId: string; file: File | n
           </div>
         </div>
       )}
-      {file && !file.type.startsWith('image/') && <Unknown>The heatmap works on images only.</Unknown>}
+      {file && !canMap && <Unknown>The heatmap works on images and videos.</Unknown>}
       {file === null && message && <Problem>{message}</Problem>}
     </Section>
   );
@@ -115,7 +120,8 @@ export default function MediaTab({ report, explanation }: { report: AnalysisResp
   const media = report.modules?.media;
   const [file, setFile] = useState<File | null>(() => uploadFor(report.case_id) || null);
   const preview = useObjectUrl(file?.type.startsWith('video/') ? file : null);
-  const checks = (explanation?.checks || []).filter(check => check.module === 'media');
+  const checks = (explanation?.checks || []).filter(check => check.module === 'media' && !check.legacy_alias);
+  const frameCheck = checks.find(check => check.check_id === 'media.keyframes' && check.artifacts?.length);
   const classifier = checks.find(check => check.benchmark);
 
   useEffect(() => setFile(uploadFor(report.case_id) || null), [report.case_id]);
@@ -158,6 +164,12 @@ export default function MediaTab({ report, explanation }: { report: AnalysisResp
       <Section title="Evidence from this file" kind="observed">
         {media.evidence.length ? <Lines items={media.evidence} /> : <Unknown>No evidence came back.</Unknown>}
       </Section>
+
+      {frameCheck && (
+        <Section title="Frame by frame" kind="observed" lead={Array.isArray(frameCheck.reasoning) ? frameCheck.reasoning.join(' ') : frameCheck.reasoning}>
+          <CheckArtifacts check={frameCheck} />
+        </Section>
+      )}
 
       {checks.length > 0 && (
         <Section title="What ran">

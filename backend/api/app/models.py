@@ -406,6 +406,8 @@ class ExplanationArtifact(BaseModel):
     # What was read from the file, such as speech. Untrusted, so it is only ever shown as text.
     text: str | None = None
     start_s: str | None = None
+    # A small inline picture, such as a video frame. The dashboard shows only data:image addresses.
+    data_url: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -522,6 +524,9 @@ class HeatmapResponse(BaseModel):
     limitations: list[str] = Field(default_factory=list)
     # A transparent colour grid with none of the image's pixels, to lay over its preview.
     png_base64: str | None = None
+    # For a video: the keyframe examined, since the browser has no picture of it to lay the grid over.
+    frame_timestamp_s: float | None = None
+    frame_jpeg_base64: str | None = None
 
 
 class ReplayScenario(BaseModel):

@@ -24,7 +24,7 @@ Status: **initial implementation contract**. Any change requires a PR that names
 - `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI. Filled for `demo-001`, where every item has `synthetic: true`, which the UI must show. Empty for submitted cases unless a public-post trace ran for them; they never receive the demo network.
 - `GET /api/network/{case_id}/coverage` -> what a trace searched and missed, and the matching posts in time order. `null` when no trace ran for the case.
 - `GET /api/cases/{case_id}/explanation` -> what each check did, found and can't show. See "Explanation".
-- `POST /api/media/heatmap` -> multipart `file` (image). Returns a transparent colour grid showing where covering part of the image moved the model's score. Runs one at a time, and returns `429` with code `busy` otherwise. The file is deleted afterwards and no case is created.
+- `POST /api/media/heatmap` -> multipart `file` (image or video). Returns a transparent colour grid showing where covering part of the image moved the model's score. For a video it uses the keyframe the detector scored highest, and also returns `frame_timestamp_s` and `frame_jpeg_base64`. Runs one at a time, and returns `429` with code `busy` otherwise. The file is deleted afterwards and no case is created.
 - `POST /api/monitors`, `GET /api/monitors`, `POST /api/monitors/{id}/poll`, `DELETE /api/monitors/{id}` -> watch public platforms. See "Monitoring".
 - `POST /api/cases/{case_id}/action-packet` -> draft countermeasures with evidence references, assembled by fixed rules from the case. `generated` is `false`, as no generative model is used.
 - `GET /api/replay/scenarios` -> the bundled offline replay scenarios, with their synthetic labels.
@@ -86,7 +86,7 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 
 | Step | Runs when | Sent to |
 |---|---|---|
-| Source search | A valid image or video is uploaded with `search_web` | The image, or one frame from the middle of a video, to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
+| Source search | A valid image or video is uploaded with `search_web` | The image, or up to 3 keyframes spread across a video (`PROVENANCE_VIDEO_FRAMES`, 1 to 8, each spending its own searches), to each provider with a key set (Google Vision, TinEye, SerpApi). Result pages are then read to find dates and confirm matches. |
 | Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms: Mastodon, Lemmy, Hacker News and Bluesky. A known short link is also followed to its destination, through the protected HTTP client. |
 | Claim verification | Any text case with `search_web` | Search words taken from up to 5 checkable claims, to Wikipedia, GDELT and, with a key set, Google Fact Check Tools. News pages GDELT lists are then read. |
 
@@ -131,6 +131,7 @@ Every case has `modules.provenance`, a normal module result:
 
 - `platform` is `news`, `social`, `web` or `unknown`. `match_type` is `exact`, `partial` or `similar`. `date_source` is `page_metadata`, `crawl_date`, `social_post`, `reference_index` or `none`.
 - `page_url`, `page_title`, `domain`, `image_url`, `phash_distance`, `observed_at`, `date_evidence` and `earliest_found` can be `null`.
+- `frame_timestamp_s` is set on a video's results, and says which keyframe found the page.
 - The UI must show `earliest_found.caveat` and never call that page "the source" or "the original".
 - `replay: true` means recorded results, and `synthetic: true` means invented ones. The UI must show both labels.
 - A case with no saved search returns `status: "not_applicable"` and no appearances. An unknown case returns 404.

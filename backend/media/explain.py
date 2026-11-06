@@ -48,6 +48,7 @@ from backend.media.models import (
     FingerprintMatch,
     ForensicsCheck,
     ForensicTest,
+    FrameEvidence,
     FramesCheck,
     KeyframeCheck,
     MediaAnalysisResult,
@@ -304,6 +305,22 @@ def _phash(check: PHashCheck) -> dict[str, Any]:
     return _check("media.phash", label, check.status, result, reasoning, [*check.limitations, PHASH_MEANING])
 
 
+def _frame_artifact(frame: FrameEvidence) -> dict[str, str]:
+    """One frame's own results, in the words a photo's results use."""
+    parts = []
+    if frame.detector_scores:
+        scores = sorted(frame.detector_scores.items(), key=lambda item: -item[1])
+        parts.append("Detectors: " + ", ".join(f"{model.split('/')[-1]} {out_of_100(score)}" for model, score in scores) + ".")
+    elif frame.model_score is not None:
+        parts.append(f"Detector in use: {out_of_100(frame.model_score)}.")
+    if frame.forensics_tests is not None:
+        parts.append(f"Pixel forensics: {frame.forensics_unusual} of {frame.forensics_tests} tests unusual.")
+    artifact = {"type": "frame", "label": f"At {frame.timestamp_s:.1f}s", "text": " ".join(parts) or "No score for this frame."}
+    if frame.thumbnail:
+        artifact["data_url"] = frame.thumbnail
+    return artifact
+
+
 def _keyframes(check: KeyframeCheck) -> dict[str, Any]:
     label = "Video keyframes"
     if check.status is CheckStatus.NOT_APPLICABLE:
@@ -315,8 +332,13 @@ def _keyframes(check: KeyframeCheck) -> dict[str, Any]:
     if scored:
         strongest = max(scored, key=lambda frame: frame.model_score or 0)
         result += f", strongest score {out_of_100(strongest.model_score)} at {strongest.timestamp_s:.1f}s"
-    reasoning = "Frames were sampled at scene changes and scored one at a time. Frames between them were not checked."
-    return _check("media.keyframes", label, check.status, result, reasoning, check.limitations)
+    reasoning = (
+        "The video was broken into frames at scene changes and at regular gaps. Each frame then had the same checks as a photo: "
+        "the detectors, pixel forensics, faces, on-screen text and fingerprints. Each frame's results are below. "
+        "Frames between them were not checked."
+    )
+    artifacts = [_frame_artifact(frame) for frame in check.frames]
+    return _check("media.keyframes", label, check.status, result, reasoning, check.limitations, artifacts=artifacts)
 
 
 def load_fingerprint_figures(path: Path = FINGERPRINT_RESULTS_PATH) -> dict[str, dict[str, Any]] | None:
@@ -589,6 +611,9 @@ def _forensics(check: ForensicsCheck) -> dict[str, Any]:
         reasoning = "These tests read as unusual, which a person may want to look at. " + " ".join(parts)
     else:
         reasoning = "No test read as unusual. This doesn't show the image is genuine."
+    if check.frame_timestamp_s is not None:
+        result += f" on the strongest frame, at {check.frame_timestamp_s:.1f}s"
+        reasoning = f"These are the results for the keyframe with the strongest score. Video keyframes lists every frame's count. {reasoning}"
     limitations = [*check.limitations, FORENSICS_MEANING, FORENSICS_NO_EFFECT]
     if figures is not None:
         share = figures["settings"]["target_real_flagged"]

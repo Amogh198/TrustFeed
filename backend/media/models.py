@@ -94,6 +94,12 @@ class FrameEvidence(BaseModel):
     phash: str | None = None
     model_score: float | None = None
     fingerprints: dict[str, str] = Field(default_factory=dict)
+    # Each panel detector's score for this frame alone.
+    detector_scores: dict[str, float] = Field(default_factory=dict)
+    forensics_unusual: int | None = None
+    forensics_tests: int | None = None
+    # A small picture of this frame, saved with the case so the reasoning can show it.
+    thumbnail: str | None = None
 
 
 def out_of_100(score: float) -> str:
@@ -197,6 +203,8 @@ class ForensicTest(BaseModel):
 
 class ForensicsCheck(BaseModel):
     status: CheckStatus
+    # For a video, the keyframe these tests describe.
+    frame_timestamp_s: float | None = None
     source_format: str | None = None
     jpeg_quality_estimate: int | None = None
     tests: list[ForensicTest] = Field(default_factory=list)

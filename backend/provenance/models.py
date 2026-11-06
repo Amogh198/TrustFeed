@@ -63,6 +63,8 @@ class Appearance(BaseModel):
     date_source: DateSource = DateSource.NONE
     date_evidence: str | None = None
     provider: str
+    # For a video, the keyframe that found this page.
+    frame_timestamp_s: float | None = None
 
 
 class EarliestFound(BaseModel):

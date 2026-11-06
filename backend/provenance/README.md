@@ -140,7 +140,7 @@ This refuses to save anything unless a live search completed. Check the recordin
 ## Limits
 
 - A search covers only what these services have indexed. Private groups, deleted pages and much of social media are missing. Finding nothing does not show that an image is new or genuine.
-- A video is searched using one frame from its middle, so other parts of it may have appeared elsewhere, and the report says so. Audio files aren't searched.
+- A video is searched using up to 3 of its keyframes, spread across it (`PROVENANCE_VIDEO_FRAMES`, 1 to 8). Each frame spends its own searches, so with visual matches on, a video can spend 6 SerpApi searches the first time. Saved results are reused after that. Other parts of it may have appeared elsewhere, and the report says so. Audio files aren't searched.
 - Up to 25 results are checked, within 20 seconds.
 - **It can be slow.** Providers run one after another, up to 20 seconds per call, so three keys could take about 100 seconds in the worst case. Call it where a long wait is acceptable.
 

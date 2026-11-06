@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import logging
 import os
@@ -77,6 +78,7 @@ from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_
 from backend.media.classifier import default_classifier
 from backend.media.errors import MediaInputError
 from backend.media.fingerprint import CaseFingerprint, fingerprint_record
+from backend.media.keyframes import extract_keyframes
 from backend.media.metadata import inspect_input, read_image
 from backend.media.models import Assessment, MediaAnalysisResult, MediaType
 from backend.media.related import add_earlier_matches
@@ -273,7 +275,7 @@ def _report_pdf(report: dict[str, Any]) -> bytes:
         return render_pdf(report)
 
 
-def _source_evidence(provenance: ProvenanceReport | None) -> dict[str, Any] | None:
+def _source_evidence(provenance: ProvenanceReport | None, media: MediaAnalysisResult | None = None) -> dict[str, Any] | None:
     """Count sites holding the same image, and its earliest date. Merely similar pictures don't count."""
     if provenance is None:
         return None
@@ -282,8 +284,13 @@ def _source_evidence(provenance: ProvenanceReport | None) -> dict[str, Any] | No
     old = {item.domain for item in same if item.domain and item.observed_at and item.observed_at.date().isoformat() < BEFORE_IMAGE_GENERATORS}
     warned = {item.domain for item in provenance.appearances if item.domain and WARNING_TITLE.search(item.page_title or "")}
     searched = any(item.name != "local_index" and item.status is Status.COMPLETE for item in provenance.providers)
+    # Why a requested search could not run, so that isn't read as nothing being found.
+    failed = [item.limitation for item in provenance.providers if item.name != "local_index" and item.status is Status.UNAVAILABLE and item.limitation]
+    no_key = [line for line in provenance.limitations if "key configured" in line]
     return {
         "searched": searched,
+        "blocked": next(iter([*failed, *no_key]), None),
+        "is_video": bool(media and media.media_type is MediaType.VIDEO),
         "domains": len({item.domain for item in same if item.domain}),
         "similar": len(provenance.appearances) - len(same),
         "earliest": min(dates, default=None),
@@ -537,7 +544,7 @@ def _store_case(
         media=media_module,
         media_level=media_risk(media) if media else None,
         media_vote=_media_vote(media),
-        source_evidence=_source_evidence(provenance),
+        source_evidence=_source_evidence(provenance, media),
         network=network,
         claims=claim_records,
         claim_analysis=claim_analysis,
@@ -995,9 +1002,29 @@ def get_explanation(case_id: str) -> ExplanationResponse:
     return build_explanation(case, media_detail.get("checks", []), provenance_checks, network_checks)
 
 
+def _strongest_frame(path: Path, classifier: Any, config: MediaConfig) -> tuple[Any, float]:
+    """Pick the keyframe the detector in use scored highest. If it can't score them, use the first."""
+    _, frames, _ = extract_keyframes(path, config)
+    if not frames:
+        raise MediaInputError("unsupported_type", "No frame could be read from this video.")
+    try:
+        scores = classifier.predict([frame.image for frame in frames])
+        best = max(range(len(frames)), key=lambda number: scores[number])
+    except Exception as exc:  # noqa: BLE001 - The heatmap itself reports a missing model.
+        logger.warning("Scoring frames for a heatmap failed: %s", type(exc).__name__)
+        best = 0
+    return frames[best].image, frames[best].timestamp_s
+
+
+def _jpeg_base64(image: Any) -> str:
+    buffer = io.BytesIO()
+    image.convert("RGB").save(buffer, "JPEG", quality=85)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
 @app.post(HEATMAP_PATH, response_model=HeatmapResponse)
 def media_heatmap(
-    file: Annotated[UploadFile, File(description="JPEG, PNG or WebP. The file is deleted afterwards.")],
+    file: Annotated[UploadFile, File(description="JPEG, PNG, WebP or a video. The file is deleted afterwards.")],
 ) -> HeatmapResponse:
     """Show where covering part of an image moved the model's score. Run only on request."""
     if not _heatmap_slot.acquire(blocking=False):
@@ -1010,15 +1037,21 @@ def media_heatmap(
             with path.open("wb") as handle:
                 shutil.copyfileobj(file.file, handle)
             # The same content and size checks as an upload, before anything is decoded.
-            if inspect_input(path, config).media_type is not MediaType.IMAGE:
-                raise MediaInputError("unsupported_type", "A heatmap can only be made for an image.")
-            image, _, _ = read_image(path, config)
+            kind = inspect_input(path, config).media_type
+            if kind is MediaType.AUDIO:
+                raise MediaInputError("unsupported_type", "A heatmap can only be made for an image or a video.")
+            classifier = default_classifier(config)
+            timestamp = None
+            if kind is MediaType.VIDEO:
+                image, timestamp = _strongest_frame(path, classifier, config)
+            else:
+                image, _, _ = read_image(path, config)
         except MediaInputError as error:
             status_code = MEDIA_REJECTION_STATUS.get(error.code, 422)
             raise HTTPException(status_code=status_code, detail={"code": error.code, "message": error.message}) from error
         finally:
             path.unlink(missing_ok=True)
-        result = occlusion_heatmap(image, default_classifier(config), batch_size=config.batch_size)
+        result = occlusion_heatmap(image, classifier, batch_size=config.batch_size)
         png = render_png(result) if result.changes else None
         return HeatmapResponse(
             status=result.status.value,
@@ -1027,9 +1060,11 @@ def media_heatmap(
             base_score=result.base_score,
             max_change=result.max_change,
             notable=result.notable,
-            reasoning=result.reasoning,
-            limitations=result.limitations,
+            reasoning=result.reasoning if timestamp is None else f"This is the keyframe at {timestamp:.1f}s, the strongest in the video. {result.reasoning}",
+            limitations=result.limitations if timestamp is None else [*result.limitations, "Only this keyframe was examined, not the whole video."],
             png_base64=base64.b64encode(png).decode("ascii") if png else None,
+            frame_timestamp_s=timestamp,
+            frame_jpeg_base64=_jpeg_base64(image) if timestamp is not None else None,
         )
     finally:
         _heatmap_slot.release()
