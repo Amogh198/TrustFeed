@@ -96,6 +96,11 @@ class FrameEvidence(BaseModel):
     fingerprints: dict[str, str] = Field(default_factory=dict)
 
 
+def out_of_100(score: float) -> str:
+    """Words for a score, with enough decimals that different results don't look the same."""
+    return f"{score * 100:.2f} out of 100"
+
+
 class FingerprintMatch(BaseModel):
     # "exact_copy" means the same file. "likely_same_image" means the same picture, possibly changed.
     kind: str

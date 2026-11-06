@@ -120,7 +120,7 @@ def test_every_check_has_the_agreed_fields(tmp_path):
 
 def test_low_score_is_not_reassuring_and_says_how_often_fakes_score_low(tmp_path):
     check = by_id(build_checks(analyzed(tmp_path, 0.1), config=CONFIG))["media.classifier"]
-    assert check["result"] == "0.1000, low band"
+    assert check["result"] == "10.00 out of 100, low band"
     assert "does not show the image is authentic" in check["reasoning"]
     assert "50 of 137 fake images also scored low" in check["reasoning"]
     assert "a low score is weak evidence" in check["reasoning"]
@@ -147,7 +147,7 @@ def test_does_not_say_guessing_for_the_detector_in_use(tmp_path):
 
 def test_elevated_score_reports_measured_misses_and_false_flags(tmp_path):
     check = by_id(build_checks(analyzed(tmp_path, 0.9), config=CONFIG))["media.classifier"]
-    assert check["result"] == "0.9000, elevated band"
+    assert check["result"] == "90.00 out of 100, elevated band"
     assert "It is not proof" in check["reasoning"]
     assert "caught 44 of 137 fake images" in check["reasoning"]
     assert "wrongly flagged 17 of 148 real ones" in check["reasoning"]

@@ -172,7 +172,7 @@ Posts may carry `media_fingerprint`, a hex perceptual hash. Fingerprints within 
 
 Counted, because each has a results file: the media detector (only in its elevated band), scam warning signs and the link address check. Shown but not scored: language rules, other link signs, contradicted claims, inconsistencies, caption and media differences, and spread. If one of those raises concern, or the media detector is quiet or missing, a low score reads `inconclusive`.
 
-The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is at most 50, at most 40 at moderate and 25 at high or critical, and null when nothing was measured. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
+The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is a number out of 100 with up to 2 decimals, and at most 50. With a counted media score it uses that exact score, while the level still treats the media signal as at most 0.75. Without one, it is at most 40 at moderate and 25 at high or critical. It's null when nothing was measured. Module and component scores stay between 0 and 1, and the dashboard shows them out of 100. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
 
 ## Reports, search and overview
 

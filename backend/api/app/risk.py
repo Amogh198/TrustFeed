@@ -6,7 +6,8 @@ link signs and spread have none, so they are shown but never scored. If any of t
 concern while the score stays low, the level is Inconclusive rather than Low.
 
 This is a triage signal and never a verdict. No check can show content is genuine, so the
-trust score stays at or below 50.
+trust score stays at or below 50. Below that it uses the detector's exact score, so two videos
+differ even when the cap on the risk level holds them at one level.
 """
 
 from __future__ import annotations
@@ -83,7 +84,13 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
             **base,
         )
     score = min(_MEDIA_CAP, module.score) if level is RiskLevel.HIGH else max(_WEAK, min(module.score, _ELEVATED - 0.01))
-    return RiskComponent(status=ModuleStatus.COMPLETE, counted=True, score=score, **base)
+    note = None
+    if score != module.score:
+        note = (
+            f"The detector gave {module.score * 100:.2f} out of 100. It counts as {score * 100:.2f} towards the risk level, "
+            "because one unmeasured model must not decide the top level alone."
+        )
+    return RiskComponent(status=ModuleStatus.COMPLETE, counted=True, score=score, note=note, **base)
 
 
 def _scam(analysis: ScamAnalysis | None, weights: Mapping[str, float]) -> RiskComponent:
@@ -176,7 +183,13 @@ def build_unified_risk(
     if level is RiskLevel.LOW and holding:
         level = RiskLevel.INCONCLUSIVE
         reason = f"The measured checks stayed low, but this needs a person's review: {', '.join(holding)}."
-    trust = min(NEUTRAL_TRUST, _TRUST_CAPS.get(level, NEUTRAL_TRUST), 100 - round(score * 100))
+    # Rule checks give only a few fixed scores, so they keep the level's cap. The detector's score is exact.
+    media_score = next((media.score for item in counted if item.name == "media" and media is not None), None)
+    exact = 1.0
+    for item in counted:
+        exact *= 1 - item.weight * ((media_score if item.name == "media" else item.score) or 0.0)
+    cap = NEUTRAL_TRUST if media_score is not None else _TRUST_CAPS.get(level, NEUTRAL_TRUST)
+    trust = round(min(cap, 100 * exact), 2)
     return UnifiedRisk(
         level=level,
         score=score,

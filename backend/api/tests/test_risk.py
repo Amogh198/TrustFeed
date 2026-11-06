@@ -49,7 +49,21 @@ def test_missing_media_never_reads_as_a_low_score():
 
 def test_one_model_never_reaches_critical():
     risk = build(media=media(0.99), media_level=RiskLevel.HIGH)
-    assert risk.level is RiskLevel.HIGH and risk.trust_score == 25
+    assert risk.level is RiskLevel.HIGH and risk.trust_score == 1
+
+
+def test_different_scores_give_different_trust_scores_with_decimals():
+    scores = {score: build(media=media(score), media_level=RiskLevel.HIGH) for score in (0.9993, 0.9412, 0.8125)}
+    assert [risk.trust_score for risk in scores.values()] == [0.07, 5.88, 18.75]
+    # The level stays capped, and the row says what the detector really gave.
+    for risk in scores.values():
+        assert risk.level is RiskLevel.HIGH and risk.score == 0.75
+    row = next(item for item in scores[0.9993].components if item.name == "media")
+    assert row.score == 0.75 and "99.93 out of 100" in row.note
+
+
+def test_trust_never_passes_the_midpoint_even_with_a_small_signal():
+    assert build(media=media(0.31), media_level=RiskLevel.MODERATE).trust_score == 50
 
 
 def test_lookalike_link_is_scored_and_trust_stays_capped():

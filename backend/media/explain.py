@@ -34,6 +34,7 @@ from backend.media.forensics import (
     NOISE_UNEVENNESS,
 )
 from backend.media.models import (
+    out_of_100,
     AudioDetectorResult,
     AudioSyntheticCheck,
     CheckStatus,
@@ -251,7 +252,7 @@ def _classifier(
         "media.classifier",
         label,
         check.status,
-        f"{check.score:.4f}, {band} band",
+        f"{out_of_100(check.score)}, {band} band",
         reasoning,
         limitations,
         benchmark=benchmark,
@@ -313,7 +314,7 @@ def _keyframes(check: KeyframeCheck) -> dict[str, Any]:
     result = f"{len(check.frames)} keyframes"
     if scored:
         strongest = max(scored, key=lambda frame: frame.model_score or 0)
-        result += f", strongest score {strongest.model_score:.4f} at {strongest.timestamp_s:.1f}s"
+        result += f", strongest score {out_of_100(strongest.model_score)} at {strongest.timestamp_s:.1f}s"
     reasoning = "Frames were sampled at scene changes and scored one at a time. Frames between them were not checked."
     return _check("media.keyframes", label, check.status, result, reasoning, check.limitations)
 
@@ -554,7 +555,7 @@ def _forensic_artifact(test: ForensicTest, measured: str) -> dict[str, str]:
         "measured": measured,
     }
     if test.score is not None:
-        artifact["score"] = f"{test.score:.4f}"
+        artifact["score"] = out_of_100(test.score)
     if test.limit is not None:
         artifact["limit"] = f"{test.limit:.4f}"
     if test.flagged is not None:
@@ -625,7 +626,7 @@ def _face_artifact(face: FaceRegion) -> dict[str, str]:
     if face.timestamp_s is not None:
         artifact["timestamp_s"] = f"{face.timestamp_s:.1f}"
     if face.scores:
-        artifact["scores"] = "; ".join(f"{s.model_id}: {s.score:.4f}, {s.band.value} band" for s in face.scores)
+        artifact["scores"] = "; ".join(f"{s.model_id}: {out_of_100(s.score)}, {s.band.value} band" for s in face.scores)
     return artifact
 
 
@@ -646,7 +647,7 @@ def _faces(check: FacesCheck) -> dict[str, Any]:
     scores = [score.score for face in check.faces for score in face.scores]
     result = f"{len(check.faces)} {'face' if len(check.faces) == 1 else 'faces'} found"
     if scores:
-        result += f", strongest score {max(scores):.4f}"
+        result += f", strongest score {out_of_100(max(scores))}"
         reasoning = "Each face area was scored on its own by the detectors. These are signals about that area, not proof."
     else:
         reasoning = "Faces were found, but no detector gave a score for them."
@@ -720,12 +721,12 @@ AUDIO_RESULTS = "data/eval/audio_detectors_2026-11-06.json"
 
 def _audio_artifact(detector: AudioDetectorResult) -> dict[str, str]:
     artifact = {"kind": "audio_detector_result", "model_id": detector.model_id, "status": detector.status.value}
-    artifact["label"] = f"{detector.model_id}: " + (f"average {detector.score_mean:.2f}" if detector.score_mean is not None else "did not run")
+    artifact["label"] = f"{detector.model_id}: " + (f"average {out_of_100(detector.score_mean)}" if detector.score_mean is not None else "did not run")
     if detector.model_revision:
         artifact["model_revision"] = detector.model_revision
     if detector.score_mean is not None:
-        artifact["score_mean"] = f"{detector.score_mean:.4f}"
-        artifact["score_max"] = f"{detector.score_max:.4f}"
+        artifact["score_mean"] = out_of_100(detector.score_mean)
+        artifact["score_max"] = out_of_100(detector.score_max)
         artifact["windows_scored"] = str(detector.windows_scored)
     if detector.reason:
         artifact["reason"] = detector.reason
@@ -738,7 +739,7 @@ def _audio_synthetic(check: AudioSyntheticCheck) -> dict[str, Any]:
     if check.status is not CheckStatus.COMPLETE:
         return _not_run(check_id, label, check.status, check.limitations)
     ran = [detector for detector in check.detectors if detector.status is CheckStatus.COMPLETE]
-    parts = [f"{d.model_id}: average {d.score_mean:.4f}, highest {d.score_max:.4f}." for d in ran]
+    parts = [f"{d.model_id}: average {out_of_100(d.score_mean)}, highest {out_of_100(d.score_max)}." for d in ran]
     return _check(
         check_id,
         label,
@@ -762,7 +763,7 @@ def _frames(check: FramesCheck) -> dict[str, Any]:
     )
     reasoning = (
         f"Model {check.model_id} scored sampled frames one at a time. Its strongest third of frames average "
-        f"{check.video_score:.4f}, which doesn't change the overall score."
+        f"{out_of_100(check.video_score)}, which doesn't change the overall score."
     )
     if check.changes:
         reasoning += f" The score jumped suddenly at {len(check.changes)} points, shown with how much the picture changed."

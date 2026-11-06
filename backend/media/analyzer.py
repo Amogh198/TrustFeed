@@ -30,6 +30,7 @@ from backend.media.forensics import ADDS_NOTHING, run_forensics
 from backend.media.keyframes import STRATEGY, Keyframe, extract_keyframes
 from backend.media.metadata import InputInfo, inspect_input, read_image
 from backend.media.models import (
+    out_of_100,
     Assessment,
     CheckStatus,
     ClassifierCheck,
@@ -464,15 +465,15 @@ def _classifier_evidence(check: ClassifierCheck, frames: Sequence[FrameEvidence]
     if frames:
         lines = [
             (
-                f"Model synthetic-class signal of {check.score:.2f} across {check.items_scored} keyframes "
-                f"(range {check.score_min:.2f} to {check.score_max:.2f})."
+                f"Model synthetic-class signal of {out_of_100(check.score)} across {check.items_scored} keyframes "
+                f"(range {check.score_min * 100:.2f} to {check.score_max * 100:.2f})."
             )
         ]
         elevated = [f"{f.timestamp_s:.1f}s" for f in frames if (f.model_score or 0) >= config.elevated_score]
         if elevated:
             lines.append(f"Keyframes with elevated model signals: {', '.join(elevated)}.")
     else:
-        lines = [f"Model synthetic-class signal of {check.score:.2f}."]
+        lines = [f"Model synthetic-class signal of {out_of_100(check.score)}."]
     if check.band is ModelBand.INCONCLUSIVE:
         lines.append("Inconclusive: the model result does not clearly point either way.")
     return lines
@@ -720,7 +721,7 @@ def _analyze_audio(path, info, config, transcriber=None, detectors=None) -> Medi
     }
     metadata = MetadataCheck(status=CheckStatus.COMPLETE, format=info.container, duration_s=track.duration_s if track else None)
     evidence = [
-        f"{result.model_id} gave a mean synthetic speech score of {result.score_mean:.2f} over {result.windows_scored} window(s)."
+        f"{result.model_id} gave a mean synthetic speech score of {out_of_100(result.score_mean)} over {result.windows_scored} window(s)."
         for result in synthetic.detectors
         if result.status is CheckStatus.COMPLETE and result.score_mean is not None
     ]
