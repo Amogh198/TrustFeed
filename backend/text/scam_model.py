@@ -73,7 +73,7 @@ class HuggingFacePhishing:
             if self._loaded is not None:
                 return self._loaded
             try:
-                from transformers import (
+                from transformers import (  # pyright: ignore[reportMissingImports]
                     AutoModelForSequenceClassification,
                     AutoTokenizer,
                 )
@@ -91,7 +91,7 @@ class HuggingFacePhishing:
     def probabilities(self, texts: Sequence[str]) -> list[list[float]]:
         """One probability per entry in ``LABEL_NAMES``, for each text."""
         tokenizer, model = self._load()
-        import torch
+        import torch  # pyright: ignore[reportMissingImports]
 
         rows: list[list[float]] = []
         with torch.inference_mode():
@@ -167,7 +167,7 @@ def default_runner() -> PhishingRunner:
 
 def download_model() -> str:
     """Fetch only the pinned safetensors weights and config files. Run by hand, never by the API."""
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import snapshot_download  # pyright: ignore[reportMissingImports]
 
     # One worker: huggingface_hub's symlink check races across threads on Windows.
     return snapshot_download(MODEL_ID, revision=MODEL_REVISION, allow_patterns=MODEL_FILES, max_workers=1)

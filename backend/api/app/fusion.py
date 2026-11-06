@@ -8,7 +8,6 @@ from typing import Any
 
 from backend.api.app.explanation import build_countermeasures
 from backend.api.app.models import (
-    ActionPacketRequest,
     ActionPacketResponse,
     ActionPacketSection,
     AnalysisResponse,
@@ -185,8 +184,8 @@ Produce only valid JSON with this exact shape:
 Only output the valid JSON object.
 """.strip()
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-1.5-flash"))
+    genai.configure(api_key=api_key)  # pyright: ignore[reportPrivateImportUsage]
+    model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-1.5-flash"))  # pyright: ignore[reportPrivateImportUsage]
     response = model.generate_content(
         prompt,
         generation_config={"response_mime_type": "application/json", "temperature": 0.2},
@@ -218,7 +217,7 @@ def generate_action_packet(
             overall_risk=case.overall_risk.value,
             audience=audience,
         )
-    except Exception:  # noqa: BLE001 - the optional provider must not block the local fallback.
+    except Exception:
         logger.warning("Gemini action packet generation failed; falling back to static template", exc_info=True)
         return None
 
@@ -236,7 +235,7 @@ def action_packet(
             case = cases[case_or_id]
         else:
             from backend.api.app.store import default_store
-            saved = default_store().get_case(case_or_id)
+            saved = default_store().get(case_or_id)
             if saved is None:
                 from fastapi import HTTPException
                 raise HTTPException(status_code=404, detail="Case not found in this server process")
@@ -269,6 +268,6 @@ def action_packet(
             evidence_references=evidence,
             sections=sections,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - the optional provider must not block the local fallback.
         logger.warning("Gemini action packet generation failed (%s); falling back to static template", exc)
         return _fallback_packet(case, audience)

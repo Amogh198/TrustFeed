@@ -11,7 +11,12 @@ from collections.abc import Mapping
 from itertools import combinations
 from typing import Any
 
-from backend.api.app.models import CrossModalAnalysis, CrossModalConflict, ImageCaptionCheck, ModuleStatus
+from backend.api.app.models import (
+    CrossModalAnalysis,
+    CrossModalConflict,
+    ImageCaptionCheck,
+    ModuleStatus,
+)
 from backend.text.claim_report import analyze_claims
 from backend.text.claims import AnalyzedClaim, split_claims
 from backend.text.consistency import _pair_findings

@@ -81,7 +81,7 @@ class HuggingFaceComparer:
             if self._loaded is not None:
                 return self._loaded
             try:
-                from transformers import (
+                from transformers import (  # pyright: ignore[reportMissingImports]
                     AutoModel,
                     AutoModelForSequenceClassification,
                     AutoTokenizer,
@@ -111,7 +111,7 @@ class HuggingFaceComparer:
         if not passages:
             return []
         tokenizer, model, *_ = self._load()
-        import torch
+        import torch  # pyright: ignore[reportMissingImports]
 
         texts = [claim, *passages]
         vectors = []
@@ -132,7 +132,7 @@ class HuggingFaceComparer:
         if not pairs:
             return []
         _, _, tokenizer, model, labels = self._load()
-        import torch
+        import torch  # pyright: ignore[reportMissingImports]
 
         results: list[Entailment] = []
         with torch.inference_mode():
@@ -155,7 +155,7 @@ class HuggingFaceComparer:
 
 def download_models() -> list[str]:
     """Fetch only the pinned safetensors weights and config files. Run by hand, never by the API."""
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import snapshot_download  # pyright: ignore[reportMissingImports]
 
     # One worker: huggingface_hub's symlink check races across threads on Windows.
     return [

@@ -6,7 +6,7 @@ from backend.text.cross_modal import compare_channels, cross_modal_checks
 
 def test_without_media_text_it_says_nothing_was_compared():
     report = compare_channels("Flood hit the town on 3 March 2024.", None)
-    assert report.status is ModuleStatus.NOT_APPLICABLE and "media" in report.reason
+    assert report.status is ModuleStatus.NOT_APPLICABLE and "media" in (report.reason or "")
     assert report.assessment is None
 
 
@@ -36,7 +36,7 @@ def test_negation_between_caption_and_speech_is_a_conflict():
     )
     assert report.assessment == "conflicts_found"
     conflict = next(item for item in report.conflicts if item.kind == "negation")
-    assert conflict.channels == ["caption", "speech"] and "did not" in conflict.right_quote
+    assert conflict.channels == ["caption", "speech"] and "did not" in (conflict.right_quote or "")
 
 
 def test_different_figures_between_screen_and_speech_conflict_without_a_caption():
@@ -56,7 +56,7 @@ def test_size_is_limited():
 def test_image_match_is_reported_as_not_run_with_the_reason():
     report = compare_channels("x y z", {"ocr": ["a b c"]})
     assert report.image_caption.status is ModuleStatus.UNAVAILABLE
-    assert "safetensors" in report.image_caption.reason and "licence" in report.image_caption.reason
+    assert "safetensors" in (report.image_caption.reason or "") and "licence" in (report.image_caption.reason or "")
 
 
 def test_checks_cover_both_parts_even_when_nothing_ran():

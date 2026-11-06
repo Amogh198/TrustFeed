@@ -80,3 +80,13 @@ def test_action_packet_gemini_failure_falls_back(monkeypatch):
         assert packet["generated"] is False
         assert len(packet["sections"]) > 0
 
+
+def test_action_packet_for_an_unknown_case_id_is_not_found():
+    import pytest
+    from fastapi import HTTPException
+
+    from backend.api.app.fusion import action_packet
+
+    with pytest.raises(HTTPException) as caught:
+        action_packet("no-such-case")
+    assert caught.value.status_code == 404

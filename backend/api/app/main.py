@@ -13,26 +13,34 @@ from typing import Annotated, Any, Literal
 from urllib.parse import unquote
 from uuid import uuid4
 
-from fastapi.concurrency import run_in_threadpool
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import HttpUrl
 
+from backend.api.app.auth import (
+    COOKIE_NAME,
+    CURRENT_USER,
+    AuthStore,
+    auth_required,
+    build_router,
+    current_owner,
+)
 from backend.api.app.claim_records import build_claims
-from backend.api.app.explanation import build_countermeasures, build_explanation
+from backend.api.app.explanation import build_explanation
 from backend.api.app.fusion import (
     action_packet as fusion_action_packet,
+)
+from backend.api.app.fusion import (
     combine_risks,
     disagreement_note,
     fused_summary,
-    generate_action_packet,
     media_risk,
 )
 from backend.api.app.models import (
     ActionPacketRequest,
     ActionPacketResponse,
-    ActionPacketSection,
     AnalysisResponse,
     AnalyzeRequest,
     CaseHistoryResponse,
@@ -51,19 +59,9 @@ from backend.api.app.models import (
     TimelineResponse,
 )
 from backend.api.app.replay import get_scenario, list_scenarios
-from backend.api.app.auth import (
-    COOKIE_NAME,
-    CURRENT_USER,
-    AuthStore,
-    auth_required,
-    build_router,
-    current_owner,
-)
 from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
 from backend.api.app.risk import build_unified_risk, summary_for
 from backend.api.app.scam_records import build_scam_analysis
-from backend.text.cross_modal import compare_channels
-from backend.text.links import investigate_link
 from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
@@ -101,6 +99,8 @@ from backend.text.analysis import (
     fuse_risk,
     signal_summary,
 )
+from backend.text.cross_modal import compare_channels
+from backend.text.links import investigate_link
 from backend.text.scams import WARNING_SIGNS
 
 # Never log submitted text, links or file names: they can reveal what a user submitted.
@@ -922,7 +922,7 @@ def get_monitor_alerts() -> list[dict[str, Any]]:
         return []
     try:
         data = json.loads(demo_path.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         logger.warning("Failed to read network_demo.json for monitor alerts: %s", exc)
         return []
 
@@ -947,7 +947,7 @@ def get_monitor_alerts() -> list[dict[str, Any]]:
     alerts = []
     for camp in campaigns.values():
         total = camp["total_posts"]
-        spread = sorted(list(camp["platforms"]))
+        spread = sorted(camp["platforms"])
         if total >= 25 or len(spread) >= 3:
             risk = "critical"
         elif total >= 15:

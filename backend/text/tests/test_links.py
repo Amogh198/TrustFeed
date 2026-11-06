@@ -131,10 +131,10 @@ def test_a_page_refresh_counts_as_a_redirect():
 def test_redirect_loop_and_endless_chains_leave_the_destination_unknown():
     loop = run("https://a.example/", {"https://a.example/": redirect("", "https://a.example/")})
     assert loop.redirects.status is ModuleStatus.UNAVAILABLE and loop.redirects.final_host is None
-    assert "loop" in loop.redirects.reason
+    assert "loop" in (loop.redirects.reason or "")
     chain = {f"https://a.example/{i}": redirect("", f"https://a.example/{i + 1}") for i in range(20)}
     endless = run("https://a.example/0", chain)
-    assert endless.redirects.status is ModuleStatus.UNAVAILABLE and "limit" in endless.redirects.reason
+    assert endless.redirects.status is ModuleStatus.UNAVAILABLE and "limit" in (endless.redirects.reason or "")
 
 
 def test_a_blocked_private_redirect_is_reported_and_not_followed():
@@ -146,7 +146,7 @@ def test_a_blocked_private_redirect_is_reported_and_not_followed():
         },
     )
     assert report.redirects.status is ModuleStatus.UNAVAILABLE
-    assert "public internet" in report.redirects.reason
+    assert "public internet" in (report.redirects.reason or "")
     assert report.page.status is ModuleStatus.UNAVAILABLE
 
 
@@ -196,7 +196,7 @@ def test_official_site_failure_is_not_read_as_a_difference():
     url = "https://paypa1.com/"
     report = run(url, {url: page("", LOGIN)})
     assert report.official.status is ModuleStatus.UNAVAILABLE and report.official.title_similarity is None
-    assert "paypal.com" in report.official.reason
+    assert "paypal.com" in (report.official.reason or "")
 
 
 def test_a_news_story_naming_a_brand_is_not_a_warning():
@@ -235,27 +235,27 @@ def test_hidden_and_scripted_text_is_ignored_and_title_is_cleaned():
     body = "<title>  Hello\n\x07 there <b>" + "x" * 500 + "</title><script>var a='<input type=password>'</script>"
     report = run(url, {url: page("", body)})
     assert report.page.asks_for_login is False
-    assert report.page.title.startswith("Hello there") and len(report.page.title) <= 200
-    assert "\x07" not in report.page.title
+    assert (report.page.title or "").startswith("Hello there") and len(report.page.title or "") <= 200
+    assert "\x07" not in (report.page.title or "")
 
 
 def test_scripted_page_says_it_may_not_have_been_seen():
     url = "https://a.example/"
     report = run(url, {url: page("", "<div id=root></div><script src=/a.js></script>")})
-    assert "scripts" in report.page.reason
+    assert "scripts" in (report.page.reason or "")
 
 
 def test_a_file_is_not_read_as_a_page():
     url = "https://a.example/f.zip"
     response = HttpResponse(url=url, status=200, headers={"content-type": "application/zip"}, body=b"PK")
     report = run(url, {url: response})
-    assert report.page.status is ModuleStatus.NOT_APPLICABLE and "application/zip" in report.page.reason
+    assert report.page.status is ModuleStatus.NOT_APPLICABLE and "application/zip" in (report.page.reason or "")
 
 
 def test_error_page_is_unavailable():
     url = "https://a.example/"
     report = run(url, {url: page("", "gone", status=404)})
-    assert report.page.status is ModuleStatus.UNAVAILABLE and "404" in report.page.reason
+    assert report.page.status is ModuleStatus.UNAVAILABLE and "404" in (report.page.reason or "")
 
 
 def test_time_budget_stops_further_requests():
@@ -302,7 +302,7 @@ def test_failing_after_a_redirect_still_shows_where_the_link_leads():
         {"https://bit.ly/a": redirect("", "https://dest.example/"), "https://dest.example/": HttpFailed("too_large")},
     )
     assert report.redirects.final_host == "dest.example"
-    assert report.redirects.status is ModuleStatus.UNAVAILABLE and "too large" in report.page.reason
+    assert report.redirects.status is ModuleStatus.UNAVAILABLE and "too large" in (report.page.reason or "")
 
 
 def test_a_word_containing_upi_is_not_a_payment_field():
@@ -321,7 +321,7 @@ def test_subdomains_are_checked(host, strength):
 def test_malformed_redirect_is_reported(location):
     url = "https://a.example/"
     report = run(url, {url: redirect("", location)})
-    assert report.redirects.status is ModuleStatus.UNAVAILABLE and "malformed" in report.redirects.reason
+    assert report.redirects.status is ModuleStatus.UNAVAILABLE and "malformed" in (report.redirects.reason or "")
 
 
 def test_malformed_refresh_and_form_address_do_not_raise():
@@ -365,5 +365,5 @@ def test_only_the_first_part_of_a_huge_page_is_parsed():
 def test_odd_content_type_is_cleaned():
     url = "https://a.example/f"
     response = HttpResponse(url=url, status=200, headers={"content-type": "application/\x07<b>x" + "y" * 200}, body=b"x")
-    reason = run(url, {url: response}).page.reason
+    reason = run(url, {url: response}).page.reason or ""
     assert "\x07" not in reason and len(reason) < 120
