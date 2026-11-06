@@ -194,7 +194,7 @@ export function trustScore(report: AnalysisResponse): Trust {
     const value = unified.trust_score;
     const words = value == null
       ? 'No trust score'
-      : value >= NEUTRAL_TRUST ? 'Inconclusive: not enough evidence' : value > 25 ? 'Some warning signs' : 'Warning signs found: a person should review this';
+      : value > NEUTRAL_TRUST ? (report.modules?.media?.status === 'complete' ? 'Little sign of AI from the detectors' : 'Looks legitimate so far') : value === NEUTRAL_TRUST ? 'Inconclusive: not enough evidence' : value > 25 ? 'Some warning signs' : 'Warning signs found: a person should review this';
     return {
       score: value,
       words,

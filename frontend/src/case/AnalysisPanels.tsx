@@ -122,6 +122,60 @@ export function CoordinationTests({ caseId }: { caseId: string }) {
   );
 }
 
+/** The detectors and the web search each give their own answer, side by side. */
+export function MediaDecisionPanel({ report }: { report: AnalysisResponse }) {
+  const decision = report.unified_risk?.media_decision;
+  if (!decision) return null;
+  return (
+    <Section title="Two independent checks on this media" kind="estimate" lead={decision.combined}>
+      <div className="findings-grid">
+        <article>
+          <h3>AI detectors say</h3>
+          <p className="reason-result">{decision.detector_verdict}</p>
+          <p>{decision.detector_detail}</p>
+        </article>
+        <article>
+          <h3>Web search says</h3>
+          <p className="reason-result">{decision.web_verdict}</p>
+          <p>{decision.web_detail}</p>
+        </article>
+      </div>
+    </Section>
+  );
+}
+
+/** Say plainly what really ran for this case, so nothing looks like more than it was. */
+export function WhatRan({ report, sourceProviders }: { report: AnalysisResponse; sourceProviders?: { name: string; status: string; result_count: number | null; limitation?: string | null }[] }) {
+  const claims = report.claim_analysis;
+  const verification = claims?.verification;
+  const media = report.modules?.media;
+  const rows: [string, string, string][] = [];
+  if (claims) {
+    rows.push(['Local model', 'Named people and places (dslim/bert-base-NER)', claims.entity_model_status === 'complete' ? 'Ran' : 'Did not run']);
+    rows.push(['Fixed rules', 'Language, scam signs and link address. Their round scores are set weights, not model output', 'Ran']);
+    if (verification?.status === 'complete') {
+      (verification.providers || []).forEach(item => rows.push(['Live search', item.name, item.status === 'complete' ? `Ran, ${item.result_count} result(s)` : item.reason || 'Did not run']));
+      rows.push(['Local model', 'Compared claims with the sources found', verification.comparison_status === 'complete' ? 'Ran' : verification.comparison_reason || 'Did not run']);
+    } else {
+      rows.push(['Live search', 'Claim sources', verification?.reason || 'Did not run. Tick the search box to compare claims with sources.']);
+    }
+  }
+  if (report.link_analysis) rows.push(['Local model', 'Link model, reads the host name', report.link_analysis.model_score != null ? `Ran, score ${report.link_analysis.model_score.toFixed(3)}` : 'Did not run']);
+  if (media && media.status !== 'not_applicable') rows.push(['Local model', 'Image detector', media.status === 'complete' ? `Ran, raw score ${media.score}` : media.limitations?.[0] || 'Did not run']);
+  (sourceProviders || []).forEach(item => rows.push(['Source search', item.name, item.status === 'complete' ? `Ran, ${item.result_count} result(s)` : item.limitation || 'Did not run']));
+  if (!rows.length) return null;
+  return (
+    <Section title="What actually ran" kind="observed">
+      <div className="table-scroll">
+        <table className="table">
+          <thead><tr><th>Kind</th><th>What</th><th>Result</th></tr></thead>
+          <tbody>{rows.map(([kind, what, result], index) => <tr key={index}><td>{kind}</td><th scope="row">{what}</th><td>{result}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
 export function RiskPanel({ risk }: { risk: UnifiedRisk }) {
   return (
     <Section title="What makes up this risk level" kind="estimate" lead="Only checks measured on labelled data are scored. The rest are shown, and can stop a result reading Low.">

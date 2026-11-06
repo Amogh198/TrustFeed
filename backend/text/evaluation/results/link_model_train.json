@@ -1,0 +1,68 @@
+{
+  "trained_on": "2026-11-06",
+  "train_hosts": 230240,
+  "test_phishing_hosts": 40071,
+  "test_ordinary_hosts": 29689,
+  "auc": 0.9474,
+  "by_line": {
+    "0.5": {
+      "phishing_flagged": 0.8069,
+      "ordinary_flagged": 0.0645,
+      "accuracy": 0.8617,
+      "famous_flagged": 13
+    },
+    "0.7": {
+      "phishing_flagged": 0.7052,
+      "ordinary_flagged": 0.018,
+      "accuracy": 0.823,
+      "famous_flagged": 3
+    },
+    "0.8": {
+      "phishing_flagged": 0.6177,
+      "ordinary_flagged": 0.0077,
+      "accuracy": 0.7771,
+      "famous_flagged": 0
+    },
+    "0.9": {
+      "phishing_flagged": 0.4573,
+      "ordinary_flagged": 0.0022,
+      "accuracy": 0.6873,
+      "famous_flagged": 0
+    },
+    "0.95": {
+      "phishing_flagged": 0.3454,
+      "ordinary_flagged": 0.0008,
+      "accuracy": 0.6237,
+      "famous_flagged": 0
+    }
+  },
+  "famous_sites_median_score": 0.338,
+  "famous_sites_highest": [
+    [
+      "cloudflare.com",
+      0.7668244512872127
+    ],
+    [
+      "spotify.com",
+      0.739056766324995
+    ],
+    [
+      "thehindu.com",
+      0.7178486503436327
+    ],
+    [
+      "reddit.com",
+      0.6531365531211258
+    ],
+    [
+      "booking.com",
+      0.6512195088209763
+    ]
+  ],
+  "caveats": [
+    "Reads the host name only. It doesn't open pages or see the path.",
+    "Half of the test set is phishing, far more than in real traffic, so accuracy here overstates real use.",
+    "Ordinary hosts come from a popularity list, so small genuine sites may score higher than these figures suggest.",
+    "Held-out domains are from the same lists, so new phishing styles may do worse."
+  ]
+}

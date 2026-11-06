@@ -68,6 +68,7 @@ def check_threat_list(url: str, host: str, known_official: bool) -> tuple[LinkTh
     reason = f"{LIST_NAME} list saved on {saved}. The link wasn't sent anywhere. A link not being listed doesn't make it safe."
     status = LinkThreatLists(status=ModuleStatus.COMPLETE, reason=reason)
     if exact:
+        status.listed = True
         return status, [LinkSign(sign="listed_on_threat_list", strength="strong", why=f"This exact address is on the {LIST_NAME} list of reported phishing links.")]
     if host_listed and not known_official:
         return status, [LinkSign(sign="host_on_threat_list", strength="weak", why=f"Another address on {host} is on the {LIST_NAME} list of reported phishing links.")]

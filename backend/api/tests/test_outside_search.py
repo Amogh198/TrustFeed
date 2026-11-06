@@ -94,7 +94,7 @@ def outside(monkeypatch):
 
     real_link = main.investigate_link
 
-    def check_link(url, *, offline_reason=None):
+    def check_link(url, *, offline_reason=None, **_kw):
         # Consent reaches this function as "no offline reason". The check itself stays offline here.
         if offline_reason is None:
             calls.setdefault("link", []).append(url)
@@ -453,7 +453,7 @@ def test_link_parts_appear_in_the_explanation(outside):
 def test_a_crashed_link_check_keeps_the_address_result(monkeypatch):
     real = main.investigate_link
 
-    def crash(url, *, offline_reason=None):
+    def crash(url, *, offline_reason=None, **_kw):
         if offline_reason is None:
             raise ValueError("broken")
         return real(url, offline_reason=offline_reason)

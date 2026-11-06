@@ -130,6 +130,9 @@ export const api = {
   signup(email, password) { return request('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); },
   logout() { return request('/api/auth/logout', { method: 'POST' }); },
   /** @returns {Promise<import('./types').Overview>} */
+  /** @param {string} caseId @returns {Promise<any>} */
+  getReport(caseId) { return request(`/api/cases/${id(caseId)}/report`); },
+  /** @returns {Promise<import('./types').Overview>} */
   getOverview() { return request('/api/overview'); },
   /** @param {string} caseId */
   reportPdfUrl(caseId) { return `${API_BASE_URL}/api/cases/${id(caseId)}/report.pdf`; },

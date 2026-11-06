@@ -20,7 +20,7 @@ export interface Claim {
 
 export interface AnalysisResponse {
   link_analysis?: LinkAnalysis | null;
-  claim_analysis?: { verification?: { status?: string } } | null;
+  claim_analysis?: { entity_model_status?: string; verification?: { status?: string; reason?: string | null; comparison_status?: string; comparison_reason?: string | null; providers?: { name: string; status: string; reason?: string | null; result_count: number }[] } } | null;
   scam_analysis?: ScamAnalysis | null;
   cross_modal?: CrossModal | null;
   unified_risk?: UnifiedRisk | null;
@@ -296,6 +296,7 @@ export interface LinkAnalysis {
   assessment: string;
   requested_host: string;
   live_failed?: boolean;
+  model_score?: number | null;
   lookalike: LinkPart & { host: string; owned_by?: string | null; brand?: string | null; strength?: string | null; how?: string | null };
   redirects: LinkPart & { hops: { url: string; host: string; status: number }[]; final_host?: string | null };
   domain: LinkPart & { domain?: string | null; registered_on?: string | null; age_days?: number | null };
@@ -328,6 +329,7 @@ export interface UnifiedRisk {
   trust_score: number | null;
   trust_note: string;
   components: RiskComponent[];
+  media_decision?: { detector_verdict: string; detector_detail: string; web_verdict: string; web_detail: string; combined: string } | null;
 }
 export interface Overview {
   investigations: number;

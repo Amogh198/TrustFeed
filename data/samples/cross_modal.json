@@ -1,0 +1,46 @@
+[
+ {
+  "name": "dates_differ",
+  "caption": "Flood hit the town on 3 March 2024.",
+  "extracted_text": {
+   "ocr": [
+    "Recorded on 12 June 2019"
+   ],
+   "speech": []
+  },
+  "expected": "notes_only"
+ },
+ {
+  "name": "negation",
+  "caption": "The minister resigned from the cabinet yesterday.",
+  "extracted_text": {
+   "ocr": [],
+   "speech": [
+    "The minister did not resign from the cabinet yesterday."
+   ]
+  },
+  "expected": "conflicts_found"
+ },
+ {
+  "name": "figures",
+  "caption": "The fire killed 50 people in the market.",
+  "extracted_text": {
+   "ocr": [
+    "The fire killed 200 people in the market."
+   ],
+   "speech": []
+  },
+  "expected": "conflicts_found"
+ },
+ {
+  "name": "matching",
+  "caption": "The bridge collapsed on 3 March 2024.",
+  "extracted_text": {
+   "ocr": [
+    "The bridge collapsed on 3 March 2024."
+   ],
+   "speech": []
+  },
+  "expected": "none_found"
+ }
+]

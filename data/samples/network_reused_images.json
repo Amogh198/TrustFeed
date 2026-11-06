@@ -1,0 +1,179 @@
+{
+ "metadata": {
+  "case_id": "sample-reused_images",
+  "synthetic": true
+ },
+ "accounts": [
+  {
+   "id": "a0",
+   "handle": "@invented_a0"
+  },
+  {
+   "id": "a1",
+   "handle": "@invented_a1"
+  },
+  {
+   "id": "a2",
+   "handle": "@invented_a2"
+  },
+  {
+   "id": "a3",
+   "handle": "@invented_a3"
+  },
+  {
+   "id": "a4",
+   "handle": "@invented_a4"
+  },
+  {
+   "id": "a5",
+   "handle": "@invented_a5"
+  }
+ ],
+ "posts": [
+  {
+   "id": "p0",
+   "account_id": "a0",
+   "created_at": "2026-01-05T09:00:00Z",
+   "media_fingerprint": "f0f0f0f0f0f00000"
+  },
+  {
+   "id": "p1",
+   "account_id": "a1",
+   "created_at": "2026-01-05T09:00:01Z",
+   "media_fingerprint": "f0f0f0f0f0f00001"
+  },
+  {
+   "id": "p2",
+   "account_id": "a2",
+   "created_at": "2026-01-05T09:00:02Z",
+   "media_fingerprint": "f0f0f0f0f0f00002"
+  },
+  {
+   "id": "p3",
+   "account_id": "a3",
+   "created_at": "2026-01-05T09:00:03Z",
+   "media_fingerprint": "f0f0f0f0f0f00003"
+  },
+  {
+   "id": "p4",
+   "account_id": "a4",
+   "created_at": "2026-01-05T09:00:04Z",
+   "media_fingerprint": "f0f0f0f0f0f00004"
+  },
+  {
+   "id": "p5",
+   "account_id": "a5",
+   "created_at": "2026-01-05T09:00:05Z",
+   "media_fingerprint": "f0f0f0f0f0f00005"
+  },
+  {
+   "id": "p6",
+   "account_id": "a0",
+   "created_at": "2026-01-05T11:00:00Z",
+   "media_fingerprint": "f0f0f10201f00000"
+  },
+  {
+   "id": "p7",
+   "account_id": "a1",
+   "created_at": "2026-01-05T11:00:01Z",
+   "media_fingerprint": "f0f0f10201f00001"
+  },
+  {
+   "id": "p8",
+   "account_id": "a2",
+   "created_at": "2026-01-05T11:00:02Z",
+   "media_fingerprint": "f0f0f10201f00002"
+  },
+  {
+   "id": "p9",
+   "account_id": "a3",
+   "created_at": "2026-01-05T11:00:03Z",
+   "media_fingerprint": "f0f0f10201f00003"
+  },
+  {
+   "id": "p10",
+   "account_id": "a4",
+   "created_at": "2026-01-05T11:00:04Z",
+   "media_fingerprint": "f0f0f10201f00004"
+  },
+  {
+   "id": "p11",
+   "account_id": "a5",
+   "created_at": "2026-01-05T11:00:05Z",
+   "media_fingerprint": "f0f0f10201f00005"
+  },
+  {
+   "id": "p12",
+   "account_id": "a0",
+   "created_at": "2026-01-05T13:00:00Z",
+   "media_fingerprint": "f0f0f11312f00000"
+  },
+  {
+   "id": "p13",
+   "account_id": "a1",
+   "created_at": "2026-01-05T13:00:01Z",
+   "media_fingerprint": "f0f0f11312f00001"
+  },
+  {
+   "id": "p14",
+   "account_id": "a2",
+   "created_at": "2026-01-05T13:00:02Z",
+   "media_fingerprint": "f0f0f11312f00002"
+  },
+  {
+   "id": "p15",
+   "account_id": "a3",
+   "created_at": "2026-01-05T13:00:03Z",
+   "media_fingerprint": "f0f0f11312f00003"
+  },
+  {
+   "id": "p16",
+   "account_id": "a4",
+   "created_at": "2026-01-05T13:00:04Z",
+   "media_fingerprint": "f0f0f11312f00004"
+  },
+  {
+   "id": "p17",
+   "account_id": "a5",
+   "created_at": "2026-01-05T13:00:05Z",
+   "media_fingerprint": "f0f0f11312f00005"
+  },
+  {
+   "id": "p18",
+   "account_id": "a0",
+   "created_at": "2026-01-05T15:00:00Z",
+   "media_fingerprint": "f0f0f12423f00000"
+  },
+  {
+   "id": "p19",
+   "account_id": "a1",
+   "created_at": "2026-01-05T15:00:01Z",
+   "media_fingerprint": "f0f0f12423f00001"
+  },
+  {
+   "id": "p20",
+   "account_id": "a2",
+   "created_at": "2026-01-05T15:00:02Z",
+   "media_fingerprint": "f0f0f12423f00002"
+  },
+  {
+   "id": "p21",
+   "account_id": "a3",
+   "created_at": "2026-01-05T15:00:03Z",
+   "media_fingerprint": "f0f0f12423f00003"
+  },
+  {
+   "id": "p22",
+   "account_id": "a4",
+   "created_at": "2026-01-05T15:00:04Z",
+   "media_fingerprint": "f0f0f12423f00004"
+  },
+  {
+   "id": "p23",
+   "account_id": "a5",
+   "created_at": "2026-01-05T15:00:05Z",
+   "media_fingerprint": "f0f0f12423f00005"
+  }
+ ],
+ "expected_null_test": "above_chance"
+}

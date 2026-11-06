@@ -1,0 +1,68 @@
+[
+ {
+  "name": "job_scam",
+  "text": "Pay a registration fee of Rs 500 to get this work from home job. Send your OTP now.",
+  "url": null,
+  "expected_risk": "high"
+ },
+ {
+  "name": "prize_scam",
+  "text": "You have won a lottery! Click here to claim your prize and share your bank details today.",
+  "url": null,
+  "expected_risk": "high"
+ },
+ {
+  "name": "investment_scam",
+  "text": "Guaranteed returns! Double your money in 7 days. Send your investment to my UPI now.",
+  "url": null,
+  "expected_risk": "high"
+ },
+ {
+  "name": "scam_and_lookalike",
+  "text": "Your account is blocked. Send your OTP now to verify your account.",
+  "url": "https://paypa1.example/login",
+  "expected_risk": "critical"
+ },
+ {
+  "name": "lookalike_only",
+  "text": null,
+  "url": "https://secure-paypal.example/",
+  "expected_risk": "high"
+ },
+ {
+  "name": "plain_notice",
+  "text": "The library opens at nine on weekdays.",
+  "url": null,
+  "expected_risk": "low"
+ },
+ {
+  "name": "plain_with_link",
+  "text": "The town meeting is on Tuesday evening.",
+  "url": "https://town-notices.example/meeting",
+  "expected_risk": "low"
+ },
+ {
+  "name": "conspiracy_language",
+  "text": "Officials are hiding the truth about this. Share this now!",
+  "url": null,
+  "expected_risk": "inconclusive"
+ },
+ {
+  "name": "health_language",
+  "text": "This miracle cure cures cancer in three days.",
+  "url": null,
+  "expected_risk": "inconclusive"
+ },
+ {
+  "name": "inconsistent_figures",
+  "text": "The fire killed 50 people in the market on 3 March 2024. The fire killed 200 people in the market on 3 March 2024.",
+  "url": null,
+  "expected_risk": "inconclusive"
+ },
+ {
+  "name": "hindi_urgency",
+  "text": "यह संदेश तुरंत सबको भेजें।",
+  "url": null,
+  "expected_risk": "inconclusive"
+ }
+]
