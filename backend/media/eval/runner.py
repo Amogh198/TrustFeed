@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import re
 import sys
+import time
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -16,6 +18,7 @@ from backend.media.analyzer import analyze_media
 from backend.media.classifier import HuggingFaceClassifier, ImageClassifier
 from backend.media.config import DEFAULT_MODEL_ID, DEFAULT_MODEL_REVISION, MediaConfig
 from backend.media.errors import MediaInputError
+from backend.media.eval.compare import compare_models
 from backend.media.eval.metrics import FAKE, REAL, Scored, at_threshold, choose_threshold, evaluate
 from backend.media.metadata import inspect_input, read_image
 from backend.media.models import CheckStatus, MediaType
@@ -127,37 +130,74 @@ def build_dataset(
     return Dataset(items, duplicates, len(conflicts), unreadable, skipped)
 
 
-def _score_all(items: Sequence[Item], classifier: ImageClassifier, config: MediaConfig) -> tuple[list, int, str | None]:
+class ScoreCache:
+    """Keeps one model's scores on disk so a long run can resume. It names files, so it stays out of the repository."""
+
+    def __init__(self, folder: Path | None, model_id: str, revision: str | None, config: MediaConfig) -> None:
+        self.entries: dict[str, list] = {}
+        self.seconds = 0.0
+        self.path = None
+        if folder is None:
+            return
+        key = f"{model_id}@{revision}@{config.elevated_score}@{config.low_score}"
+        self.path = folder / f"{hashlib.sha256(key.encode()).hexdigest()[:32]}.json"
+        if self.path.is_file():
+            stored = json.loads(self.path.read_text(encoding="utf-8"))
+            self.entries, self.seconds = stored["entries"], stored["seconds"]
+
+    def save(self) -> None:
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps({"entries": self.entries, "seconds": self.seconds}), encoding="utf-8")
+
+
+def _score_all(
+    items: Sequence[Item], classifier: ImageClassifier, config: MediaConfig, cache: ScoreCache
+) -> tuple[list, int, str | None]:
     scored: list[tuple[Item, Scored]] = []
     missing = 0
     reason = None
     for position, item in enumerate(items, start=1):
+        cached = cache.entries.get(str(item.path))
+        if cached is not None:
+            scored.append((item, Scored(item.label, cached[0], cached[1], item.category)))
+            continue
+        started = time.perf_counter()
         result = analyze_media(item.path, classifier=classifier, config=config)
+        cache.seconds += time.perf_counter() - started
         check = result.checks.classifier
         if check.status is CheckStatus.COMPLETE and check.score is not None and check.band is not None:
             scored.append((item, Scored(item.label, check.score, check.band.value, item.category)))
+            cache.entries[str(item.path)] = [check.score, check.band.value]
         else:
             missing += 1
             reason = reason or (check.limitations[0] if check.limitations else "No model result.")
         if position % 100 == 0:
+            cache.save()
             print(f"  scored {position} of {len(items)}", file=sys.stderr, flush=True)
+    cache.save()
     return scored, missing, reason
 
 
 def _model_result(
-    model_id: str, revision: str | None, classifier: ImageClassifier, items: Sequence[Item], config: MediaConfig
-) -> dict:
-    scored, missing, reason = _score_all(items, classifier, config)
+    model_id: str,
+    revision: str | None,
+    classifier: ImageClassifier,
+    items: Sequence[Item],
+    config: MediaConfig,
+    cache: ScoreCache,
+) -> tuple[dict, list[tuple[Item, Scored]]]:
+    scored, missing, reason = _score_all(items, classifier, config, cache)
     base = {"model_id": model_id, "model_revision": revision, "scored": len(scored), "not_scored": missing}
     if not scored:
-        return {**base, "status": "unavailable", "reason": reason or "There were no images to score."}
+        return {**base, "status": "unavailable", "reason": reason or "There were no images to score."}, []
 
     everything = [entry for _, entry in scored]
     calibration = [entry for item, entry in scored if item.split == "calibration"]
     test = [entry for item, entry in scored if item.split == "test"]
     cut, why_not = choose_threshold(calibration)
     categories = sorted({entry.category for entry in everything})
-    return {
+    result = {
         **base,
         "status": "complete",
         # These bands were fixed before this data was seen, so all of it can measure them.
@@ -174,6 +214,27 @@ def _model_result(
             name: evaluate([entry for entry in everything if entry.category == name]) for name in categories
         },
     }
+    return result, scored
+
+
+def _comparison(scored_by_model: dict[tuple[str, str | None], list], seconds: dict, seed: int) -> dict | None:
+    """Compare models on the same images. The baseline is the detector in use whenever it was measured."""
+    complete = {key: scored for key, scored in scored_by_model.items() if scored}
+    if len(complete) < 2:
+        return None
+    baseline = next((key for key in complete if key[0] == DEFAULT_MODEL_ID), next(iter(complete)))
+    by_name = {
+        f"{model_id}@{revision}": {
+            str(item.path): (item.label, item.category, item.split, entry.score) for item, entry in scored
+        }
+        for (model_id, revision), scored in complete.items()
+    }
+    return compare_models(
+        by_name,
+        f"{baseline[0]}@{baseline[1]}",
+        seed=seed,
+        seconds_per_image={f"{m}@{r}": value for (m, r), value in seconds.items()},
+    )
 
 
 def run_benchmark(
@@ -185,16 +246,27 @@ def run_benchmark(
     seed: int = 0,
     calibration_fraction: float = 0.5,
     classifier_factory: ClassifierFactory = HuggingFaceClassifier,
+    scores_cache: Path | None = None,
 ) -> dict:
     # A reference list would flag known images whatever the model says, so it stays off.
     config = replace(MediaConfig(), phash_index_path=None)
     dataset = build_dataset(real_dir, fake_dir, config, seed=seed, calibration_fraction=calibration_fraction)
     models = models or [(DEFAULT_MODEL_ID, DEFAULT_MODEL_REVISION)]
     results = []
+    scored_by_model: dict[tuple[str, str | None], list] = {}
+    seconds: dict[tuple[str, str | None], float | None] = {}
     for model_id, revision in models:
         print(f"Scoring {len(dataset.items)} images with {model_id}", file=sys.stderr, flush=True)
         model_config = replace(config, model_id=model_id, model_revision=revision)
-        results.append(_model_result(model_id, revision, classifier_factory(model_config), dataset.items, model_config))
+        cache = ScoreCache(scores_cache, model_id, revision, model_config)
+        result, scored = _model_result(
+            model_id, revision, classifier_factory(model_config), dataset.items, model_config, cache
+        )
+        results.append(result)
+        scored_by_model[(model_id, revision)] = scored
+        seconds[(model_id, revision)] = round(cache.seconds / len(scored), 3) if scored else None
+        # One model at a time: the weights are released before the next one loads.
+        gc.collect()
 
     counts = Counter((item.label, item.category) for item in dataset.items)
     splits = Counter((item.label, item.split) for item in dataset.items)
@@ -220,6 +292,7 @@ def run_benchmark(
             "skipped_other_types": dataset.skipped_other_types,
         },
         "models": results,
+        "comparison": _comparison(scored_by_model, seconds, seed),
         "limitations": list(LIMITATIONS),
     }
 

@@ -1,15 +1,15 @@
 AGENT: Akshay (Akshaynbhat), lane akshay_claude
 RESPONSIBILITY: T1 media forensics and image provenance: detector, metadata, keyframes, pHash, web source search, benchmark, explanations
-BRANCH: feat/clear-upload-results
-CURRENT TASK: Clear results for every upload: combines #24 and #26, fixes the trust score, renames to TrustFeed
+BRANCH: fix/audit-items
+CURRENT TASK: Make Nonescape mini the default detector, as Akshay decided on 2026-11-06
 STATUS: Doing
-COMPLETED: Media adapter (PR #5); API wiring (PR #7); web source search (PR #12); benchmark tool (PR #15); search and trace in the API (PR #18); first accuracy results (PR #19); benchmark record correction (PR #20); explanation checks and heatmap (PR #22); first real SerpApi searches
-IN PROGRESS: Combined PR, waiting on Akshay's word to merge; benchmark rerun with the fixed downloader
-NEXT ACTION: Publish the benchmark in its own PR, then measure extra signals; detector thresholds or training wait for Akshay's decision
+COMPLETED: Media adapter (#5); API wiring (#7); source search (#12); benchmark (#15); search and trace (#18); accuracy results (#19, #20); detector panel (#33); fingerprints (#34); Content Credentials (#35); media items 4 to 10 (#36)
+IN PROGRESS: Default detector PR, waiting on Akshay's word to merge
+NEXT ACTION: Whether a fingerprint match or a signed AI declaration counts as a signal, and any band change, wait for Akshay's decision. Install Tesseract to run OCR for real
 FILES OWNED: backend/media/**, backend/provenance/**, data/demo/provenance_demo*, data/eval/**
 LATEST COMMIT: see my newest branch on GitHub
-INTERFACES CHANGED: adds search_web, modules.provenance, /provenance, /timeline and /network/{id}/coverage to the API, in API_CONTRACTS.md; T3 reviews, T4 builds on it
-DEPENDENCIES: T2 shares a media hash for the demo case
+INTERFACES CHANGED: Default media model_id is now nonescape/nonescape-mini-v0, so scores change. No routes or response shapes change
+DEPENDENCIES: PyAV and pytesseract in requirements-model.txt. Tesseract program is optional and installed separately
 BLOCKERS: none
-LAST UPDATED: 2026-11-05
+LAST UPDATED: 2026-11-06
 PROTOCOL: adopted 2026-11-05

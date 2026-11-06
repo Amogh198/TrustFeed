@@ -7,6 +7,7 @@ import Account from './pages/Account';
 import Cases from './pages/Cases';
 import Home from './pages/Home';
 import Limits from './pages/Limits';
+import LiveMonitor from './pages/LiveMonitor';
 import Overview from './pages/Overview';
 import Walkthrough from './pages/Walkthrough';
 import Watch from './pages/Watch';
@@ -17,6 +18,7 @@ const NAV: [string, string, string][] = [
   ['overview', '#/overview', 'Overview'],
   ['cases', '#/cases', 'Cases'],
   ['watch', '#/watch', 'Watch'],
+  ['monitor', '#/monitor', 'Live Monitor'],
   ['walkthrough', '#/walkthrough', 'Walkthrough'],
   ['limits', '#/limits', 'What it misses'],
 ];
@@ -68,7 +70,7 @@ export default function App() {
       </header>
       {online === false && (
         <div className="offline no-print" role="alert">
-          <strong>The API isn't answering at {API_BASE_URL}.</strong> From the repository root, run <code>python -m uvicorn backend.api.app.main:app</code>. This page reconnects by itself.
+          <strong>The API isn't answering{API_BASE_URL ? ` at ${API_BASE_URL}` : ' on this host'}.</strong> From the repository root, run <code>python -m uvicorn backend.api.app.main:app</code>. This page reconnects by itself.
         </div>
       )}
       <main id="main">
@@ -79,6 +81,7 @@ export default function App() {
           {!mustSignIn && route.page === 'overview' && <Overview />}
           {!mustSignIn && route.page === 'cases' && <Cases />}
           {!mustSignIn && route.page === 'watch' && <Watch />}
+          {!mustSignIn && route.page === 'monitor' && <LiveMonitor />}
           {!mustSignIn && route.page === 'walkthrough' && <Walkthrough />}
           {!mustSignIn && route.page === 'limits' && <Limits />}
           {!mustSignIn && route.page === 'case' && <CaseFile key={route.caseId} caseId={route.caseId} tab={route.tab} />}

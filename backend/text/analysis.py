@@ -170,14 +170,22 @@ def _url_signals(url: str) -> tuple[list[str], float]:
     return [wording for wording, _ in signals], sum(weight for _, weight in signals)
 
 
-def analyze_url(url: str, expanded_to: str | None = None, *, follow_tried: bool = False) -> ModuleResult:
+def analyze_url(
+    url: str,
+    expanded_to: str | None = None,
+    *,
+    follow_tried: bool = False,
+    expanded_url: str | None = None,
+    expansion_limit: str | None = None,
+) -> ModuleResult:
     """Score a link. ``expanded_to`` is its destination, when an opted-in request followed it."""
+    expanded_to = expanded_to or expanded_url
     evidence, score = _url_signals(url)
     limitation = "Static URL heuristics only; no domain reputation source was checked."
     if expanded_to:
         final_evidence, final_score = _url_signals(expanded_to)
         host = urlsplit(expanded_to).hostname or "an unknown host"
-        evidence = [*evidence, f"The short link leads to {host}", *(f"Destination: {item}" for item in final_evidence)]
+        evidence = [*evidence, f"The short link resolved to {host}", *(f"Destination: {item}" for item in final_evidence)]
         score += final_score
     elif urlsplit(url).hostname in SHORTENER_HOSTS:
         evidence.append(
@@ -190,7 +198,7 @@ def analyze_url(url: str, expanded_to: str | None = None, *, follow_tried: bool 
         score=round(min(_MAX_RULE_SCORE, score), 2),
         confidence=None,
         evidence=evidence,
-        limitations=[limitation],
+        limitations=[limitation, *([expansion_limit] if expansion_limit else [])],
     )
 
 
@@ -214,6 +222,19 @@ def expand_shortener(url: str, request: Callable[..., HttpResponse] = safe_reque
             return None
         current = urljoin(current, location)
     return None
+
+
+def expand_short_url(url: str) -> tuple[str | None, str | None]:
+    """Return the final URL and an explanatory limit after a safe, opted-in request."""
+    if (urlsplit(url).hostname or "").casefold().rstrip(".") not in SHORTENER_HOSTS:
+        return None, None
+    try:
+        response = safe_request(url, method="HEAD", timeout_s=5, max_bytes=0, max_redirects=3)
+    except HttpBlocked as error:
+        return None, str(error)
+    except HttpFailed as error:
+        return None, f"Short URL expansion was unavailable ({error.kind})."
+    return response.url, None
 
 
 def fuse_risk(text_result: ModuleResult | None, url_result: ModuleResult | None) -> RiskLevel:

@@ -92,6 +92,18 @@ function Intake() {
     if (!problem) setFile(chosen);
   };
 
+  useEffect(() => {
+    const pushed = window.sessionStorage.getItem('trustfeed_investigate_input');
+    if (pushed) {
+      window.sessionStorage.removeItem('trustfeed_investigate_input');
+      if (pushed.startsWith('http://') || pushed.startsWith('https://')) {
+        setUrl(pushed);
+      } else {
+        setText(pushed);
+      }
+    }
+  }, []);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const cleanText = text.trim();
@@ -132,13 +144,14 @@ function Intake() {
   return (
     <form
       className={dragging ? 'intake is-dragging' : 'intake'}
+      noValidate
       onSubmit={submit}
       onDragOver={event => { event.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
     >
       <label className="field">Post text
-        <textarea value={text} onChange={event => setText(event.target.value)} maxLength={20000} rows={2} placeholder="Paste the post, caption or forwarded message" />
+        <textarea className="textarea resize-none" value={text} onChange={event => setText(event.target.value)} maxLength={20000} rows={2} placeholder="Paste the post, caption or forwarded message" />
       </label>
       <label className="field">Link
         <input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.org/post" />

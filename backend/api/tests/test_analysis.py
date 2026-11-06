@@ -1,8 +1,10 @@
 from fastapi.testclient import TestClient
 
+from backend.api.app import fusion
 from backend.api.app.main import app
 from backend.api.app.models import RiskLevel
-from backend.text.analysis import analyze_text, analyze_url, fuse_risk
+from backend.provenance.safe_http import HttpResponse
+from backend.text.analysis import analyze_text, analyze_url, expand_short_url, fuse_risk
 
 client = TestClient(app)
 
@@ -35,6 +37,21 @@ def test_url_analysis_is_static_and_marks_shorteners():
     assert "no domain reputation" in result.limitations[0]
 
 
+def test_shortener_expansion_is_safe_and_opt_in_ready(monkeypatch):
+    monkeypatch.setattr(
+        "backend.text.analysis.safe_request",
+        lambda *args, **kwargs: HttpResponse(url="https://example.zip/login", status=200),
+    )
+
+    expanded, limit = expand_short_url("https://bit.ly/demo")
+    result = analyze_url("https://bit.ly/demo", expanded_url=expanded, expansion_limit=limit)
+
+    assert expanded == "https://example.zip/login"
+    assert limit is None
+    assert any("resolved" in item for item in result.evidence)
+    assert any("deceptive links" in item for item in result.evidence)
+
+
 def test_risk_is_inconclusive_without_module_scores():
     assert fuse_risk(None, None) == RiskLevel.INCONCLUSIVE
 
@@ -65,3 +82,54 @@ def test_analyze_rejects_empty_input():
     response = client.post("/api/cases/analyze", json={})
 
     assert response.status_code == 422
+
+
+def test_action_packet_uses_template_when_gemini_key_is_not_configured(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    case = client.post(
+        "/api/cases/analyze",
+        json={"text": "Urgent! Forward this now to claim your prize!!!"},
+    ).json()
+
+    response = client.post(
+        f"/api/cases/{case['case_id']}/action-packet",
+        json={"audience": "community moderators"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["generated"] is False
+    assert body["sections"]
+    assert body["evidence_references"] == case["modules"]["text"]["evidence"]
+
+
+def test_action_packet_formats_gemini_output(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        fusion,
+        "_generate_with_gemini",
+        lambda **_: (
+            "Please pause before sharing this unverified claim.",
+            [
+                fusion.ActionPacketSection(
+                    heading="Counter-narrative post",
+                    items=["Please pause before sharing this unverified claim."],
+                )
+            ],
+        ),
+    )
+    case = client.post(
+        "/api/cases/analyze",
+        json={"text": "Urgent! Forward this now to claim your prize!!!"},
+    ).json()
+
+    response = client.post(
+        f"/api/cases/{case['case_id']}/action-packet",
+        json={"audience": "public"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["generated"] is True
+    assert body["sections"][0]["heading"] == "Counter-narrative post"
+    assert "AI-generated" in body["label"]

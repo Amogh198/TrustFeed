@@ -28,7 +28,9 @@ from pathlib import Path
 API = "https://commons.wikimedia.org/w/api.php"
 USER_AGENT = "TrustFeed-benchmark/0.1 (hackathon research; https://github.com/Amogh198/TrustFeed)"
 THUMBNAIL_WIDTH = 1024
-_ALLOWED_HOST = "upload.wikimedia.org"
+# Commons serves scaled thumbnails from thumb and files already small enough from upload.
+# Accepting only upload would select mostly small images, which skews the set by image size.
+_ALLOWED_HOSTS = {"upload.wikimedia.org", "thumb.wikimedia.org"}
 _ALLOWED_LICENCE = re.compile(r"^(cc0|public domain|pd\b|pd-|cc[ -]by(-sa)?[ -]\d)", re.IGNORECASE)
 _REFUSED_LICENCE = re.compile(r"\b(nc|nd|non-?commercial|no derivatives|fair use)\b", re.IGNORECASE)
 _MIMES = {"image/jpeg", "image/png", "image/webp"}
@@ -170,7 +172,7 @@ def usable(info: dict, plan: Plan) -> bool:
     if plan.label == "real" and re.search(r"\b(ai[- ]generated|stable diffusion|midjourney|dall)", info["title"], re.I):
         return False
     url = urllib.parse.urlsplit(info.get("thumburl") or "")
-    return url.scheme == "https" and url.hostname == _ALLOWED_HOST
+    return url.scheme == "https" and url.hostname in _ALLOWED_HOSTS
 
 
 def _file_name(title: str, url: str) -> str:

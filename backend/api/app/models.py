@@ -346,6 +346,57 @@ class TimelineResponse(BaseModel):
     events: list[TimelineEvent]
 
 
+class ExplanationArtifact(BaseModel):
+    kind: str
+    label: str = "Supporting evidence"
+    url: str | None = None
+    route: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_artifact(cls, value: Any) -> Any:
+        """Accept artifacts emitted by the media, provenance and network lanes."""
+        if not isinstance(value, dict):
+            return value
+        artifact = dict(value)
+        artifact.setdefault("kind", artifact.get("type", "evidence"))
+        artifact.setdefault("label", {
+            "network_graph": "Network graph",
+            "fingerprints": "Media fingerprints",
+        }.get(artifact["kind"], "Supporting evidence"))
+        return artifact
+
+
+class ExplanationCheck(BaseModel):
+    check_id: str
+    module: str
+    label: str
+    legacy_alias: bool = False
+    status: str | None = None
+    result: str
+    reasoning: str | list[str]
+    benchmark: dict[str, Any] | None = None
+    artifacts: list[ExplanationArtifact] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class MissingCheck(BaseModel):
+    module: str
+    status: str
+    reason: str
+
+
+class ExplanationResponse(BaseModel):
+    case_id: str
+    checks: list[ExplanationCheck]
+    missing_checks: list[MissingCheck] = Field(default_factory=list)
+    what_was_submitted: list[str]
+    what_was_detected: list[str]
+    supports: list[str]
+    refutes: list[str]
+    uncertainties: list[str]
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.1.0"
@@ -358,6 +409,19 @@ class ActionPacketRequest(BaseModel):
 class ActionPacketSection(BaseModel):
     heading: str
     items: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_section(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            val = dict(value)
+            if "heading" not in val and "title" in val:
+                val["heading"] = str(val["title"])
+            if "items" not in val and "content" in val:
+                content = val["content"]
+                val["items"] = [content] if isinstance(content, str) else list(content)
+            return val
+        return value
 
 
 class ActionPacketResponse(BaseModel):
@@ -381,36 +445,6 @@ class CaseSummary(BaseModel):
 class CaseHistoryResponse(BaseModel):
     cases: list[CaseSummary]
     total: int
-
-
-class ExplanationCheck(BaseModel):
-    check_id: str
-    module: str
-    label: str
-    status: str | None = None
-    result: str
-    reasoning: str | list[str]
-    # Null means not measured. A figure is only ever read from a results file.
-    benchmark: dict[str, Any] | None = None
-    artifacts: list[dict[str, str]] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
-
-
-class MissingCheck(BaseModel):
-    module: str
-    status: str
-    reason: str
-
-
-class ExplanationResponse(BaseModel):
-    case_id: str
-    what_was_submitted: list[str]
-    what_was_detected: list[str]
-    supports: list[str]
-    refutes: list[str]
-    uncertainties: list[str]
-    checks: list[ExplanationCheck]
-    missing_checks: list[MissingCheck]
 
 
 class MonitorStartRequest(BaseModel):

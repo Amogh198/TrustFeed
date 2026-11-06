@@ -6,6 +6,7 @@ export type Route =
   | { page: 'account' }
   | { page: 'cases' }
   | { page: 'watch' }
+  | { page: 'monitor' }
   | { page: 'walkthrough' }
   | { page: 'limits' }
   | { page: 'case'; caseId: string; tab: string };
@@ -15,7 +16,7 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === 'case' && parts[1]) {
     return { page: 'case', caseId: decodeURIComponent(parts[1]), tab: parts[2] || 'findings' };
   }
-  if (parts[0] === 'account' || parts[0] === 'overview' || parts[0] === 'cases' || parts[0] === 'watch' || parts[0] === 'walkthrough' || parts[0] === 'limits') {
+  if (parts[0] === 'account' || parts[0] === 'overview' || parts[0] === 'cases' || parts[0] === 'watch' || parts[0] === 'monitor' || parts[0] === 'walkthrough' || parts[0] === 'limits') {
     return { page: parts[0] };
   }
   return { page: 'home' };

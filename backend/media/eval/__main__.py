@@ -12,12 +12,14 @@ import argparse
 import sys
 from pathlib import Path
 
-from backend.media.classifier import HuggingFaceClassifier
 from backend.media.config import DEFAULT_MODEL_ID, DEFAULT_MODEL_REVISION
 from backend.media.eval.runner import ClassifierFactory, parse_model, parse_source, run_benchmark, write_result
+from backend.media.panel import PANEL_MODELS, build_classifier
+
+_REPO = Path(__file__).resolve().parents[3]
 
 
-def main(argv: list[str] | None = None, classifier_factory: ClassifierFactory = HuggingFaceClassifier) -> int:
+def main(argv: list[str] | None = None, classifier_factory: ClassifierFactory = build_classifier) -> int:
     parser = argparse.ArgumentParser(prog="python -m backend.media.eval", description=__doc__)
     parser.add_argument("--real", type=Path, required=True, help="folder of images labelled real")
     parser.add_argument("--fake", type=Path, required=True, help="folder of images labelled fake")
@@ -35,8 +37,18 @@ def main(argv: list[str] | None = None, classifier_factory: ClassifierFactory = 
         metavar="ORG/NAME@COMMIT",
         help="another model to measure, pinned to a commit. Its weights must already be downloaded.",
     )
+    parser.add_argument("--panel", action="store_true", help="measure every detector on the panel")
+    parser.add_argument(
+        "--scores-cache",
+        type=Path,
+        help="folder outside the repository for per-image scores, so a long run can resume. It holds file names.",
+    )
     parser.add_argument("--seed", type=int, default=0, help="changes which images go in which split")
     args = parser.parse_args(argv)
+
+    if args.scores_cache and args.scores_cache.resolve().is_relative_to(_REPO):
+        print("error: the scores cache holds file names, so it must stay outside the repository.", file=sys.stderr)
+        return 2
 
     for folder in (args.real, args.fake):
         if not folder.is_dir():
@@ -44,13 +56,20 @@ def main(argv: list[str] | None = None, classifier_factory: ClassifierFactory = 
             return 2
     try:
         sources = [parse_source(text) for text in args.source]
-        models = [(DEFAULT_MODEL_ID, DEFAULT_MODEL_REVISION), *(parse_model(text) for text in args.compare)]
+        start = list(PANEL_MODELS) if args.panel else [(DEFAULT_MODEL_ID, DEFAULT_MODEL_REVISION)]
+        models = [*start, *(parse_model(text) for text in args.compare)]
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
     result = run_benchmark(
-        args.real, args.fake, sources=sources, models=models, seed=args.seed, classifier_factory=classifier_factory
+        args.real,
+        args.fake,
+        sources=sources,
+        models=models,
+        seed=args.seed,
+        classifier_factory=classifier_factory,
+        scores_cache=args.scores_cache,
     )
     write_result(result, args.out)
     print(f"{result['dataset']['real']} real and {result['dataset']['fake']} fake images. Wrote {args.out}")

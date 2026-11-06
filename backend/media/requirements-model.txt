@@ -3,3 +3,9 @@
 torch>=2.2,<3.0
 transformers>=4.40,<5.0
 safetensors>=0.4,<1.0
+# Only the Nonescape detector on the panel needs this. Use the version that matches torch.
+torchvision>=0.17,<1.0
+# Reads audio from video, for speech-to-text and synthetic speech. A 28 MB download. Without it those checks report unavailable.
+av>=19,<20
+# Reads on-screen text, using the Tesseract program, which is installed separately. Without either, the check reports unavailable.
+pytesseract>=0.3.13,<0.4

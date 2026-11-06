@@ -98,6 +98,18 @@ def build_explanation(
     if case.cross_modal:
         checks += [ExplanationCheck.model_validate(check) for check in cross_modal_checks(case.cross_modal)]
     checks += [ExplanationCheck.model_validate(check) for check in [*media_checks, *provenance_checks, *network_checks]]
+    # Keep the older dashed media IDs available for clients migrating to the
+    # lane-qualified IDs. The dashboard hides these flagged aliases.
+    old_media_ids = {
+        "media.classifier": "media-classifier",
+        "media.metadata": "media-metadata",
+        "media.phash": "media-phash",
+        "media.keyframes": "media-keyframes",
+    }
+    for check in list(checks):
+        old_id = old_media_ids.get(check.check_id)
+        if old_id:
+            checks.append(check.model_copy(update={"check_id": old_id, "legacy_alias": True}))
     return ExplanationResponse(
         case_id=case.case_id,
         what_was_submitted=_submitted(case),
