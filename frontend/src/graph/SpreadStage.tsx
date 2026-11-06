@@ -99,11 +99,17 @@ function AccountPanel({ node, view, onSelect, time }: {
   );
 }
 
-export default function SpreadStage({ graph, autoScroll = false }: { graph: NetworkPayload | null | undefined; autoScroll?: boolean }) {
+export default function SpreadStage({ graph, autoScroll = false, autoplay = false, onNodeClick, showLinkReasons = false }: {
+  graph: NetworkPayload | null | undefined;
+  autoScroll?: boolean;
+  autoplay?: boolean;
+  onNodeClick?: (node: PlacedNode) => void;
+  showLinkReasons?: boolean;
+}) {
   const view = useMemo(() => buildView(graph), [graph]);
   const [showWeak, setShowWeak] = useState(false);
   const [selected, setSelected] = useState<PlacedNode | null>(null);
-  const { position, playing, toggle, seek } = useReplay(16_000, false, view);
+  const { position, playing, toggle, seek } = useReplay(16_000, autoplay, view);
 
   useEffect(() => setSelected(null), [view]);
 
@@ -135,8 +141,10 @@ export default function SpreadStage({ graph, autoScroll = false }: { graph: Netw
             time={time}
             showWeak={showWeak}
             selectedId={selected?.id}
-            onSelect={setSelected}
+            onSelect={node => (node && onNodeClick ? onNodeClick(node) : setSelected(node))}
             label={description}
+            edgeReason={showLinkReasons ? linkReason : undefined}
+            nodeHint={onNodeClick ? 'Select to open the media checks' : undefined}
           />
           <div className="stage-readout" aria-live="off">
             <Figure value={counts.accounts} label={`of ${view.nodes.length} accounts`} />

@@ -1078,6 +1078,18 @@ def delete_monitor(watch_id: str) -> dict[str, bool]:
     return {"stopped": stop_watch(watch_id)}
 
 
+def _spread_steps(earliest: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """The earliest post seen on each platform, in order, read from the demo data."""
+    steps = sorted(earliest.values(), key=lambda step: step["first_seen_at"])
+    if not steps:
+        return []
+    start = datetime.fromisoformat(steps[0]["first_seen_at"])
+    return [
+        {**step, "seconds_after_first": (datetime.fromisoformat(step["first_seen_at"]) - start).total_seconds()}
+        for step in steps
+    ]
+
+
 @app.get("/api/monitor/alerts", response_model=list[dict[str, Any]])
 def get_monitor_alerts() -> list[dict[str, Any]]:
     demo_path = Path(__file__).resolve().parents[3] / "data" / "demo" / "network_demo.json"
@@ -1090,6 +1102,7 @@ def get_monitor_alerts() -> list[dict[str, Any]]:
         return []
 
     posts = data.get("posts", [])
+    handles = {account.get("id"): account.get("handle") for account in data.get("accounts", [])}
     campaigns: dict[str, dict[str, Any]] = {}
     for post in posts:
         key = post.get("media_hash") or post.get("url")
@@ -1101,11 +1114,20 @@ def get_monitor_alerts() -> list[dict[str, Any]]:
                 "campaign_id": key_str,
                 "platforms": set(),
                 "total_posts": 0,
+                "earliest": {},
             }
         campaigns[key_str]["total_posts"] += 1
         platform = post.get("platform")
         if platform:
             campaigns[key_str]["platforms"].add(str(platform))
+            seen_at = post.get("created_at")
+            earliest = campaigns[key_str]["earliest"].get(str(platform))
+            if seen_at and (earliest is None or seen_at < earliest["first_seen_at"]):
+                campaigns[key_str]["earliest"][str(platform)] = {
+                    "platform": str(platform),
+                    "handle": handles.get(post.get("account_id")),
+                    "first_seen_at": seen_at,
+                }
 
     alerts = []
     for camp in campaigns.values():
@@ -1124,6 +1146,7 @@ def get_monitor_alerts() -> list[dict[str, Any]]:
             "platform_spread": spread,
             "total_posts": total,
             "risk_level": risk,
+            "spread_steps": _spread_steps(camp["earliest"]),
         })
     alerts.sort(key=lambda x: x["total_posts"], reverse=True)
     return alerts
