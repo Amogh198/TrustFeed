@@ -45,6 +45,7 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
           <div className="trust-copy">
             <p className="trust-words">{trust.words}</p>
             <span className="meter-track" aria-hidden="true"><span style={{ width: `${trust.score}%` }} /></span>
+            {trust.score > NEUTRAL_TRUST && <p>{report.unified_risk?.trust_note}</p>}
             <p>
               Warning signals checked: {trust.counted.map(item => `${item.name} ${scoreText(item.value)}`).join(', ')}.
               {trust.fromOverallRisk

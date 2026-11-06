@@ -33,6 +33,8 @@ MEDIA_RESULTS = "data/eval/commons_2026-11-05.json"
 SCAM_RESULTS = "backend/text/evaluation/results/scam_eval_test.json"
 LINK_RESULTS = "backend/text/evaluation/results/link_eval_test.json"
 NEUTRAL_TRUST = 50
+_ESTABLISHED_DAYS = 5 * 365
+_YEAR_DAYS = 365
 _STRONG = 0.7
 _WEAK = 0.3
 # One uncalibrated model never reaches critical alone.
@@ -140,6 +142,24 @@ def _shown_only(
     return RiskComponent(name=name, label=label, status=status, counted=False, blocks_low=bool(evidence), weight=0.0, evidence=evidence, note=note)
 
 
+def _link_trust(link: LinkAnalysis | None, url: ModuleResult | None) -> tuple[int, str] | None:
+    """Positive evidence about a clean link, which is the one way to score above 50. Never proof."""
+    if link is None or link.signs or link.live_failed or (url and url.score):
+        return None
+    threats = link.threat_lists
+    clean = threats.status is ModuleStatus.COMPLETE and not threats.listed
+    age = link.domain.age_days
+    if link.lookalike.owned_by:
+        return 90, f"This domain belongs to {link.lookalike.owned_by}, and no warning sign was found."
+    if clean and age is not None and age >= _ESTABLISHED_DAYS:
+        return 85, f"The domain is {age // 365} years old, isn't on the threat feeds, and showed no warning sign."
+    if clean and age is not None and age >= _YEAR_DAYS:
+        return 70, f"The domain is {age // 365} year(s) old, isn't on the threat feeds, and showed no warning sign."
+    if clean:
+        return 60, "It isn't on the threat feeds and showed no warning sign. Tick the search box to also check the domain's age."
+    return None
+
+
 def build_unified_risk(
     *,
     text: ModuleResult | None,
@@ -193,6 +213,16 @@ def build_unified_risk(
         level = RiskLevel.INCONCLUSIVE
         reason = f"The measured checks stayed low, but this needs a person's review: {', '.join(holding)}."
     trust = min(NEUTRAL_TRUST, _TRUST_CAPS.get(level, NEUTRAL_TRUST), 100 - round(score * 100))
+    positive = _link_trust(link_analysis, url) if level is RiskLevel.LOW else None
+    if positive:
+        return UnifiedRisk(
+            level=level,
+            score=score,
+            trust_score=positive[0],
+            trust_note=f"{positive[1]} This is a signal, not a guarantee.",
+            components=components,
+            weights=weights,
+        )
     return UnifiedRisk(
         level=level,
         score=score,

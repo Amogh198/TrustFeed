@@ -172,7 +172,7 @@ Posts may carry `media_fingerprint`, a hex perceptual hash. Fingerprints within 
 
 Counted: the media detector, scam warning signs, and all link signs and rules. Live link signs have no results file yet. A link on a public threat feed reads critical. Feeds are downloaded whole, so nothing about the link is sent to them, and `LINK_THREAT_FEEDS=off` turns them off. The media detector also counts at a weak level when its raw score reaches 0.0068, a line 82% of fakes and 19% of real images passed on the benchmark. Shown but not scored: language rules, other link signs, contradicted claims, inconsistencies, caption and media differences, and spread. If one of those raises concern, or the media detector is quiet or missing, a low score reads `inconclusive`.
 
-The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is at most 50, at most 40 at moderate and 25 at high or critical, and null when nothing was measured. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
+The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` goes above 50 only for a clean link with positive evidence: 90 for a listed brand's own domain, 85 for a domain over 5 years old and 70 for over 1 year, both off the threat feeds, or 60 for off the feeds alone. Otherwise it is at most 50, at most 40 at moderate and 25 at high or critical, and null when nothing was measured. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
 
 ## Reports, search and overview
 
