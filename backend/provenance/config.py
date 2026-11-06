@@ -5,6 +5,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _MB = 1024 * 1024
+DEFAULT_VIDEO_SEARCH_FRAMES = 3
+MAX_VIDEO_SEARCH_FRAMES = 8
+
+
+def _frame_limit(raw: str | None) -> int:
+    """Read how many video frames to search. Anything invalid keeps the default."""
+    try:
+        return max(1, min(MAX_VIDEO_SEARCH_FRAMES, int(raw))) if raw else DEFAULT_VIDEO_SEARCH_FRAMES
+    except ValueError:
+        return DEFAULT_VIDEO_SEARCH_FRAMES
 
 
 @dataclass(frozen=True)
@@ -39,6 +49,8 @@ class ProvenanceConfig:
 
     # Each web search with visual matches spends a second SerpApi search.
     serpapi_visual_matches: bool = True
+    # How many of a video's keyframes are searched. Each one spends its own searches.
+    video_search_frames: int = 3
     # Results are saved here by the file's SHA-256, so searching again spends nothing. Not set means nothing is saved.
     cache_dir: Path | None = None
     cache_days: float = 30.0
@@ -55,6 +67,7 @@ class ProvenanceConfig:
         cache = value("PROVENANCE_CACHE_DIR")
         return cls(
             serpapi_visual_matches=(value("SERPAPI_VISUAL_MATCHES") or "1").casefold() in {"1", "true", "yes", "on"},
+            video_search_frames=_frame_limit(value("PROVENANCE_VIDEO_FRAMES")),
             # Outside the repository by default, so saved results can't be committed by accident.
             cache_dir=Path(cache) if cache else Path.home() / ".cache" / "trustfeed" / "provenance",
             vision_api_key=value("GOOGLE_VISION_API_KEY"),

@@ -439,13 +439,13 @@ def test_no_unusual_readings_add_no_evidence_line(tmp_path, monkeypatch):
     assert not any("Pixel forensics" in line for line in result.evidence)
 
 
-def test_a_video_reports_not_applicable_and_why(tmp_path):
+def test_a_video_runs_forensics_on_its_frames_and_says_how_far_that_goes(tmp_path):
     path = write_video(tmp_path / "a.mp4", [((10, 20, 30), 1.0), ((200, 100, 50), 1.0)])
     result = analyze_media(path, classifier=FakeClassifier(0.1), config=MediaConfig())
-    assert result.checks.forensics.status is CheckStatus.NOT_APPLICABLE
+    assert result.checks.forensics.status is not CheckStatus.NOT_APPLICABLE
     entry = {check["check_id"]: check for check in result.to_checks()}["media.forensics"]
-    assert entry["status"] == "not_applicable"
-    assert "images only" in " ".join(entry["limitations"])
+    assert entry["status"] != "not_applicable"
+    assert "measured on images" in " ".join(entry["limitations"])
 
 
 def test_a_rejected_file_still_reports_the_check(tmp_path):

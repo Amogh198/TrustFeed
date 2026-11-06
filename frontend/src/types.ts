@@ -97,6 +97,7 @@ export interface Appearance {
   image_url: string | null;
   match_type: string;
   phash_distance: number | null;
+  frame_timestamp_s?: number | null;
   observed_at: string | null;
   date_source: string;
   date_evidence: string | null;
@@ -278,6 +279,8 @@ export interface Heatmap {
   reasoning: string;
   limitations: string[];
   png_base64: string | null;
+  frame_timestamp_s?: number | null;
+  frame_jpeg_base64?: string | null;
 }
 
 export interface WatchSnapshot {

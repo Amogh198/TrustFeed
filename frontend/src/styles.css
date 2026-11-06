@@ -485,6 +485,8 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
 .overview-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .overview-list small { opacity: 0.75; }
 .check-artifacts { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.check-artifacts li { max-width: 320px; }
+.check-artifacts p { overflow-wrap: anywhere; }
 .check-artifacts img { display: block; max-width: 180px; height: auto; }
 .page-narrow { max-width: 480px; }
 .account-form { display: grid; gap: 14px; }

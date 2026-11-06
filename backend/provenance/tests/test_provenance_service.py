@@ -277,7 +277,7 @@ def test_missing_file_is_unavailable(tmp_path):
     assert report.limitations == ["The media file was not found."]
 
 
-def test_a_video_is_searched_using_one_frame_and_says_so(tmp_path):
+def test_a_video_is_searched_using_its_frames_and_says_so(tmp_path):
     from backend.media.tests.helpers import write_video
 
     video = write_video(tmp_path / "clip.mp4", [((0, 0, 255), 1.0)])
@@ -285,7 +285,37 @@ def test_a_video_is_searched_using_one_frame_and_says_so(tmp_path):
     report = investigate_provenance(video, search_web=True, config=CONFIG, providers=[provider], http=FakeHttp())
     assert provider.calls == 1
     assert report.status is Status.COMPLETE
-    assert any("middle of the video" in line for line in report.limitations)
+    assert any("keyframes were searched" in line for line in report.limitations)
+
+
+def test_a_video_searches_frames_across_it_and_keeps_one_result_per_page(tmp_path):
+    from dataclasses import replace
+
+    from backend.media.tests.helpers import write_video
+
+    video = write_video(tmp_path / "clip.mp4", [((0, 0, 255), 1.0), ((0, 255, 0), 1.0), ((255, 0, 0), 1.0), ((255, 255, 255), 1.0)])
+    provider = FakeProvider([candidate()])
+    report = investigate_provenance(video, search_web=True, config=replace(CONFIG, video_search_frames=3), providers=[provider], http=FakeHttp())
+    assert provider.calls == 3
+    assert len(report.appearances) == 1 and report.appearances[0].frame_timestamp_s is not None
+    assert [run.result_count for run in report.providers if run.name == provider.name] == [3]
+
+
+def test_a_failed_provider_is_not_asked_about_more_video_frames(tmp_path):
+    from dataclasses import replace
+
+    from backend.media.tests.helpers import write_video
+
+    class Failing(FakeProvider):
+        def search(self, upload, http, config):
+            self.calls += 1
+            raise ProviderFailure("No searches left.")
+
+    video = write_video(tmp_path / "clip.mp4", [((0, 0, 255), 1.0), ((0, 255, 0), 1.0), ((255, 0, 0), 1.0)])
+    provider = Failing([])
+    report = investigate_provenance(video, search_web=True, config=replace(CONFIG, video_search_frames=3), providers=[provider], http=FakeHttp())
+    assert provider.calls == 1
+    assert report.status is not Status.COMPLETE or report.providers[-1].limitation
 
 
 def test_a_video_frame_is_not_sent_without_consent(tmp_path):

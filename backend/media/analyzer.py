@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import gc
+import io
 import logging
 import math
 import time
@@ -28,7 +30,7 @@ from backend.media.faces import analyze_faces
 from backend.media.frames import FRAMES_LIMITATIONS, score_frames
 from backend.media.forensics import ADDS_NOTHING, run_forensics
 from backend.media.keyframes import STRATEGY, Keyframe, extract_keyframes
-from backend.media.metadata import InputInfo, inspect_input, read_image
+from backend.media.metadata import InputInfo, inspect_input, read_image, read_video_tags
 from backend.media.models import (
     out_of_100,
     Assessment,
@@ -72,6 +74,10 @@ ClassifierFactory = Callable[[MediaConfig], ImageClassifier]
 # File names and contents are never logged: uploads may be private.
 logger = logging.getLogger(__name__)
 
+THUMBNAIL_SIDE = 240
+VIDEO_FORENSICS_NOTE = (
+    "These tests were measured on images. Video compression can hide or create the same traces, so read them with care on a video."
+)
 SCORE_CAVEAT = "Model scores are uncalibrated triage signals, not proof that media is authentic or false."
 MODEL_CAVEAT = (
     "Detector accuracy has not been validated for this deployment; recompressed media, "
@@ -188,6 +194,7 @@ def _detector_panel(
     factory: ClassifierFactory,
     *,
     is_image: bool,
+    per_image: dict[str, list[float]] | None = None,
 ) -> DetectorPanelCheck:
     """Run each detector in turn, releasing it before the next, because all of them need over 2 GB together."""
     started = time.monotonic()
@@ -209,7 +216,10 @@ def _detector_panel(
             logger.warning("Media panel detector could not be built: %s", type(exc).__name__)
             check = ClassifierCheck(status=CheckStatus.UNAVAILABLE, limitations=["The detector could not be set up."])
         else:
-            check = _classifier_check(classifier, _predict(classifier, images), config)
+            scores = _predict(classifier, images)
+            if per_image is not None and isinstance(scores, list):
+                per_image[model_id] = scores
+            check = _classifier_check(classifier, scores, config)
             del classifier
             gc.collect()
         if is_image:
@@ -628,6 +638,44 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
     )
 
 
+def _thumbnail(image) -> str | None:
+    """A small inline picture of a frame. A failure only leaves it out."""
+    try:
+        small = image.convert("RGB")
+        small.thumbnail((THUMBNAIL_SIDE, THUMBNAIL_SIDE))
+        buffer = io.BytesIO()
+        small.save(buffer, "JPEG", quality=70)
+    except Exception as exc:  # noqa: BLE001 - One missing picture must not stop the analysis.
+        logger.warning("Frame thumbnail failed: %s", type(exc).__name__)
+        return None
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _video_forensics(path, frames, scores, evidence, container, config) -> ForensicsCheck:
+    """Run the photo tests on the keyframes, strongest score first, within the time limit."""
+    order = sorted(range(len(frames)), key=lambda number: scores[number] if scores[number] is not None else -1.0, reverse=True)
+    started = time.monotonic()
+    first: ForensicsCheck | None = None
+    done = 0
+    for number in order:
+        if first is not None and time.monotonic() - started >= config.forensics_time_limit_s:
+            break
+        check = run_forensics(path, frames[number].image, container, config)
+        done += 1
+        if first is None:
+            first = check.model_copy(update={"frame_timestamp_s": frames[number].timestamp_s})
+        ran = [test for test in check.tests if test.status is CheckStatus.COMPLETE]
+        if check.status is CheckStatus.COMPLETE:
+            evidence[number].forensics_tests = len(ran)
+            evidence[number].forensics_unusual = sum(bool(test.flagged) for test in ran)
+    if first is None:
+        return ForensicsCheck(status=CheckStatus.UNAVAILABLE, limitations=["No frame was available for pixel forensics."])
+    notes = [VIDEO_FORENSICS_NOTE]
+    if done < len(frames):
+        notes.append(f"Only {done} of {len(frames)} keyframes were tested before the time limit.")
+    return first.model_copy(update={"limitations": [*first.limitations, *notes]})
+
+
 def _analyze_video(
     path, info, classifier, index, note, config, panel_factory=None, cases=None, run_heavy=False, transcriber=None, detectors=None
 ) -> MediaAnalysisResult:
@@ -653,6 +701,7 @@ def _analyze_video(
                 phash=frame_hash,
                 model_score=round(score, 4) if score is not None else None,
                 fingerprints=frame_fingerprints,
+                thumbnail=_thumbnail(frame.image),
             )
             for frame, frame_hash, score, frame_fingerprints in zip(
                 frames, hashes, frame_scores, frame_hashes, strict=True
@@ -660,6 +709,7 @@ def _analyze_video(
         ],
         limitations=limitations,
     )
+    tags = read_video_tags(path)
     metadata = MetadataCheck(
         status=CheckStatus.COMPLETE,
         format=info.container,
@@ -668,20 +718,29 @@ def _analyze_video(
         fps=video.fps,
         frame_count=video.frame_count,
         duration_s=video.duration_s,
-        limitations=["Only basic stream properties were read; container tags were not inspected."],
+        fields=tags[0] if tags else {},
+        generator_hint=bool(tags and tags[1]),
+        indicators=tags[2] if tags else [],
+        limitations=[
+            "Metadata can be removed or edited, so it only supports or weakens other evidence."
+            if tags
+            else "Only basic stream properties were read, because the container tags could not be read."
+        ],
     )
     check = _classifier_check(classifier, scores, config)
     panel = None
     if panel_factory:
-        panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False)
+        per_frame: dict[str, list[float]] = {}
+        panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False, per_image=per_frame)
+        if isinstance(scores, list):
+            per_frame[check.model_id or config.model_id] = scores
+        for number, item in enumerate(keyframes.frames):
+            item.detector_scores = {model: round(values[number], 4) for model, values in per_frame.items() if len(values) == len(frames)}
     queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
     fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
     fingerprint.local_features = _safe_local_features(frame.image for frame in frames)
     credentials = read_credentials(path, config)
-    forensics = ForensicsCheck(
-        status=CheckStatus.NOT_APPLICABLE,
-        limitations=["Pixel forensics run on images only. Video compression hides these traces, and video wasn't measured."],
-    )
+    forensics = _video_forensics(path, frames, list(frame_scores), keyframes.frames, info.container, config)
     timed_frames = [(frame.timestamp_s, frame.image) for frame in frames]
     if run_heavy:
         speech, synthetic = _audio_checks(path, config, transcriber, detectors)

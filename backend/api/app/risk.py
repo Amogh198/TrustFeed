@@ -205,6 +205,10 @@ def _link_trust(link: LinkAnalysis | None, url: ModuleResult | None) -> tuple[in
     return None
 
 
+def _subject(sources: dict | None) -> str:
+    return "A frame from this video" if sources and sources.get("is_video") else "This exact image"
+
+
 def _apply_sources(vote: dict, sources: dict | None) -> dict:
     """Let what source search really found outweigh the detectors, as it is stronger evidence."""
     result = {**vote, "raw_mean": vote["mean"]}
@@ -231,7 +235,7 @@ def _apply_sources(vote: dict, sources: dict | None) -> dict:
             web_decides=True,
             web_score=round(_WEB_BASE + _WEB_RANGE * strength, 2),
             level=RiskLevel.INCONCLUSIVE,
-            source_note=f"{sources['old_domains']} sites show this exact image from before modern AI image tools, as early as {earliest}, so web search decides. Page dates can be wrong.",
+            source_note=f"{sources['old_domains']} sites show {_subject(sources).casefold()} from before modern AI image tools, as early as {earliest}, so web search decides. Page dates can be wrong.",
         )
     elif domains >= _WIDE_DOMAINS and vote["flagged"] <= 1:
         strength = 1 - math.exp(-domains / _DOMAIN_SCALE)
@@ -239,14 +243,14 @@ def _apply_sources(vote: dict, sources: dict | None) -> dict:
             web_decides=True,
             web_score=round(_WEB_BASE + _WEB_RANGE * strength, 2),
             level=RiskLevel.INCONCLUSIVE,
-            source_note=f"This exact image is on {domains} sites and most detectors see no strong sign of AI, so web search decides.",
+            source_note=f"{_subject(sources)} is on {domains} sites and most detectors see no strong sign of AI, so web search decides.",
         )
     elif domains >= _WIDE_DOMAINS:
         result.update(
             disputed=True,
             level=RiskLevel.MODERATE,
             disputed_score=round(_DISPUTED_BASE + _DISPUTED_RANGE * (1 - vote["mean"]), 2),
-            source_note=f"This exact image is on {domains} sites with no old date, while the detectors flag it. It could be a real photo or a viral fake.",
+            source_note=f"{_subject(sources)} is on {domains} sites with no old date, while the detectors flag it. It could be real or a viral fake.",
         )
     return result
 
@@ -257,25 +261,32 @@ def _media_decision(vote: dict, sources: dict | None) -> MediaDecision:
     detector = "Looks AI-generated" if flagged else "Split" if vote["flagged"] else "No strong sign of AI"
     detail = f"{vote['flagged']} of {vote['total']} detectors flagged it. Average score {vote['raw_mean'] * 100:.2f} out of 100, which is not a probability."
     if not sources or not sources.get("searched"):
-        web, web_detail = "Not searched", "Tick the search box to compare this image with the web."
-        combined = "Detectors only: the web wasn't searched, so this has no outside evidence."
+        video = bool(sources and sources.get("is_video"))
+        blocked = sources.get("blocked") if sources else None
+        if blocked:
+            web, web_detail = "Search couldn't run", f"Web search was asked for but couldn't run: {blocked}"
+            combined = "Detectors only: web search couldn't run, so nothing is known about where this appeared."
+        else:
+            ask = "search the web using frames from this video" if video else "compare this image with the web"
+            web, web_detail = "Not searched", f"Tick the search box to {ask}."
+            combined = "Detectors only: the web wasn't searched, so this has no outside evidence."
     else:
         domains, similar, earliest = sources.get("domains", 0), sources.get("similar", 0), sources.get("earliest")
         dated = f", earliest found {earliest}" if earliest else ""
         if domains:
-            web, web_detail = "Same image found online", f"This exact image is on {domains} site(s){dated}. Earliest found isn't necessarily the source."
+            web, web_detail = "Same image found online", f"{_subject(sources)} is on {domains} site(s){dated}. Earliest found isn't necessarily the source."
         elif similar:
-            web, web_detail = "Only similar images found", f"{similar} similar image(s), but no copy of this exact image."
+            web, web_detail = "Only similar images found", f"{similar} similar image(s), but no copy of {_subject(sources).casefold()}."
         else:
-            web, web_detail = "Not found online", "The search found no copy of this image."
+            web, web_detail = "Not found online", f"The search found no copy of {_subject(sources).casefold()}. Search only covers indexed pages, so this doesn't show it's new."
         if flagged and not domains:
-            combined = "Likely AI-generated or altered: the detectors flag it, and no copy of this exact image was found, which fits an AI version of a known image."
+            combined = f"Likely AI-generated or altered: the detectors flag it, and no copy of {_subject(sources).casefold()} was found, which fits an AI version of something known."
         elif flagged:
-            combined = "Likely AI-generated: the detectors flag it, and only a few sites hold this exact image."
+            combined = f"Likely AI-generated: the detectors flag it, and only a few sites hold {_subject(sources).casefold()}."
         elif domains:
-            combined = "No sign of AI, and this exact image is online. That doesn't show its caption or context is true."
+            combined = f"No sign of AI, and {_subject(sources).casefold()} is online. That doesn't show its caption or context is true."
         else:
-            combined = "Unclear: the detectors see no strong sign, and no copy of this image was found. Detectors miss many fakes."
+            combined = f"Unclear: the detectors see no strong sign, and no copy of {_subject(sources).casefold()} was found. Detectors miss many fakes."
     if vote.get("warned"):
         web = "Reported as fake online"
         web_detail = vote["source_note"]
@@ -283,7 +294,7 @@ def _media_decision(vote: dict, sources: dict | None) -> MediaDecision:
     elif vote.get("generator_hint"):
         combined = "Likely AI-generated: the file's own metadata names an AI image generator."
     elif vote.get("disputed"):
-        combined = "Disputed: the detectors flag it, but this exact image is widely published. It could be a real photo or a viral fake, so a person should check its source."
+        combined = f"Disputed: the detectors flag it, but {_subject(sources).casefold()} is widely published. It could be real or a viral fake, so a person should check where it came from."
     elif vote.get("web_decides") and sources and sources.get("old_domains", 0) >= _MIN_OLD_DOMAINS:
         combined = "Likely older than modern AI image tools: several sites date it before them, so the detectors are ignored. Page dates can be wrong, and this doesn't show its caption is true."
     elif vote.get("web_decides"):

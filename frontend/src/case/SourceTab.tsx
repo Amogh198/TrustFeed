@@ -41,7 +41,7 @@ export default function SourceTab({ report, data, loading }: {
                 <div>
                   <SafeLink href={item.page_url}>{item.page_title || item.page_url || 'Untitled page'}</SafeLink>
                   <p className="fineprint">
-                    {words(item.match_type)} match{item.phash_distance != null ? `, image distance ${item.phash_distance}` : ''}, {words(item.platform).toLowerCase()} page, from {words(item.provider)}
+                    {words(item.match_type)} match{item.phash_distance != null ? `, image distance ${item.phash_distance}` : ''}, {words(item.platform).toLowerCase()} page, from {words(item.provider)}{item.frame_timestamp_s != null ? `, found using the frame at ${item.frame_timestamp_s.toFixed(1)}s` : ''}
                   </p>
                   <p className="fineprint">{item.date_evidence ? `Date from: ${item.date_evidence}` : 'No evidence for a date.'}</p>
                 </div>
