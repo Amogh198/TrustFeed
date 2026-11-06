@@ -11,6 +11,8 @@ const AUDIENCES: [string, string][] = [
   ['the public', 'The public'],
 ];
 
+// The audience selector intentionally uses the browser's native select popup.
+
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {

@@ -12,10 +12,13 @@ Every view has its own address, so a demo can be reloaded or bookmarked at any s
 | `#/case/{id}/{tab}` | Case report. Tabs: `findings`, `media`, `text`, `source`, `spread`, `timeline`, `action` |
 | `#/cases` | Saved cases, filtered by risk and searchable |
 | `#/watch` | Monitoring: start, poll, stop |
+| `#/monitor` | Synthetic demo review signals from the bundled dataset |
 | `#/walkthrough` | The demo script, with a button for each step |
 | `#/limits` | Each official requirement, what it does and what it doesn't |
 
 ## State rules
+
+The action-packet audience selector intentionally uses a native select popup.
 
 | State | Required UI behaviour |
 | --- | --- |
@@ -37,7 +40,7 @@ Every view has its own address, so a demo can be reloaded or bookmarked at any s
 | Synthetic or replay data | Hazard tape wherever it appears, and on exports and drafts. |
 | Untrusted text | Page titles, handles and evidence are plain text, and only http and https links are clickable. Images from result URLs are never loaded. |
 | Benchmark | A null benchmark reads "Not measured". |
-| Action packet | Say it comes from fixed rules. The correction card is a draft a person must confirm. |
+| Action packet | Show the origin label returned by the API. The correction card is a draft a person must confirm. |
 | Watch | Show a countdown for the 60-second poll limit, and nothing runs in the background. |
 | Times | Evidence times are shown in UTC. |
 | Keyboard | Every control works by keyboard. On the graph, arrow keys step through accounts, Enter or Space opens one, and plus and minus zoom. |

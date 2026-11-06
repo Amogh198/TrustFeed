@@ -72,6 +72,8 @@ small { font-size: .84rem; }
 .field { display: grid; gap: 5px; font-weight: 600; }
 .field input, .field textarea, .select-field select { width: 100%; padding: 10px 12px; background: var(--ink); border: 1px solid var(--line); border-radius: 3px; font-weight: 400; }
 .field textarea { resize: vertical; min-height: 72px; }
+.field textarea.textarea { resize: none; min-height: 88px; }
+.field textarea.resize-none { resize: none; }
 .field input:focus, .field textarea:focus { border-color: var(--uv); outline: none; box-shadow: 0 0 0 1px var(--uv); }
 ::placeholder { color: var(--lav); opacity: 1; }
 .field-inline { min-width: min(320px, 100%); }
@@ -458,4 +460,18 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
   .tape span { background: none; color: #111; }
   details > * { display: block; }
   .tabs, .topbar { position: static; }
+}
+/* Live Monitor cards reuse the dashboard's forensic palette and tape conventions. */
+.radar-feed-grid { display: grid; gap: 1rem; }
+.radar-feed-card { display: flex; justify-content: space-between; align-items: center; gap: 1.25rem; padding: 1.25rem; border: 1px solid var(--ink-3); background: var(--ink-2); }
+.radar-feed-details { min-width: 0; }
+.radar-feed-title { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin-bottom: .5rem; }
+.radar-feed-id { overflow-wrap: anywhere; }
+.pill { display: inline-flex; align-items: center; border: 1px solid currentColor; border-radius: 999px; padding: 2px 9px; font-size: .78rem; font-weight: 700; }
+.radar-feed-meta { display: flex; flex-wrap: wrap; gap: .75rem; margin: 0; color: var(--paper); }
+.pill-high { color: var(--flag); }
+.pill-slate { color: var(--soft); }
+@media (max-width: 680px) {
+  .radar-feed-card { align-items: stretch; flex-direction: column; }
+  .radar-feed-card > .button { align-self: flex-start; }
 }
