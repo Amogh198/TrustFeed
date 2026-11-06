@@ -24,8 +24,8 @@ def media(score):
     return ModuleResult(status=ModuleStatus.COMPLETE, score=score, evidence=["e"])
 
 
-def test_high_score_with_an_unclear_assessment_stays_a_weak_signal():
-    assert build(media=media(0.99), media_level=RiskLevel.INCONCLUSIVE).level is RiskLevel.MODERATE
+def test_high_score_with_an_unclear_assessment_is_not_counted():
+    assert build(media=media(0.99), media_level=RiskLevel.INCONCLUSIVE).level is RiskLevel.INCONCLUSIVE
 
 
 def components(body):
@@ -40,12 +40,6 @@ def test_nothing_measured_is_inconclusive_with_no_trust_score():
 def test_quiet_media_alone_is_inconclusive_not_low():
     risk = build(media=media(0.001))
     assert risk.level is RiskLevel.INCONCLUSIVE and risk.trust_score == 50.0
-
-
-def test_media_above_the_review_line_is_a_weak_signal_that_says_its_error_rate():
-    risk = build(media=media(0.01), media_level=RiskLevel.INCONCLUSIVE)
-    assert risk.level is RiskLevel.MODERATE and risk.trust_score == 39.8
-    assert "19% of real images" in risk.components[0].note
 
 
 def test_missing_media_never_reads_as_a_low_score():
