@@ -34,7 +34,7 @@ from backend.api.app.models import (
 from backend.text.scams import NONE_FOUND, WARNING_SIGNS
 
 DEFAULT_WEIGHTS = {"media": 1.0, "scam": 1.0, "link": 1.0}
-MEDIA_RESULTS = "data/eval/commons_2026-11-05.json"
+MEDIA_RESULTS = "data/eval/commons_licensed_2026-11-05.json"
 SCAM_RESULTS = "backend/text/evaluation/results/scam_eval_test.json"
 LINK_RESULTS = "backend/text/evaluation/results/link_eval_test.json"
 NEUTRAL_TRUST = 50
