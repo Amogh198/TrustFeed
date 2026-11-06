@@ -94,6 +94,8 @@ class PublicPost:
     followers: int = 0
     # How many times it was reposted. Platforms don't say when, so this can't order events.
     repost_count: int | None = None
+    # Public thumbnails on this post. They're untrusted, so they're only read through the protected client.
+    image_urls: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         # Platform responses are untrusted. A wrong type here counts as one malformed
@@ -140,6 +142,11 @@ def safe_web_link(link: str | None) -> str | None:
     except ValueError:
         return None
     return link if scheme in ("http", "https") else None
+
+
+def text_links(*values: Any) -> tuple[str, ...]:
+    """Keep the values that are text. A picture link of the wrong type shouldn't cost the whole post."""
+    return tuple(dict.fromkeys(value for value in values if isinstance(value, str) and value))
 
 
 def utc_timestamp(value: Any) -> str:

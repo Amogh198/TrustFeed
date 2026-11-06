@@ -28,6 +28,8 @@ class Post:
     media_hash: str | None = None
     # A perceptual image hash in hex, which survives re-encoding.
     media_fingerprint: str | None = None
+    # Every hash of the same picture, as sorted (kind, hex) pairs. Comparing these handles crops and captions.
+    media_fingerprint_set: tuple[tuple[str, str], ...] = ()
     mentions: tuple[str, ...] = ()
     platform: str | None = None
     # True when this post was collected because it carries the content being traced.
@@ -92,6 +94,15 @@ def _parse_account(record: dict[str, Any]) -> Account:
     )
 
 
+def _fingerprint_set(record: dict[str, Any], post_id: str) -> tuple[tuple[str, str], ...]:
+    value = record.get("media_fingerprints")
+    if value is None:
+        return ()
+    if not isinstance(value, dict) or not all(isinstance(key, str) and isinstance(item, str) for key, item in value.items()):
+        raise ValueError(f"Post {post_id!r} media_fingerprints must map hash kinds to text")
+    return tuple(sorted(value.items()))
+
+
 def _parse_post(record: dict[str, Any]) -> Post:
     post_id = _required_text(record, "id", "Post")
     mentions = record.get("mentions") or ()
@@ -105,6 +116,7 @@ def _parse_post(record: dict[str, Any]) -> Post:
         url=_optional_text(record, "url", "Post"),
         media_hash=_optional_text(record, "media_hash", "Post"),
         media_fingerprint=_optional_text(record, "media_fingerprint", "Post"),
+        media_fingerprint_set=_fingerprint_set(record, post_id),
         mentions=tuple(mentions),
         platform=_optional_text(record, "platform", "Post"),
         on_topic=record.get("on_topic") is True,

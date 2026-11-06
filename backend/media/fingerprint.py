@@ -67,6 +67,11 @@ def looks_like_same_image(distances: dict[str, int]) -> bool:
     return agreeing >= MATCHES_NEEDED
 
 
+def same_picture(left: dict[str, str], right: dict[str, str]) -> bool:
+    """The rule for two sets of hashes: both have detail, and enough kinds agree."""
+    return is_informative(left) and is_informative(right) and looks_like_same_image(fingerprint_distances(left, right))
+
+
 def entry_hashes(entry: ReferenceEntry) -> dict[str, str]:
     return {kind: value for kind in HASH_KINDS if (value := getattr(entry, kind, None))}
 
@@ -78,6 +83,7 @@ class CaseFingerprint(BaseModel):
     seen_at: str
     sha256: str | None = None
     frames: list[dict[str, str]] = Field(default_factory=list)
+    local_features: list[str] = Field(default_factory=list)
 
 
 class CaseFingerprintStore:
@@ -124,25 +130,37 @@ class CaseFingerprintStore:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + ".tmp")
-        document = {"version": 1, "entries": [entry.model_dump() for entry in self.entries]}
+        # This file only ever holds hashes and a date. Local features are saved with the case.
+        document = {"version": 1, "entries": [entry.model_dump(exclude={"local_features"}) for entry in self.entries]}
         temporary.write_text(json.dumps(document) + "\n", encoding="utf-8")
         os.replace(temporary, path)
+
+
+def fingerprint_record(result: MediaAnalysisResult, case_id: str, seen_at: str) -> CaseFingerprint | None:
+    """What is kept from a case for later comparison, or None if there is nothing to keep."""
+    check = result.checks.fingerprint
+    if check is None:
+        return None
+    frames = [frame.fingerprints for frame in result.checks.keyframes.frames if frame.fingerprints]
+    if check.hashes:
+        frames = [check.hashes, *frames]
+    sha256 = check.sha256 or result.sha256
+    if not sha256 and not frames:
+        return None
+    return CaseFingerprint(case_id=case_id, seen_at=seen_at, sha256=sha256, frames=frames, local_features=check.local_features)
 
 
 def remember_fingerprints(
     result: MediaAnalysisResult, case_id: str, path: Path, *, seen_at: str | None = None
 ) -> bool:
     """Keep a case's hashes for later comparison. Returns False if there is nothing to keep."""
-    check = result.checks.fingerprint
-    if check is None or (not check.sha256 and not check.hashes and not result.checks.keyframes.frames):
-        return False
-    frames = [frame.fingerprints for frame in result.checks.keyframes.frames if frame.fingerprints]
-    if check.hashes:
-        frames = [check.hashes, *frames]
     moment = seen_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    record = fingerprint_record(result, case_id, moment)
+    if record is None:
+        return False
     with _store_lock:
         store = CaseFingerprintStore.load(path)
-        store.add(CaseFingerprint(case_id=case_id, seen_at=moment, sha256=check.sha256, frames=frames))
+        store.add(record)
         store.save(path)
     return True
 

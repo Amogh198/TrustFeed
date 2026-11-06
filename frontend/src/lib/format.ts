@@ -71,6 +71,7 @@ export const MATCH_WORDING: Record<string, string> = {
   page_link: 'Links to a page where the image was found, which may be about something else',
   hashtag: 'Uses the hashtag, which shows a shared topic, not shared content',
   text: 'Contains the submitted text',
+  image: 'Its picture looks like the submitted file, by fingerprint',
 };
 
 // Below this the detector's band is low or inconclusive, and it flags few fakes at these settings.

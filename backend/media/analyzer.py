@@ -55,6 +55,7 @@ from backend.media.models import (
     empty_checks,
 )
 from backend.media.ocr import read_text
+from backend.media.local_features import frame_features
 from backend.media.fingerprint import (
     EXACT_COPY,
     CaseFingerprintStore,
@@ -243,6 +244,14 @@ def _safe_fingerprints(image) -> dict[str, str]:
     except Exception as exc:
         logger.warning("Media fingerprint failed: %s", type(exc).__name__)
         return {}
+
+
+def _safe_local_features(images) -> list[str]:
+    try:
+        return frame_features(images)
+    except Exception as exc:
+        logger.warning("Media local features failed: %s", type(exc).__name__)
+        return []
 
 
 def _fingerprint_check(
@@ -598,6 +607,7 @@ def _analyze_image(path, info, classifier, index, note, config, panel_factory=No
     check = _apply_size_limit(_classifier_check(classifier, _predict(classifier, [image]), config), image, config)
     hashes = _safe_fingerprints(image)
     fingerprint = _fingerprint_check(info.sha256, [QueryFrame(None, hashes)], hashes, index, cases, config)
+    fingerprint.local_features = _safe_local_features([image])
     return _finish(
         info,
         metadata,
@@ -665,6 +675,7 @@ def _analyze_video(
         panel = _detector_panel([frame.image for frame in frames], check, config, panel_factory, is_image=False)
     queries = [QueryFrame(frame.timestamp_s, value) for frame, value in zip(frames, frame_hashes, strict=True)]
     fingerprint = _fingerprint_check(info.sha256, queries, {}, index, cases, config)
+    fingerprint.local_features = _safe_local_features(frame.image for frame in frames)
     credentials = read_credentials(path, config)
     forensics = ForensicsCheck(
         status=CheckStatus.NOT_APPLICABLE,

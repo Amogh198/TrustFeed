@@ -137,6 +137,8 @@ export const api = {
   getNetworkTests(caseId) { return request(`/api/network/${id(caseId)}/tests`); },
   /** @param {string} caseId @returns {Promise<import('./types').Explanation>} */
   getExplanation(caseId) { return request(`/api/cases/${id(caseId)}/explanation`); },
+  /** @param {string} caseId @returns {Promise<import('./types').RelatedMedia>} */
+  getRelatedMedia(caseId) { return request(`/api/cases/${id(caseId)}/related-media`); },
   /** @param {File} file @returns {Promise<import('./types').Heatmap>} */
   heatmap(file) {
     const body = new FormData();

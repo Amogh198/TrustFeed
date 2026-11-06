@@ -36,7 +36,8 @@ class CoordinationConfig:
     null_test_permutations: int = 199
     null_test_max_seconds: float = 5.0
     null_test_seed: int = 42
-    # Image fingerprints this close count as one image. The media check uses the same distance.
+    # For a post with one lone fingerprint only. Posts with full hash sets use the media check's rule, which
+    # handles crops and captions that this distance misses.
     fingerprint_max_distance: int = 5
 
     def __post_init__(self) -> None:

@@ -1,0 +1,274 @@
+{
+  "schema": "crop-matching-eval-1",
+  "generated_at": "2026-11-06T02:30:51.902623Z",
+  "notice": "Measured on the listed images and these simulated changes only. A match shows that pictures share visible content, not who made them, where they first appeared or whether a claim about them is true.",
+  "sources": [
+    {
+      "name": "Wikimedia Commons",
+      "licence": "Per-file open licences (CC0, public domain, CC BY, CC BY-SA), checked before download and listed in a manifest kept beside the images",
+      "url": "https://commons.wikimedia.org/"
+    }
+  ],
+  "settings": {
+    "seed": 0,
+    "target_false_match_rate": 0.0001,
+    "max_features": 400
+  },
+  "limit_chosen_on_calibration": 9,
+  "pictures_without_enough_detail": {
+    "calibration": 1
+  },
+  "saved_size_bytes_median": 19200,
+  "milliseconds_per_comparison": 0.85,
+  "test_split": {
+    "copies_matched": {
+      "thumbnail_400_pixels": {
+        "count": 282,
+        "total": 285,
+        "value": 0.9895,
+        "ci95": [
+          0.9695,
+          0.9964
+        ]
+      },
+      "cropped_10_percent_then_thumbnail_400_pixels": {
+        "count": 282,
+        "total": 285,
+        "value": 0.9895,
+        "ci95": [
+          0.9695,
+          0.9964
+        ]
+      },
+      "cropped_20_percent_then_thumbnail_400_pixels": {
+        "count": 269,
+        "total": 285,
+        "value": 0.9439,
+        "ci95": [
+          0.9108,
+          0.9652
+        ]
+      },
+      "recompressed_low_quality": {
+        "count": 285,
+        "total": 285,
+        "value": 1.0,
+        "ci95": [
+          0.9867,
+          1.0
+        ]
+      },
+      "cropped_5_percent_each_side": {
+        "count": 285,
+        "total": 285,
+        "value": 1.0,
+        "ci95": [
+          0.9867,
+          1.0
+        ]
+      },
+      "cropped_10_percent_each_side": {
+        "count": 284,
+        "total": 285,
+        "value": 0.9965,
+        "ci95": [
+          0.9804,
+          0.9994
+        ]
+      },
+      "cropped_20_percent_each_side": {
+        "count": 273,
+        "total": 285,
+        "value": 0.9579,
+        "ci95": [
+          0.9279,
+          0.9758
+        ]
+      },
+      "cropped_30_percent_each_side": {
+        "count": 197,
+        "total": 285,
+        "value": 0.6912,
+        "ci95": [
+          0.6353,
+          0.742
+        ]
+      },
+      "cropped_to_square": {
+        "count": 280,
+        "total": 285,
+        "value": 0.9825,
+        "ci95": [
+          0.9596,
+          0.9925
+        ]
+      },
+      "cropped_to_top_left_60_percent": {
+        "count": 255,
+        "total": 285,
+        "value": 0.8947,
+        "ci95": [
+          0.8537,
+          0.9253
+        ]
+      },
+      "caption_bar_added": {
+        "count": 285,
+        "total": 285,
+        "value": 1.0,
+        "ci95": [
+          0.9867,
+          1.0
+        ]
+      },
+      "watermark_tiled_faint": {
+        "count": 284,
+        "total": 285,
+        "value": 0.9965,
+        "ci95": [
+          0.9804,
+          0.9994
+        ]
+      },
+      "watermark_small_corner_text": {
+        "count": 285,
+        "total": 285,
+        "value": 1.0,
+        "ci95": [
+          0.9867,
+          1.0
+        ]
+      },
+      "cropped_captioned_watermarked_recompressed": {
+        "count": 285,
+        "total": 285,
+        "value": 1.0,
+        "ci95": [
+          0.9867,
+          1.0
+        ]
+      },
+      "cropped_20_percent_then_recompressed": {
+        "count": 274,
+        "total": 285,
+        "value": 0.9614,
+        "ci95": [
+          0.9322,
+          0.9783
+        ]
+      },
+      "mirrored": {
+        "count": 43,
+        "total": 285,
+        "value": 0.1509,
+        "ci95": [
+          0.114,
+          0.1971
+        ]
+      }
+    },
+    "unrelated_pairs_wrongly_matched": {
+      "count": 8,
+      "total": 40470,
+      "value": 0.0002,
+      "ci95": [
+        0.0001,
+        0.0004
+      ]
+    }
+  },
+  "video_test_split": {
+    "clips": 40,
+    "frames_kept_per_clip": 4,
+    "copies_matched_by_local_features": {
+      "cropped_10_percent_each_side": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "cropped_20_percent_each_side": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "cropped_to_square": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "cropped_20_percent_captioned_watermarked": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      }
+    },
+    "copies_matched_by_whole_picture_hashes": {
+      "cropped_10_percent_each_side": {
+        "count": 29,
+        "total": 40,
+        "value": 0.725,
+        "ci95": [
+          0.5717,
+          0.8389
+        ]
+      },
+      "cropped_20_percent_each_side": {
+        "count": 0,
+        "total": 40,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0876
+        ]
+      },
+      "cropped_to_square": {
+        "count": 4,
+        "total": 40,
+        "value": 0.1,
+        "ci95": [
+          0.0396,
+          0.2305
+        ]
+      },
+      "cropped_20_percent_captioned_watermarked": {
+        "count": 0,
+        "total": 40,
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0876
+        ]
+      }
+    },
+    "unrelated_clip_pairs_wrongly_matched": {
+      "count": 1,
+      "total": 780,
+      "value": 0.0013,
+      "ci95": [
+        0.0002,
+        0.0072
+      ]
+    }
+  },
+  "limitations": [
+    "Changes were simulated in memory, not collected from real social media platforms.",
+    "Some 'unrelated' pairs may really be related, such as photos from one series, which would raise the false match rate.",
+    "Two different pictures sharing a logo, a screenshot frame or a large block of text can match."
+  ]
+}

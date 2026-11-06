@@ -53,11 +53,13 @@ from backend.api.app.models import (
     ModuleResult,
     ModuleStatus,
     MonitorStartRequest,
+    RelatedMediaResponse,
     ReplayScenariosResponse,
     RiskLevel,
     TimelineEvent,
     TimelineResponse,
 )
+from backend.api.app.related_media import build_related_media
 from backend.api.app.replay import get_scenario, list_scenarios
 from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
 from backend.api.app.risk import build_unified_risk, summary_for
@@ -66,8 +68,10 @@ from backend.api.app.store import default_store
 from backend.media import MediaConfig, analyze_media, occlusion_heatmap, render_png
 from backend.media.classifier import default_classifier
 from backend.media.errors import MediaInputError
+from backend.media.fingerprint import CaseFingerprint, fingerprint_record
 from backend.media.metadata import inspect_input, read_image
 from backend.media.models import Assessment, MediaAnalysisResult, MediaType
+from backend.media.related import add_earlier_matches
 from backend.network import (
     DEMO_CASE_ID,
     DEMO_STORY_CASE_ID,
@@ -273,8 +277,41 @@ def _traceable_links(provenance: ProvenanceReport | None) -> tuple[str, ...]:
     return tuple(dict.fromkeys(links))[:MAX_TRACED_PAGE_LINKS]
 
 
+def _owner_fingerprints() -> list[CaseFingerprint]:
+    """Fingerprints of this owner's saved cases. Signed-out cases share one pool, as they share one case list."""
+    records = []
+    for detail in CASE_STORE.details_for_owner("media_fingerprints", current_owner(), MAX_SEARCHED_CASES):
+        try:
+            records.append(CaseFingerprint.model_validate(detail))
+        except ValueError:
+            continue
+    return records
+
+
+def _compare_with_earlier_cases(media: MediaAnalysisResult) -> None:
+    """Add matches with this owner's earlier cases. A failure here must not lose the rest of the case."""
+    try:
+        add_earlier_matches(media, _owner_fingerprints())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Comparing with earlier cases failed: %s", type(exc).__name__)
+
+
+def _submitted_hashes(media: MediaAnalysisResult | None) -> tuple[dict[str, str], ...]:
+    record = fingerprint_record(media, "", "") if media else None
+    return tuple(record.frames) if record else ()
+
+
+def _submitted_features(media: MediaAnalysisResult | None) -> tuple[str, ...]:
+    check = media.checks.fingerprint if media else None
+    return tuple(check.local_features) if check else ()
+
+
 def _trace_spread(
-    case_id: str, text: str | None, url: str | None, provenance: ProvenanceReport | None = None
+    case_id: str,
+    text: str | None,
+    url: str | None,
+    provenance: ProvenanceReport | None = None,
+    media: MediaAnalysisResult | None = None,
 ) -> ModuleResult:
     """Search public platforms. This sends the text and links out, so the user must opt in first."""
     replaying = _replay_mode() or (provenance is not None and provenance.replay)
@@ -285,7 +322,16 @@ def _trace_spread(
         )
     links = _traceable_links(provenance)
     try:
-        module = ModuleResult.model_validate(trace_case(case_id, text=text, url=url, urls=links))
+        module = ModuleResult.model_validate(
+            trace_case(
+                case_id,
+                text=text,
+                url=url,
+                urls=links,
+                submitted_hashes=_submitted_hashes(media),
+                submitted_features=_submitted_features(media),
+            )
+        )
     except Exception as exc:  # noqa: BLE001 - A failed trace must not lose the rest of the case.
         logger.warning("Public-post trace failed: %s", type(exc).__name__)
         return ModuleResult(
@@ -459,6 +505,9 @@ def _store_case(
     if media is not None:
         # The upload is deleted, so its explanation is saved now while the result exists.
         CASE_STORE.save_detail(case_id, "media_checks", {"checks": media.to_checks()})
+        record = fingerprint_record(media, case_id, result.created_at.isoformat())
+        if record is not None:
+            CASE_STORE.save_detail(case_id, "media_fingerprints", record.model_dump())
     if provenance is not None:
         CASE_STORE.save_detail(case_id, "provenance", provenance.for_case(case_id).model_dump(mode="json"))
     if network_detail is not None:
@@ -660,6 +709,7 @@ def analyze_media_case(
             status_code=rejection,
             detail={"code": media.failure_code, "message": media.limitations[0]},
         )
+    _compare_with_earlier_cases(media)
     text_result, claims = analyze_text(text) if text and text.strip() else (None, [])
     link = str(url) if url else None
     if not search_web:
@@ -670,7 +720,7 @@ def analyze_media_case(
     destination = _follow_short_link(link)
     url_result = analyze_url(link, destination, follow_tried=not _replay_mode()) if link else None
     case_id = str(uuid4())
-    network = _trace_spread(case_id, text if text_result else None, destination or link, provenance)
+    network = _trace_spread(case_id, text if text_result else None, destination or link, provenance, media)
     link_analysis = _check_link(link, True, text if text_result else None)
     return _store_case(
         text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network, link_analysis=link_analysis
@@ -767,6 +817,13 @@ def get_timeline(case_id: str) -> TimelineResponse:
     report = _provenance_report(case_id)
     events = [TimelineEvent.model_validate(event) for event in report.timeline_events()]
     return TimelineResponse(events=_in_time_order([*events, *_network_events(_network_detail(case_id))]))
+
+
+@app.get("/api/cases/{case_id}/related-media", response_model=RelatedMediaResponse)
+def get_related_media(case_id: str) -> RelatedMediaResponse:
+    """Other cases on this account holding the same picture, and what each one found, as one history."""
+    _find_case(case_id)
+    return build_related_media(case_id, _owner_fingerprints(), CASE_STORE.get_detail, _network_detail)
 
 
 @app.get("/api/cases/{case_id}/explanation", response_model=ExplanationResponse)

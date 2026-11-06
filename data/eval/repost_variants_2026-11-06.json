@@ -1,0 +1,183 @@
+{
+  "schema": "repost-variants-eval-1",
+  "generated_at": "2026-11-06T02:04:02.427763Z",
+  "notice": "Measured on the listed images and these simulated changes only. A match shows visual similarity, not who made a file, where it first appeared or whether a claim about it is true.",
+  "sources": [
+    {
+      "name": "Wikimedia Commons",
+      "licence": "Per-file open licences (CC0, public domain, CC BY, CC BY-SA), checked before download and listed in a manifest kept beside the images",
+      "url": "https://commons.wikimedia.org/"
+    }
+  ],
+  "settings": {
+    "seed": 0,
+    "rule": "two of pHash, dHash and wHash within the limits in backend/media/fingerprint.py"
+  },
+  "image_copies_matched": {
+    "watermark_small_corner_text": {
+      "count": 285,
+      "total": 285,
+      "value": 1.0,
+      "ci95": [
+        0.9867,
+        1.0
+      ]
+    },
+    "watermark_logo_corner": {
+      "count": 285,
+      "total": 285,
+      "value": 1.0,
+      "ci95": [
+        0.9867,
+        1.0
+      ]
+    },
+    "watermark_large_centre_see_through": {
+      "count": 285,
+      "total": 285,
+      "value": 1.0,
+      "ci95": [
+        0.9867,
+        1.0
+      ]
+    },
+    "watermark_tiled_faint": {
+      "count": 285,
+      "total": 285,
+      "value": 1.0,
+      "ci95": [
+        0.9867,
+        1.0
+      ]
+    },
+    "cropped_10_percent_each_side": {
+      "count": 54,
+      "total": 285,
+      "value": 0.1895,
+      "ci95": [
+        0.1482,
+        0.239
+      ]
+    },
+    "cropped_20_percent_each_side": {
+      "count": 0,
+      "total": 285,
+      "value": 0.0,
+      "ci95": [
+        0.0,
+        0.0133
+      ]
+    },
+    "cropped_to_square": {
+      "count": 114,
+      "total": 285,
+      "value": 0.4,
+      "ci95": [
+        0.3448,
+        0.4578
+      ]
+    },
+    "cropped_captioned_watermarked_recompressed": {
+      "count": 198,
+      "total": 285,
+      "value": 0.6947,
+      "ci95": [
+        0.639,
+        0.7453
+      ]
+    }
+  },
+  "video": {
+    "clips": 40,
+    "seconds_each": 6,
+    "copies_matched": {
+      "same_frames_reencoded_low_quality": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "resized_to_half": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "cropped_5_percent_each_side": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "caption_bar_added": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "watermark_small_corner_text": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "cropped_captioned_watermarked": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "second_half_only": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      },
+      "still_screenshot_to_clip": {
+        "count": 40,
+        "total": 40,
+        "value": 1.0,
+        "ci95": [
+          0.9124,
+          1.0
+        ]
+      }
+    },
+    "unrelated_clip_pairs_wrongly_matched": {
+      "count": 1,
+      "total": 780,
+      "value": 0.0013,
+      "ci95": [
+        0.0002,
+        0.0072
+      ]
+    }
+  },
+  "limitations": [
+    "Changes were simulated, not collected from real social media platforms.",
+    "Watermarks here are plain text and a small logo shape. Real ones vary in size, placement and strength.",
+    "Clips were built from still pictures with a slow pan, not filmed video, so real video may behave differently.",
+    "Some 'unrelated' pairs may really be related, such as photos from one series."
+  ]
+}

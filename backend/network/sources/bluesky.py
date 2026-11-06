@@ -14,6 +14,7 @@ from backend.network.sources.base import (
     PublicPost,
     SearchOutcome,
     SearchQuery,
+    text_links,
     count_or_none,
     utc_timestamp,
 )
@@ -31,6 +32,18 @@ def _features(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _feature_values(record: dict[str, Any], kind: str, field: str) -> list[str]:
     return [item[field] for item in _features(record) if item.get("$type") == f"app.bsky.richtext.facet#{kind}"]
+
+
+def _picture_links(view: dict[str, Any]) -> tuple[str, ...]:
+    """Find thumbnails in a post's embed, including a video's and a quote post's own media."""
+    embed = view.get("embed")
+    embed = embed if isinstance(embed, dict) else {}
+    media = embed.get("media") if isinstance(embed.get("media"), dict) else embed
+    images = media.get("images") if isinstance(media.get("images"), list) else []
+    external = media.get("external") if isinstance(media.get("external"), dict) else {}
+    return text_links(
+        *(image.get("thumb") for image in images if isinstance(image, dict)), media.get("thumbnail"), external.get("thumb")
+    )
 
 
 def _has_label(view: dict[str, Any], value: str) -> bool:
@@ -69,6 +82,7 @@ class BlueskySource:
             # Search results give only an account's id for a mention, not its handle.
             mentions=tuple((f"bluesky:{item}", item) for item in _feature_values(record, "mention", "did")),
             repost_count=count_or_none(view.get("repostCount")),
+            image_urls=_picture_links(view),
         )
 
     def _read(self, views: Any, outcome: SearchOutcome) -> None:

@@ -196,7 +196,49 @@ export interface SpreadPost {
   permalink: string | null;
   matched_on: string;
   repost_count: number | null;
+  same_picture?: boolean;
   earliest_found: boolean;
+}
+
+export interface CoverageImages {
+  status: string;
+  read: number;
+  failed: number;
+  skipped: number;
+  same_as_submitted: number;
+}
+
+export interface RelatedMediaCase {
+  case_id: string;
+  kind: string;
+  first_seen?: string | null;
+  through_case_id?: string | null;
+  links_from_start: number;
+  distances?: Record<string, number>;
+  agreeing_features?: number | null;
+}
+
+export interface RelatedMediaEvent {
+  at?: string | null;
+  kind: string;
+  case_id: string;
+  label: string;
+  platform?: string | null;
+  url?: string | null;
+  matched_on?: string | null;
+  date_source?: string | null;
+  synthetic?: boolean;
+  earliest_found?: boolean;
+}
+
+export interface RelatedMedia {
+  case_id: string;
+  status: string;
+  reason?: string | null;
+  compared_cases: number;
+  cases: RelatedMediaCase[];
+  history: RelatedMediaEvent[];
+  limitations: string[];
 }
 
 export interface Coverage {
@@ -206,6 +248,7 @@ export interface Coverage {
   platforms?: CoveragePlatform[];
   not_connected?: NotConnected[];
   account_histories?: { read?: number };
+  images?: CoverageImages;
   spread?: SpreadPost[];
 }
 

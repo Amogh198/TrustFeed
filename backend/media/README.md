@@ -98,6 +98,55 @@ To measure again:
 python -m backend.media.eval.fingerprints --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
 ```
 
+### Related media
+
+`GET /api/cases/{case_id}/related-media` lists other cases of the same owner that may hold the same picture, says what linked each one, and joins what those cases found into one history in time order. It never changes a score. Signed-in accounts never match each other's cases. Cases saved while signed out are compared with each other, because they already share one case list.
+
+There are three kinds of link:
+
+| Kind | What it compares | How far it reaches |
+|---|---|---|
+| `exact_copy` | The file's SHA-256 | Up to 2 matches away, showing the case between |
+| `likely_same_image` | The fingerprint rule above | Up to 2 matches away, showing the case between |
+| `shares_visible_content` | Local features: small patches of the picture that must agree on one shift and resize (`backend/media/local_features.py`, OpenCV ORB) | Direct matches to the requested case only |
+
+Whole-picture fingerprints fail on heavier crops, so local features cover those. They wrongly match unrelated pictures more often, and one wrong link could join two unrelated groups, so they never lead onward through another case. Two different pictures sharing a logo, a screenshot frame or text can also match.
+
+Each case saves about 19 KB of local features per picture, for an image or up to 4 frames of a video. They stay in the case store, and out of responses and the `MEDIA_CASE_FINGERPRINTS` file.
+
+Measured with simulated changes, on the test split. The limit of 9 agreeing patches was chosen on the calibration split, aiming for at most 0.01% false matches. The test split came in at 0.02%. From `data/eval/crop_matching_2026-11-06.json`, `data/eval/repost_variants_2026-11-06.json` and `data/eval/fingerprints_2026-11-05.json`:
+
+| Change to an image | Two fingerprints agree | Local features |
+|---|---|---|
+| Cropped 10% each side | 54 of 285 | 284 of 285 |
+| Cropped 20% each side | 0 of 285 | 273 of 285 |
+| Cropped 30% each side | Not measured | 197 of 285 |
+| Cropped to a square | 114 of 285 | 280 of 285 |
+| Cropped, captioned, watermarked and recompressed | 198 of 285 | 285 of 285 |
+| Cropped 20% each side, as a 400 pixel thumbnail | Not measured | 269 of 285 |
+| Mirrored | 11 of 285 | 43 of 285 |
+| Unrelated pairs wrongly matched | 2 of 40,470 | 8 of 40,470 |
+
+| Change to a 6 second clip | Fingerprints, any frame | Local features, up to 4 frames |
+|---|---|---|
+| Cropped 10% each side | 29 of 40 | 40 of 40 |
+| Cropped 20% each side | 0 of 40 | 40 of 40 |
+| Cropped to a square | 4 of 40 | 40 of 40 |
+| Cropped 20% each side, captioned and watermarked | 0 of 40 | 40 of 40 |
+| Unrelated clip pairs wrongly matched | 1 of 780 (hashes, in `repost_variants`) | 1 of 780 |
+
+The changes were simulated, not collected from real platforms. The clips are slow pans over 3 still pictures, which is easier than real video, and any one frame matching is enough. The fingerprint limits and stored hash kinds are unchanged. Real reposts, heavy colour edits and pictures filmed from a screen weren't measured.
+
+To measure again:
+
+```bash
+python -m backend.media.eval.crop_matching --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
+```
+
+```bash
+python -m backend.media.eval.repost_variants --real DIR --fake DIR --out data/eval/RESULT.json --source "name|licence|url"
+```
+
 ### Content Credentials
 
 Every analysis adds a `media.c2pa` check, which uses `c2pa-python` to check a file's C2PA signature. This is the real signature check. It takes a 92 MB download and about 310 MB of disk. Without the library, the check reports `unavailable` and everything else carries on.

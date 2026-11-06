@@ -120,6 +120,8 @@ class FingerprintCheck(BaseModel):
     earlier_cases_checked: int = 0
     matches: list[FingerprintMatch] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    # About 19 KB a picture, so they're saved for later comparison but left out of responses and reports.
+    local_features: list[str] = Field(default_factory=list, exclude=True)
 
 
 class KeyframeCheck(BaseModel):

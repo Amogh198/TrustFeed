@@ -2,6 +2,7 @@ import SpreadStage from '../graph/SpreadStage';
 import type { AnalysisResponse, Coverage, NetworkPayload } from '../types';
 import { Caveat, Limits, Lines, Loading, Meter, Section, Unknown } from '../ui/ui';
 import { CoverageTable, PostList } from './Coverage';
+import RelatedMedia from './RelatedMedia';
 
 export default function SpreadTab({ report, graph, coverage, loading }: {
   report: AnalysisResponse; graph?: NetworkPayload; coverage?: Coverage | null; loading: boolean;
@@ -17,6 +18,8 @@ export default function SpreadTab({ report, graph, coverage, loading }: {
           <strong>This is a signal for review. It doesn't prove coordination.</strong>
           <p>Posting the same items close together doesn't show automation, identity, who is behind an account, or intent. Repost timing isn't available, so it isn't used.</p>
         </Caveat>
+
+        <RelatedMedia caseId={report.case_id} />
 
         {network?.status === 'complete' && (
           <Section title="Why this was flagged" kind="estimate">
