@@ -171,9 +171,9 @@ Posts may carry `media_fingerprint`, a hex perceptual hash, and `media_fingerpri
 
 `overall_risk` now equals `unified_risk.level`, and is `low`, `moderate`, `high`, `critical` or `inconclusive`. `unified_risk.components` lists every component with `counted`, `score`, `weight`, `evidence`, `note` and `results_file`.
 
-Counted, because each has a results file: the media detector (only in its elevated band), scam warning signs and the link address check. Shown but not scored: language rules, other link signs, contradicted claims, inconsistencies, caption and media differences, and spread. If one of those raises concern, or the media detector is quiet or missing, a low score reads `inconclusive`.
+Counted: the media detector, scam warning signs, and all link signs and rules. Live link signs have no results file yet. A link on a public threat feed reads critical. Feeds are downloaded whole, so nothing about the link is sent to them, and `LINK_THREAT_FEEDS=off` turns them off. Shown but not scored: language rules, other link signs, contradicted claims, inconsistencies, caption and media differences, and spread. If one of those raises concern, or the media detector is quiet or missing, a low score reads `inconclusive`.
 
-The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is a number out of 100 with up to 2 decimals, and at most 50. With a counted media score it uses that exact score, while the level still treats the media signal as at most 0.75. Without one, it is at most 40 at moderate and 25 at high or critical. It's null when nothing was measured. Module and component scores stay between 0 and 1, and the dashboard shows them out of 100. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
+The score combines counted components as `1 - product(1 - weight * score)`, so Critical needs two independent signals. `trust_score` is a number out of 100 with up to 2 decimals. A detector score never lifts it above 50, because detectors miss many fakes. With a counted media score it uses that exact score, while the level still treats the media signal as at most 0.75. Without one, it is at most 40 at moderate and 25 at high or critical. It goes above 50 only on evidence from outside the detectors: for a clean link, 90 for a listed brand's own domain, 85 for a domain over 5 years old and 70 for over 1 year, both off the threat feeds, or 60 for off the feeds alone; for an image, when web search finds it widely published or dated before modern AI image tools. It's null when nothing was measured. Module and component scores stay between 0 and 1, and the dashboard shows them out of 100. Whoever runs the server can set `RISK_WEIGHTS`, a JSON object with `media`, `scam` and `link` between 0 and 1.
 
 ## Reports, search and overview
 
@@ -188,6 +188,18 @@ The score combines counted components as `1 - product(1 - weight * score)`, so C
 A case saved while signed in is visible only to its owner. Anyone else gets the same 404 as a case that doesn't exist. `GET /api/cases` and `/api/overview` list only the caller's own cases. Cases saved while signed out have no owner, and anyone who knows the ID can open them.
 
 With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns 401 when signed out. Off by default, so the offline demo needs no account. Watches under `/api/monitors` aren't per-person.
+
+## Link model
+
+`link_analysis.model_score` comes from a small model trained by `backend/text/train_link_model.py` on host names. Figures are in `backend/text/evaluation/results/link_model_train.json`. A score of 0.8 or more counts as a weak link sign. `trust_score` is now a decimal: the evidence-based figure multiplied down by the link, text and media model scores. `TRUST_MODELS=off` turns this off.
+
+## Detector vote
+
+Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. With a vote, `trust_score` is 100 minus the detectors' average in percent, to two decimals, and can reach 100. Order of evidence: 2 or more sites whose titles call the image fake or AI-generated read `high`. Metadata naming a generator keeps the detectors' vote. Exact matches on 2 or more sites dated before April 2022 make web search decide. Exact matches on 5 or more sites decide if at most one detector flags it, otherwise the result reads `moderate`, disputed, with a score from 40 to 60. `unified_risk.media_decision` gives the detectors' verdict, the web's verdict and the combined one. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
+
+## Investigation report sections
+
+`GET /api/cases/{id}/report` keeps its earlier fields and adds `report_id`, `generated_at`, `synthetic`, `missing_data` and `sections`. Each section has `id`, `title` and `blocks`, of type `text`, `list`, `kv` or `table`. A cell is text or `{text, url}`. The dashboard's Full report tab and the PDF draw these same sections. The PDF needs `reportlab`, and falls back to a simpler form without it. `unified_risk.calculation` holds the vote and web evidence.
 
 ## Common response sketch
 

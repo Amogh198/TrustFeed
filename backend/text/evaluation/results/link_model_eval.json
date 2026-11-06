@@ -1,0 +1,33 @@
+{
+  "measured_on": "2026-11-06",
+  "model": "cybersectony/phishing-email-detection-distilbert_v2.4.1",
+  "revision": "6724dec17360ab1f6450553f1d950404f66a5dde",
+  "median_score_phishing": 1.0,
+  "median_score_ordinary": 1.0,
+  "by_line": {
+    "0.3": {
+      "phishing_flagged": "300 of 300",
+      "ordinary_flagged": "50 of 50"
+    },
+    "0.5": {
+      "phishing_flagged": "300 of 300",
+      "ordinary_flagged": "50 of 50"
+    },
+    "0.7": {
+      "phishing_flagged": "300 of 300",
+      "ordinary_flagged": "50 of 50"
+    },
+    "0.9": {
+      "phishing_flagged": "300 of 300",
+      "ordinary_flagged": "50 of 50"
+    },
+    "0.99": {
+      "phishing_flagged": "300 of 300",
+      "ordinary_flagged": "50 of 50"
+    }
+  },
+  "caveats": [
+    "Ordinary addresses are 50 famous home pages, far easier than typical traffic.",
+    "No page was opened. This scores the address text alone."
+  ]
+}

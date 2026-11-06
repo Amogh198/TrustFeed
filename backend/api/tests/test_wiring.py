@@ -188,11 +188,11 @@ def test_text_and_url_are_fused_with_media(analyzed_paths):
     assert body["modules"]["text"]["status"] == "complete"
     assert body["modules"]["url"]["status"] == "complete"
     assert body["modules"]["media"]["status"] == "complete"
-    assert body["overall_risk"] == "high"
+    assert body["overall_risk"] == "critical"
 
 
 def test_quiet_text_does_not_hide_inconclusive_media(analyzed_paths):
-    analyzed_paths(0.5)
+    analyzed_paths(0.001)
     body = upload(png_bytes(), text="A community meeting will happen on Friday.").json()
     assert body["modules"]["text"]["score"] == 0
     assert body["overall_risk"] == "inconclusive"

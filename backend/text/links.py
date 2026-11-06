@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -29,6 +30,7 @@ from backend.api.app.models import (
     LinkPage,
     LinkRedirects,
     LinkSign,
+    LinkThreatLists,
     ModuleStatus,
 )
 from backend.provenance.safe_http import (
@@ -37,7 +39,12 @@ from backend.provenance.safe_http import (
     HttpResponse,
     safe_request,
 )
-from backend.text.analysis import _BRANDS, SHORTENER_HOSTS, _registered_domain
+from backend.text.analysis import (
+    _BRANDS,
+    SHORTENER_HOSTS,
+    SUSPICIOUS_TLDS,
+    _registered_domain,
+)
 from backend.text.scams import NONE_FOUND, WARNING_SIGNS, WEAK_ONLY
 from backend.text.threat_list import check_threat_list
 
@@ -100,6 +107,27 @@ LIMITATIONS = [
     "A threat list only holds links someone has already reported, so a link missing from it may still be harmful.",
     "The address alone says little: on 300 links reported as phishing on 2026-11-06, the address rules found strong signs on 1 and weak signs on 22, and nothing on 277.",
 ]
+# Downloaded whole, so nothing about the submitted link is sent to them. No key is needed.
+THREAT_FEEDS = {
+    "OpenPhish": "https://openphish.com/feed.txt",
+    # MIT licensed. A list of hosts, not full addresses.
+    "Phishing.Database": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt",
+}
+_FEED_TTL_S = 3600.0
+_FEED_RETRY_S = 300.0
+_MAX_FEED_BYTES = 20 * 1024 * 1024
+_MAX_FEED_ENTRIES = 500_000
+# Words that make a domain name sound like bait. Two of them, or one on a cheap ending, is a strong sign.
+_FREE_HOSTS = (
+    "pages.dev", "vercel.app", "github.io", "workers.dev", "netlify.app", "web.app", "firebaseapp.com", "blogspot.com",
+    "weebly.com", "wixsite.com", "webflow.io", "jimdofree.com", "glitch.me", "onrender.com", "herokuapp.com", "r2.dev",
+    "sharemyhtml.com", "godaddysites.com", "square.site", "framer.website", "replit.app", "surge.sh", "000webhostapp.com",
+    "duckdns.org", "ngrok-free.app", "ngrok.io",
+)
+_BAIT_WORDS = {
+    "claim", "prize", "free", "gift", "reward", "rewards", "lottery", "winner", "win", "bonus", "giveaway", "cashback",
+    "airdrop", "doubler", "kyc", "verify", "refund", "voucher", "lucky", "jackpot", "offer", "loan", "recharge",
+}
 
 Request = Callable[..., HttpResponse]
 
@@ -207,6 +235,8 @@ def find_lookalike(host: str) -> LinkLookalike:
             match = ("strong", "is one letter away from")
         elif any(joined.startswith(f"{domain}.") or f".{domain}." in joined for domain in official):
             match = ("strong", "puts the official address at the front of a different domain, imitating")
+        elif len(brand) >= _MIN_TYPO_BRAND and any(_one_edit_apart(word, brand) for word in words):
+            match = ("strong", "contains a misspelling of")
         elif brand in words and len(words) > 1:
             pretext = all(word == brand or word in _PRETEXT_WORDS for word in words)
             match = ("strong", "adds account or support words to") if pretext else ("weak", "includes the name")
@@ -223,6 +253,119 @@ def find_lookalike(host: str) -> LinkLookalike:
                 update={"strength": match[0], "how": match[1], "brand": brand, "official_domains": list(official)}
             )
     return empty
+
+
+def _bait_sign(host: str) -> LinkSign | None:
+    """Name a domain built from bait words. A brand's own domain is left alone."""
+    if not host or _is_ip(host) or _owned_brand(host):
+        return None
+    label = _registered_domain(host).split(".")[0]
+    words = set(re.split(r"[-_]", label)) | {word for word in _BAIT_WORDS if len(word) >= 5 and word in label}
+    found = sorted(words & _BAIT_WORDS)
+    cheap = any(host.endswith(ending) for ending in SUSPICIOUS_TLDS)
+    if len(found) >= 2 or (found and cheap):
+        return LinkSign(sign="bait_domain", strength="strong", why=f"The domain name is built from bait words: {', '.join(found)}.")
+    return None
+
+
+def _feed_key(url: str) -> str:
+    parts = urlsplit(url.strip())
+    return f"{(parts.hostname or '').casefold()}{parts.path.rstrip('/')}"
+
+
+class ThreatFeeds:
+    """Public lists of reported malicious links, kept in memory and refreshed hourly."""
+
+    def __init__(self, feeds: dict[str, str] = THREAT_FEEDS, clock: Callable[[], float] = time.monotonic) -> None:
+        self._feeds = feeds
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._urls: dict[str, str] = {}
+        self._hosts: dict[str, str] = {}
+        self._url_hosts: dict[str, str] = {}
+        self._sources: list[str] = []
+        self._failed: list[str] = []
+        self._next_load = 0.0
+
+    def _load(self, request: Request) -> None:
+        urls: dict[str, str] = {}
+        hosts: dict[str, str] = {}
+        url_hosts: dict[str, str] = {}
+        sources: list[str] = []
+        failed: list[str] = []
+        for name, address in self._feeds.items():
+            try:
+                response = request(address, method="GET", headers=_HEADERS, timeout_s=8.0, max_bytes=_MAX_FEED_BYTES, max_redirects=2)
+                if response.status != 200:
+                    raise HttpFailed("network")
+            except (HttpBlocked, HttpFailed):
+                failed.append(name)
+                continue
+            count = 0
+            for line in response.body.decode("utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or count >= _MAX_FEED_ENTRIES:
+                    continue
+                count += 1
+                if line.startswith("http"):
+                    key = _feed_key(line)
+                    urls[key] = name
+                    # One bad page says little about its host, which can be a shared or hacked site.
+                    url_hosts[key.split("/", 1)[0]] = name
+                else:
+                    hosts[line.casefold()] = name
+            sources.append(name)
+        ok = bool(sources)
+        self._urls, self._hosts, self._url_hosts, self._sources, self._failed = urls, hosts, url_hosts, sources, failed
+        self._next_load = self._clock() + (_FEED_TTL_S if ok else _FEED_RETRY_S)
+
+    def check(self, addresses: list[str], request: Request) -> tuple[LinkThreatLists, list[LinkSign]]:
+        with self._lock:
+            if self._clock() >= self._next_load:
+                self._load(request)
+            urls, hosts, url_hosts, sources, failed = self._urls, self._hosts, self._url_hosts, self._sources, self._failed
+        if not sources:
+            return LinkThreatLists(status=ModuleStatus.UNAVAILABLE, reason="The public threat feeds could not be read."), []
+        reason = f"Could not read: {', '.join(failed)}." if failed else None
+        signs: list[LinkSign] = []
+        listed = False
+        for address in addresses:
+            key = _feed_key(address)
+            host = key.split("/", 1)[0]
+            if key in urls:
+                listed = True
+                signs.append(LinkSign(sign="threat_listed", strength="strong", why=f"{urls[key]} lists this exact link as malicious."))
+                break
+            if host in hosts and not _owned_brand(host):
+                signs.append(LinkSign(sign="threat_host_listed", strength="strong", why=f"{hosts[host]} lists {host} as a phishing host."))
+                break
+            if host in url_hosts and not _owned_brand(host):
+                signs.append(LinkSign(sign="threat_host_page_listed", strength="weak", why=f"{url_hosts[host]} lists another address on {host} as malicious."))
+                break
+        return LinkThreatLists(status=ModuleStatus.COMPLETE, reason=reason, sources=sources, entries=len(hosts) + len(urls), listed=listed), signs
+
+
+DEFAULT_FEEDS = ThreatFeeds()
+
+
+def _combined_threat_lists(saved: LinkThreatLists, feeds: LinkThreatLists) -> LinkThreatLists:
+    """Report the saved list and the public feeds together. Either one working counts as checked."""
+    if saved.status is not ModuleStatus.COMPLETE:
+        return feeds if feeds.status is ModuleStatus.COMPLETE else saved
+    if feeds.status is not ModuleStatus.COMPLETE:
+        return saved
+    reasons = " ".join(item for item in (saved.reason, feeds.reason) if item) or None
+    return feeds.model_copy(update={"reason": reasons, "listed": saved.listed or feeds.listed})
+
+
+def _threat_result(lists: LinkThreatLists) -> str:
+    if lists.status is not ModuleStatus.COMPLETE:
+        return "Not consulted."
+    if lists.listed:
+        return "On a threat list."
+    if lists.sources:
+        return f"Not on {', '.join(lists.sources)}, {lists.entries} entries checked. This doesn't make it safe."
+    return "Consulted."
 
 
 class _PageReader(HTMLParser):
@@ -564,6 +707,12 @@ def _collect_signs(
     title_brand: str | None,
 ) -> list[LinkSign]:
     signs = _lookalike_signs(requested, "The link's domain")
+    bait = _bait_sign(_host(url))
+    if bait:
+        signs.append(bait)
+    free = next((item for item in _FREE_HOSTS if _host(url).endswith(f".{item}")), None)
+    if free:
+        signs.append(LinkSign(sign="free_hosting", strength="weak", why=f"The site is on {free}, where anyone can publish for free. Many real projects use it too, and so do many phishing pages."))
     if final is not None:
         signs += _lookalike_signs(final, "The domain it leads to,")
     start = _host(url)
@@ -627,8 +776,9 @@ def investigate_link(
     request: Request = safe_request,
     now: datetime | None = None,
     clock: Callable[[], float] = time.monotonic,
+    feeds: ThreatFeeds | None = None,
 ) -> LinkAnalysis:
-    """Check a link. ``offline_reason`` says why no outside request may be made, and stops them all."""
+    """Check a link. ``offline_reason`` stops requests about this link. ``feeds`` sends nothing about it."""
     requested = find_lookalike(_host(url))
     threat_lists, threat_signs = check_threat_list(url, _host(url), _owned_brand(_host(url)) is not None)
     if offline_reason is not None:
@@ -663,6 +813,10 @@ def investigate_link(
                 status=ModuleStatus.NOT_APPLICABLE, reason="The link doesn't seem to imitate a name on our list, so nothing was compared."
             )
     signs = [*threat_signs, *_collect_signs(url, requested, final, redirects, domain, page, official, title_brand)]
+    if feeds is not None:
+        feed_status, listed = feeds.check([item for item in (url, redirects.final_url) if item], request)
+        threat_lists = _combined_threat_lists(threat_lists, feed_status)
+        signs = [*listed, *signs]
     failed = offline_reason is None and ModuleStatus.UNAVAILABLE in (redirects.status, domain.status, page.status)
     return LinkAnalysis(
         live_failed=failed,
@@ -741,5 +895,5 @@ def link_checks(link: LinkAnalysis) -> list[dict[str, Any]]:
             else "Not compared.",
             compared.reason or "Word overlap between the two pages. Sites often share common words, so this is a rough signal.",
         ),
-        _part_check("url.threat_lists", "Threat lists", link.threat_lists.status, "Consulted." if link.threat_lists.status is ModuleStatus.COMPLETE else "Not consulted.", link.threat_lists.reason or ""),
+        _part_check("url.threat_lists", "Threat lists", link.threat_lists.status, _threat_result(link.threat_lists), link.threat_lists.reason or "Compared with public lists, without sending them the link."),
     ]

@@ -207,6 +207,10 @@ class LinkOfficialComparison(BaseModel):
 class LinkThreatLists(BaseModel):
     status: ModuleStatus
     reason: str | None = None
+    # Public feeds read, and how many addresses they held.
+    sources: list[str] = Field(default_factory=list)
+    entries: int = 0
+    listed: bool = False
 
 
 class LinkSign(BaseModel):
@@ -226,6 +230,8 @@ class LinkAnalysis(BaseModel):
     page: LinkPage
     official: LinkOfficialComparison
     threat_lists: LinkThreatLists
+    # From the host name alone, 0 to 1. Null means the model didn't run. See link_model_train.json.
+    model_score: float | None = None
     # True when the user allowed live checks but some could not finish, which is not a clean result.
     live_failed: bool = False
     signs: list[LinkSign] = Field(default_factory=list)
@@ -277,6 +283,16 @@ class RiskComponent(BaseModel):
     results_file: str | None = None
 
 
+class MediaDecision(BaseModel):
+    """What the detectors and the web search each concluded, and how they were combined."""
+
+    detector_verdict: str
+    detector_detail: str
+    web_verdict: str
+    web_detail: str
+    combined: str
+
+
 class UnifiedRisk(BaseModel):
     level: RiskLevel
     # Null when nothing measured reached a result.
@@ -287,6 +303,9 @@ class UnifiedRisk(BaseModel):
     reason: str | None = None
     components: list[RiskComponent] = Field(default_factory=list)
     weights: dict[str, float] = Field(default_factory=dict)
+    media_decision: MediaDecision | None = None
+    # The vote and web evidence behind this result, so a report can show the working.
+    calculation: dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalyzeRequest(BaseModel):

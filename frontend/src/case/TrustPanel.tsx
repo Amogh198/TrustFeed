@@ -54,13 +54,14 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
           <div className="trust-copy">
             <p className="trust-words">{trust.words}</p>
             <span className="meter-track" aria-hidden="true"><span style={{ width: `${trust.score}%` }} /></span>
+            {(trust.score > NEUTRAL_TRUST || report.modules?.media?.status === 'complete') && <p>{report.unified_risk?.trust_note}</p>}
             <p>
               Warning signals checked: {trust.counted.map(item => `${item.name} ${scoreText(item.value)}`).join(', ')}.
               {trust.fromOverallRisk
                 ? ' The overall result raised concern for another reason, so the score is lower. See Why it got this result.'
                 : trust.capped
                   ? ` Finding no warning doesn't show content is genuine, so the score stops at ${NEUTRAL_TRUST}, which is a neutral midpoint, not a measurement.`
-                  : ' The score is 100 minus the strongest signal.'}
+                  : ' The score also weighs any model scores, so it can differ from 100 minus one signal. See What makes up this risk level.'}
             </p>
             {trust.mediaMissing && <p className="trust-warn">The media check didn't run, so this score covers the text and link only.</p>}
             <p className="fineprint">

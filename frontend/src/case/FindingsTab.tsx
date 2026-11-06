@@ -1,9 +1,10 @@
-import { CheckArtifacts, RiskPanel } from './AnalysisPanels';
+import { CheckArtifacts, MediaDecisionPanel, RiskPanel, WhatRan } from './AnalysisPanels';
 import { benchmarkSentence, asLines, MODULE_NAMES, words } from '../lib/format';
 import type { AnalysisResponse, Explanation } from '../types';
 import { KindTag, Limits, Lines, Loading, Section, Unknown } from '../ui/ui';
 
-export default function FindingsTab({ report, explanation, loading }: {
+export default function FindingsTab({ report, explanation, loading, sourceProviders }: {
+  sourceProviders?: { name: string; status: string; result_count: number | null; limitation?: string | null }[];
   report: AnalysisResponse; explanation?: Explanation; loading: boolean;
 }) {
   if (!explanation) {
@@ -14,6 +15,8 @@ export default function FindingsTab({ report, explanation, loading }: {
   const uncertain = explanation.uncertainties.length ? explanation.uncertainties : report.uncertainties;
   return (
     <>
+      <MediaDecisionPanel report={report} />
+      <WhatRan report={report} sourceProviders={sourceProviders} />
       {report.unified_risk && <RiskPanel risk={report.unified_risk} />}
       <Section title="Why it got this result" lead="What each check did and what it found, for this content.">
         <div className="reasons">

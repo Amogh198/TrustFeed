@@ -1,0 +1,12 @@
+{
+  "measured_on": "2026-11-05",
+  "phishing_flagged": "194 of 300",
+  "recall": 0.647,
+  "ordinary_flagged": "0 of 50",
+  "ordinary_false_alarms": [],
+  "caveats": [
+    "This is the offline address check alone. Live page checks and the threat feeds are not included.",
+    "Phishing addresses are real but only what OpenPhish currently lists. Ordinary sites are 50 famous names, far easier than typical traffic.",
+    "Flagged means moderate or above."
+  ]
+}
