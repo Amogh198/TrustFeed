@@ -87,8 +87,9 @@ def outside(monkeypatch):
         calls["search"].append(Path(path))
         return results["search"]()
 
-    def trace(case_id, *, text=None, url=None, urls=()):
+    def trace(case_id, *, text=None, url=None, urls=(), submitted_hashes=(), submitted_features=()):
         calls["trace"].append({"case_id": case_id, "text": text, "url": url, "urls": urls})
+        calls["pictures"] = submitted_hashes
         return results["trace"]()
 
     real_link = main.investigate_link
@@ -182,6 +183,7 @@ def test_page_links_and_text_reach_the_trace_under_the_case_id(outside):
             "urls": ("https://news.example/1", "https://news.example/2"),
         }
     ]
+    assert calls["pictures"], "The trace needs the file's hashes to compare the pictures it finds."
     assert body["modules"]["network"]["evidence"] == ["Traced."]
     assert "2 pages" in " ".join(body["modules"]["network"]["limitations"])
 

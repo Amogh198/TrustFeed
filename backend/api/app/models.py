@@ -340,6 +340,45 @@ class TimelineResponse(BaseModel):
     events: list[TimelineEvent]
 
 
+class RelatedMediaCase(BaseModel):
+    case_id: str
+    # exact_copy is the same file. likely_same_image is the same picture, possibly changed.
+    # shares_visible_content can be a heavy crop of one picture, or two pictures sharing something like a logo.
+    kind: str
+    first_seen: str | None = None
+    # The case this one matched. Null means it matched the requested case itself.
+    through_case_id: str | None = None
+    links_from_start: int = 1
+    distances: dict[str, int] = Field(default_factory=dict)
+    agreeing_features: int | None = None
+
+
+class RelatedMediaEvent(BaseModel):
+    at: str | None = None
+    # submitted, public_post or web_page.
+    kind: str
+    case_id: str
+    label: str
+    platform: str | None = None
+    url: str | None = None
+    matched_on: str | None = None
+    date_source: str | None = None
+    synthetic: bool = False
+    # The earliest real item among these results, not shown to be the source.
+    earliest_found: bool = False
+
+
+class RelatedMediaResponse(BaseModel):
+    case_id: str
+    # complete, or not_applicable when this case has no saved fingerprints.
+    status: str
+    reason: str | None = None
+    compared_cases: int = 0
+    cases: list[RelatedMediaCase] = Field(default_factory=list)
+    history: list[RelatedMediaEvent] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class ExplanationArtifact(BaseModel):
     kind: str
     label: str = "Supporting evidence"

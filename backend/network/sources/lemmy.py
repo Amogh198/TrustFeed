@@ -9,10 +9,18 @@ from backend.network.sources.base import (
     PublicPost,
     SearchOutcome,
     SearchQuery,
+    text_links,
     utc_timestamp,
 )
 
 _PAGE_SIZE = 50
+
+
+_PICTURE_ENDINGS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+
+def _picture_link(link: Any) -> str | None:
+    return link if isinstance(link, str) and urlsplit(link).path.casefold().endswith(_PICTURE_ENDINGS) else None
 
 
 class LemmySource:
@@ -37,6 +45,7 @@ class LemmySource:
             permalink=post["ap_id"],
             text=" ".join(part for part in (post.get("name"), post.get("body")) if part),
             url=post.get("url"),
+            image_urls=text_links(post.get("thumbnail_url"), _picture_link(post.get("url"))),
         )
 
     def _read(self, views: Any, outcome: SearchOutcome) -> None:

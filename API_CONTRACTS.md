@@ -18,6 +18,7 @@ Status: **initial implementation contract**. Any change requires a PR that names
 - `GET /api/cases/{case_id}` -> saved local case result. `demo-001` and `demo-story-001` are always available. Both are synthetic, with `is_replay: true` and a `replay_label` the UI must show.
 - `GET /api/cases/{case_id}/provenance` -> the full source search report. See "Source search and public-post trace".
 - `GET /api/cases/{case_id}/timeline` -> `{events: []}`, combining web appearances, matching posts and flagged co-sharing activity.
+- `GET /api/cases/{case_id}/related-media` -> `case_id`, `status` (`complete`, or `not_applicable` with `reason` when no fingerprints were saved), `compared_cases`, `cases` (`case_id`, `kind`, `first_seen`, `through_case_id`, `links_from_start`, `distances`, `agreeing_features`), `history` (`at`, `kind`, `case_id`, `label`, `platform`, `url`, `matched_on`, `date_source`, `synthetic`, `earliest_found`) and `limitations`. It compares only cases of the same owner, up to 2 matches away. Cases saved while signed out are compared with each other, because they share one case list. Never changes any score.
 - `GET /api/cases` -> local case-history summaries. Optional `risk_level` filters by the triage label; `limit` is 1–100 and defaults to 25.
 - `GET /api/cases/{case_id}/export` -> the complete saved case report as JSON for local export or offline presentation.
 - `GET /api/network/{case_id}` -> `{nodes: [], edges: [], timeline: []}` for graph/timeline UI. Filled for `demo-001`, where every item has `synthetic: true`, which the UI must show. Empty for submitted cases unless a public-post trace ran for them; they never receive the demo network.
@@ -89,7 +90,7 @@ Nothing leaves the server unless the request sets `search_web` to `true`. The UI
 | Public-post trace | Any case with `search_web` | The text, the link, and up to 10 page links from the source search, to the search services of the connected public platforms: Mastodon, Lemmy, Hacker News and Bluesky. A known short link is also followed to its destination, through the protected HTTP client. |
 | Claim verification | Any text case with `search_web` | Search words taken from up to 5 checkable claims, to Wikipedia, GDELT and, with a key set, Google Fact Check Tools. News pages GDELT lists are then read. |
 
-These add to the request's time: the source search can take about 100 seconds with all three keys, the trace up to about 25 seconds, and claim verification up to about 2 minutes 15 seconds in the worst case (75 seconds of searching, then 60 seconds of comparison). With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
+These add to the request's time: the source search can take about 100 seconds with all three keys, the trace up to about 40 seconds, including up to 15 seconds reading pictures, and claim verification up to about 2 minutes 15 seconds in the worst case (75 seconds of searching, then 60 seconds of comparison). With a `false` or absent `search_web`, cases take no extra outside time. A rejected upload is never searched.
 
 Every case has `modules.provenance`, a normal module result:
 
@@ -164,7 +165,7 @@ Setting `PROVENANCE_REPLAY_PATH` replays recorded searches and also stops live t
 
 `GET /api/network/{case_id}/tests` returns `synthetic`, `null_test` (`verdict`: `above_chance`, `not_above_chance`, `nothing_observed` or `test_incomplete`, with `p_value`, `observed`, `chance_mean`, `chance_max`, `permutations`, `reason`), `bursts`, `repeated_media` and `activity_baseline`. It is null when no trace ran. With `not_above_chance`, no cluster is flagged. None of these shows that accounts are coordinating.
 
-Posts may carry `media_fingerprint`, a hex perceptual hash. Fingerprints within Hamming distance 5 count as one image.
+Posts may carry `media_fingerprint`, a hex perceptual hash, and `media_fingerprints`, every hash kind for that picture. Posts that both have the full set use the media check's rule. A lone fingerprint counts as one image within Hamming distance 5. Coverage gains `images` (`status`, `read`, `failed`, `skipped`, `same_as_submitted`), and each `spread` post gains `same_picture`. `matched_on` can now be `image`.
 
 ## Unified risk
 

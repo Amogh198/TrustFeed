@@ -37,6 +37,12 @@ export function CoverageTable({ coverage }: { coverage: CoverageData }) {
       {coverage.account_histories?.read ? (
         <p className="fineprint">To check for repetition, recent public posts of {coverage.account_histories.read} accounts were also read.</p>
       ) : null}
+      {coverage.images?.status === 'complete' ? (
+        <p className="fineprint">
+          Pictures on {coverage.images.read} found posts were compared by fingerprint, and {coverage.images.same_as_submitted} look like the submitted file.
+          {coverage.images.failed || coverage.images.skipped ? ` ${coverage.images.failed + coverage.images.skipped} couldn't be read in time.` : ''} These platforms can't be searched by image, so other reposts may exist.
+        </p>
+      ) : null}
     </Section>
   );
 }
@@ -55,7 +61,10 @@ export function PostList({ coverage }: { coverage: CoverageData }) {
                   <td>{utc(post.posted_at)}{post.earliest_found ? <small>Earliest found, not shown to be the source</small> : null}</td>
                   <td>{platformName(post.platform)}</td>
                   <td className="mono"><SafeLink href={post.permalink}>{post.handle}</SafeLink></td>
-                  <td>{MATCH_WORDING[post.matched_on] || words(post.matched_on)}</td>
+                  <td>
+                    {MATCH_WORDING[post.matched_on] || words(post.matched_on)}
+                    {post.same_picture && post.matched_on !== 'image' ? <small>Its picture also looks like the submitted file</small> : null}
+                  </td>
                   <td>{post.repost_count ?? 'Unknown'}</td>
                 </tr>
               ))}

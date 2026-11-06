@@ -9,6 +9,7 @@ from typing import Any
 from backend.network.analysis import NetworkAnalysis, analyze_network
 from backend.network.checks import build_network_checks
 from backend.network.dataset import load_dataset
+from backend.network.post_images import ImageReader, read_post_image
 from backend.network.sources import Fetch, live_fetch
 from backend.network.story import DEMO_STORY_CASE_ID, is_demo_story, trace_demo_story
 from backend.network.trace import TraceResult, trace_public_spread
@@ -64,6 +65,9 @@ def trace_case(
     urls: tuple[str, ...] = (),
     hashtags: tuple[str, ...] = (),
     fetch: Fetch | None = None,
+    submitted_hashes: tuple[dict[str, str], ...] = (),
+    image_reader: ImageReader | None = None,
+    submitted_features: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Trace a submitted case's public spread and keep the result for the getters below.
 
@@ -73,12 +77,24 @@ def trace_case(
 
     The text and links are sent to the platforms' search services, so ask the user
     first. ``fetch`` is for tests and replays: never fill it from request data.
+
+    A live trace also reads public thumbnails on the posts it found, and compares them with
+    ``submitted_hashes``, so altered reposts can be connected. Replays stay offline and don't.
     """
     if fetch is None and is_demo_story(text, url):
         result = trace_demo_story(case_id)
     else:
+        reader = image_reader or (read_post_image if fetch is None else None)
         result = trace_public_spread(
-            case_id, text=text, url=url, urls=urls, hashtags=hashtags, fetch=fetch or live_fetch
+            case_id,
+            text=text,
+            url=url,
+            urls=urls,
+            hashtags=hashtags,
+            fetch=fetch or live_fetch,
+            submitted_hashes=submitted_hashes,
+            image_reader=reader,
+            submitted_features=submitted_features,
         )
     store_trace(case_id, result)
     return copy.deepcopy(result.module_result)

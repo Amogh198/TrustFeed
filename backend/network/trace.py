@@ -5,7 +5,7 @@ link, hashtag or phrase searched for, and only the platforms read are ever
 described as covered.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -14,6 +14,7 @@ from backend.network.analysis import NetworkAnalysis, analyze_network
 from backend.network.config import CoordinationConfig
 from backend.network.coshare import find_co_shares, normalize_text, normalize_url
 from backend.network.dataset import format_timestamp, parse_dataset, parse_timestamp
+from backend.network.post_images import IMAGE_LIMIT, ImageReader, ImageReadout, compare_post_images
 from backend.network.sources import (
     NOT_CONNECTED,
     Budgeted,
@@ -127,6 +128,7 @@ def build_raw_dataset(
     posts: Iterable[PublicPost],
     on_topic: dict[str, str],
     synthetic: bool = False,
+    fingerprints: Mapping[str, Mapping[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Turn collected posts into the dataset format the engine reads."""
     accounts: dict[str, dict[str, Any]] = {}
@@ -136,8 +138,11 @@ def build_raw_dataset(
         known["followers"] = max(known["followers"], post.followers)
         for account_id, handle in post.mentions:
             accounts.setdefault(account_id, {"id": account_id, "handle": handle, "followers": 0})
+        hashes = (fingerprints or {}).get(post.id)
+        picture = {"media_fingerprint": hashes["phash"], "media_fingerprints": dict(hashes)} if hashes and hashes.get("phash") else {}
         records.append(
             {
+                **picture,
                 "id": post.id,
                 "account_id": post.author_id,
                 "created_at": post.created_at,
@@ -191,7 +196,37 @@ def _expand_co_posting_accounts(
             collected.histories_failed += 1
 
 
-def _spread(collected: Collected, synthetic: bool) -> list[dict[str, Any]]:
+def _compare_images(
+    collected: Collected, submitted: Sequence[Mapping[str, str]], features: Sequence[str], reader: ImageReader | None
+) -> ImageReadout | None:
+    """Read the pictures on the posts found. A post showing the submitted picture now counts as carrying it."""
+    if reader is None:
+        return None
+    readout = compare_post_images(collected.posts.values(), collected.on_topic, submitted, reader, submitted_features=features)
+    for post_id in readout.same_as_submitted:
+        # A shared link or text says more about what's being traced, so it stays the stated reason.
+        if collected.on_topic.get(post_id) in (None, "hashtag", "page_link"):
+            collected.on_topic[post_id] = "image"
+    for item in collected.platforms:
+        item["matching_posts"] = sum(
+            1 for post_id in collected.on_topic if collected.posts[post_id].platform == item["platform"]
+        )
+    return readout
+
+
+def _images_coverage(readout: ImageReadout | None) -> dict[str, Any]:
+    if readout is None:
+        return {"status": "not_run", "read": 0, "failed": 0, "skipped": 0, "same_as_submitted": 0}
+    return {
+        "status": "complete",
+        "read": readout.read,
+        "failed": readout.failed,
+        "skipped": readout.skipped,
+        "same_as_submitted": len(readout.same_as_submitted),
+    }
+
+
+def _spread(collected: Collected, synthetic: bool, same_picture: frozenset[str] | set[str] = frozenset()) -> list[dict[str, Any]]:
     """List the matching posts in time order, naming the earliest found, not an origin."""
     ordered = sorted(
         (collected.posts[post_id] for post_id in collected.on_topic),
@@ -208,6 +243,7 @@ def _spread(collected: Collected, synthetic: bool) -> list[dict[str, Any]]:
             "permalink": None if synthetic else safe_web_link(post.permalink),
             "matched_on": collected.on_topic[post.id],
             "repost_count": post.repost_count,
+            "same_picture": post.id in same_picture,
             "earliest_found": index == 1,
         }
         for index, post in enumerate(ordered, start=1)
@@ -219,10 +255,11 @@ def _module_result(
     collected: Collected,
     query: SearchQuery,
     synthetic: bool,
+    readout: ImageReadout | None = None,
 ) -> dict[str, Any]:
     reachable = [item for item in collected.platforms if item["status"] in ("searched", "partial")]
     missing = ", ".join(sorted(NOT_CONNECTED))
-    limitations = [*_LIMITATIONS, f"Not connected: {missing}."]
+    limitations = [*_LIMITATIONS, f"Not connected: {missing}.", *([IMAGE_LIMIT] if readout else [])]
 
     if query.is_empty():
         return {
@@ -275,6 +312,11 @@ def _module_result(
             f"{page_matches} of the matching posts link to a page where the image was found, rather than "
             "carrying the submitted link or text. They may be about something else on that page."
         )
+    if readout and readout.read:
+        history_lines.append(
+            f"Pictures on {readout.read} found posts were compared by fingerprint, and "
+            f"{len(readout.same_as_submitted)} look like the submitted file. That shows similar pictures, not who made them."
+        )
     return {
         **result,
         "evidence": [*first_lines, coverage_line, *history_lines, *other_lines],
@@ -290,11 +332,16 @@ def assemble_result(
     fetch: Fetch,
     config: CoordinationConfig,
     now: datetime | None = None,
+    submitted_hashes: Sequence[Mapping[str, str]] = (),
+    image_reader: ImageReader | None = None,
+    submitted_features: Sequence[str] = (),
 ) -> TraceResult:
     """Check co-posting accounts' histories, run the engine and report the coverage."""
     synthetic = getattr(fetch, "synthetic", False) is True
     _expand_co_posting_accounts(collected, sources, fetch, config)
-    dataset = parse_dataset(build_raw_dataset(case_id, collected.posts.values(), collected.on_topic, synthetic))
+    readout = _compare_images(collected, submitted_hashes, submitted_features, image_reader)
+    fingerprints = readout.by_post if readout else None
+    dataset = parse_dataset(build_raw_dataset(case_id, collected.posts.values(), collected.on_topic, synthetic, fingerprints))
     analysis = analyze_network(dataset, config)
     searched_at = getattr(fetch, "recorded_at", None) or format_timestamp(now or datetime.now(UTC))
     coverage = {
@@ -314,9 +361,10 @@ def assemble_result(
             "failed": collected.histories_failed,
             "skipped_by_cap": collected.histories_skipped,
         },
-        "spread": _spread(collected, synthetic),
+        "images": _images_coverage(readout),
+        "spread": _spread(collected, synthetic, readout.same_as_submitted if readout else frozenset()),
     }
-    return TraceResult(analysis, _module_result(analysis, collected, query, synthetic), coverage)
+    return TraceResult(analysis, _module_result(analysis, collected, query, synthetic, readout), coverage)
 
 
 def trace_public_spread(
@@ -330,6 +378,9 @@ def trace_public_spread(
     fetch: Fetch = live_fetch,
     config: CoordinationConfig | None = None,
     now: datetime | None = None,
+    submitted_hashes: Sequence[Mapping[str, str]] = (),
+    image_reader: ImageReader | None = None,
+    submitted_features: Sequence[str] = (),
 ) -> TraceResult:
     """Find public posts of the submitted content and analyze how they spread.
 
@@ -341,4 +392,4 @@ def trace_public_spread(
     query = SearchQuery.from_submission(text=text, url=url, urls=urls, hashtags=hashtags)
     budgeted = Budgeted(fetch, _TIME_BUDGET_SECONDS)
     collected = collect(query, sources, budgeted) if not query.is_empty() else Collected()
-    return assemble_result(case_id, collected, query, sources, budgeted, config, now)
+    return assemble_result(case_id, collected, query, sources, budgeted, config, now, submitted_hashes, image_reader, submitted_features)

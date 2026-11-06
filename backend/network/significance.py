@@ -185,19 +185,31 @@ def _hamming(left: int, right: int) -> int:
     return bin(left ^ right).count("1")
 
 
-def link_fingerprints(posts: Iterable[Post], max_distance: int) -> tuple[list[Post], list[dict[str, Any]]]:
-    """Treat near-identical image fingerprints as one image, so re-encoded copies still match.
+def _one_image(left: dict[str, str], right: dict[str, str], distance: int, max_distance: int) -> bool:
+    if left and right:
+        from backend.media.fingerprint import same_picture
 
+        return same_picture(left, right)
+    return distance <= max_distance
+
+
+def link_fingerprints(posts: Iterable[Post], max_distance: int) -> tuple[list[Post], list[dict[str, Any]]]:
+    """Treat fingerprints of one picture as one image, so altered copies still match.
+
+    Posts with full hash sets use the media check's rule. A lone value counts within ``max_distance``.
     Fingerprints arrive from media analysis or a dataset, so a malformed one is ignored.
     """
     posts = list(posts)
     values: dict[str, int] = {}
+    full: dict[str, dict[str, str]] = {}
     for post in posts:
         if post.media_fingerprint:
             try:
                 values[post.media_fingerprint] = int(post.media_fingerprint, 16)
             except ValueError:
                 continue
+            if post.media_fingerprint_set:
+                full.setdefault(post.media_fingerprint, dict(post.media_fingerprint_set))
     names = sorted(values)
     parent = {name: name for name in names}
 
@@ -209,7 +221,7 @@ def link_fingerprints(posts: Iterable[Post], max_distance: int) -> tuple[list[Po
 
     for index, left in enumerate(names):
         for right in names[index + 1 :]:
-            if _hamming(values[left], values[right]) <= max_distance:
+            if _one_image(full.get(left, {}), full.get(right, {}), _hamming(values[left], values[right]), max_distance):
                 parent[find(right)] = find(left)
 
     members: dict[str, list[Post]] = defaultdict(list)
@@ -279,7 +291,7 @@ def significance_checks(tests: dict[str, Any], synthetic: bool) -> list[dict[str
             "label": "Repeated media",
             "status": media["status"],
             "result": prefix + (f"{len(media['groups'])} image(s) reused by several accounts." if media["status"] == "complete" else "Not measured."),
-            "reasoning": media["reason"] or "Near-identical image fingerprints are treated as one image.",
+            "reasoning": media["reason"] or "Fingerprints of what looks like one picture are treated as one image.",
             "limitations": [*limits, "People often reuse the same image for ordinary reasons."],
         }
     )

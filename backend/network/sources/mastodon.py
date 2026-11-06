@@ -15,6 +15,7 @@ from backend.network.sources.base import (
     PublicPost,
     SearchOutcome,
     SearchQuery,
+    text_links,
     count_or_none,
     read_html,
     utc_timestamp,
@@ -58,6 +59,9 @@ class MastodonSource:
             ),
             followers=int(account.get("followers_count") or 0),
             repost_count=count_or_none(status.get("reblogs_count")),
+            image_urls=text_links(
+                *(item.get("preview_url") for item in status.get("media_attachments") or () if isinstance(item, dict))
+            ),
         )
 
     def _read(self, statuses: Any, outcome: SearchOutcome) -> None:

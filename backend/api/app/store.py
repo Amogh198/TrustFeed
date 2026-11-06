@@ -106,6 +106,19 @@ class CaseStore:
             ).fetchone()
         return json.loads(row["detail_json"]) if row else None
 
+    def details_for_owner(self, kind: str, owner_id: str | None, limit: int) -> "list[dict[str, Any]]":
+        """Return one owner's saved details of one kind, newest case first."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT d.detail_json FROM case_details d JOIN cases c ON c.case_id = d.case_id
+                WHERE d.kind = ? AND c.owner_id IS ?
+                ORDER BY c.created_at DESC LIMIT ?
+                """,
+                (kind, owner_id, limit),
+            ).fetchall()
+        return [json.loads(row["detail_json"]) for row in rows]
+
     def list(
         self, limit: int, risk_level: RiskLevel | None = None, owner_id: str | None = None
     ) -> tuple[list[CaseSummary], int]:
