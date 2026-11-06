@@ -74,7 +74,7 @@ export default function VerdictCard({ report }: { report: AnalysisResponse }) {
         </div>
         <div className="plain-tiles">
           <div className="plain-tile">
-            <b>{score != null ? score.toFixed(1) : 'None'}</b>
+            <b>{score != null ? score.toFixed(2) : 'None'}</b>
             <span>Evidence score{score != null ? ' out of 100' : ''}</span>
           </div>
           <div className="plain-tile">
