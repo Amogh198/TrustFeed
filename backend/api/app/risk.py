@@ -12,6 +12,7 @@ trust score stays at or below 50.
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections.abc import Mapping
 
@@ -59,9 +60,11 @@ VOTING_DETECTORS = ("nonescape/nonescape-mini-v0", "Ateeqq/ai-vs-human-image-det
 VOTE_LINE = 0.75
 # DALL-E 2's release. Older AI image methods existed, so this is strong evidence, not proof.
 BEFORE_IMAGE_GENERATORS = date(2022, 4, 1).isoformat()
-_OLD_IMAGE_FACTOR = 0.2
-_WIDE_IMAGE_FACTOR = 0.7
 _WIDE_DOMAINS = 5
+_DOMAIN_SCALE = 8.0
+_OLD_BONUS = 0.3
+_WEB_BASE = 60.0
+_WEB_RANGE = 39.9
 
 
 def panel_vote(detectors: list[dict]) -> dict | None:
@@ -189,17 +192,15 @@ def _apply_sources(vote: dict, sources: dict | None) -> dict:
     if not sources:
         return result
     earliest, domains = sources.get("earliest"), sources.get("domains", 0)
-    if earliest and earliest < BEFORE_IMAGE_GENERATORS:
+    old = bool(earliest and earliest < BEFORE_IMAGE_GENERATORS)
+    if domains and (old or domains >= _WIDE_DOMAINS):
+        # Strong outside evidence decides alone, as the detectors often misjudge real photos.
+        strength = min(1.0, 1 - math.exp(-domains / _DOMAIN_SCALE) + (_OLD_BONUS if old else 0.0))
         result.update(
-            mean=vote["mean"] * _OLD_IMAGE_FACTOR,
+            web_decides=True,
+            web_score=round(_WEB_BASE + _WEB_RANGE * strength, 2),
             level=RiskLevel.INCONCLUSIVE,
-            source_note=f"The same image was found dated {earliest}, before DALL-E 2 ({BEFORE_IMAGE_GENERATORS}), so it is unlikely to come from recent image generators. Page dates can be wrong.",
-        )
-    elif domains >= _WIDE_DOMAINS and vote["flagged"]:
-        result.update(
-            mean=vote["mean"] * _WIDE_IMAGE_FACTOR,
-            level=RiskLevel.MODERATE,
-            source_note=f"The same image is on {domains} sites, which disputes the detectors. Being widely shared doesn't make an image real.",
+            source_note=f"This exact image is on {domains} site(s)" + (f", found as early as {earliest}" if earliest else "") + ", so web search decides and the detectors are ignored.",
         )
     return result
 
@@ -221,12 +222,8 @@ def _media_decision(vote: dict, sources: dict | None) -> MediaDecision:
             web, web_detail = "Only similar images found", f"{similar} similar image(s), but no copy of this exact image."
         else:
             web, web_detail = "Not found online", "The search found no copy of this image."
-        old = bool(earliest and earliest < BEFORE_IMAGE_GENERATORS)
-        wide = domains >= _WIDE_DOMAINS
-        if old:
-            combined = f"Probably a real image: it was online before modern AI image tools. The detectors' result is likely a false alarm." if vote["flagged"] else "Probably a real image: it was online before modern AI image tools, and the detectors agree."
-        elif vote["flagged"] and wide:
-            combined = "Disputed: the detectors flag it, but this exact image is widely published. A person should check its source."
+        if vote.get("web_decides"):
+            combined = f"Web search decides: this exact image is widely found online{dated}, so the detectors are ignored. This shows it's published, not that it's true or unedited."
         elif flagged and not domains:
             combined = "Likely AI-generated or altered: the detectors flag it, and no copy of this exact image was found, which fits an AI version of a known image."
         elif flagged:
@@ -251,9 +248,15 @@ def build_unified_risk(
         others = [item for item in result.components if item.counted and item.name != "media" and item.score]
         media_trust = round(100 * (1 - vote["mean"]), 2)
         result.media_decision = _media_decision(vote, source_evidence)
+        if vote.get("web_decides"):
+            if not others:
+                result.level = RiskLevel.LOW
+                result.reason = None
+                result.score = 0.0
+            media_trust = vote["web_score"]
         result.trust_score = min(result.trust_score, media_trust) if others and result.trust_score is not None else media_trust
         extra = f" {vote['source_note']}" if vote.get("source_note") else ""
-        result.trust_note = (
+        result.trust_note = f"From web search: {vote['source_note']} A high score shows wide publication, not truth." if vote.get("web_decides") else (
             f"AI likelihood {vote['raw_mean'] * 100:.2f}%, the average of 3 detectors, and {vote['flagged']} of {vote['total']} flagged it."
             f"{extra} A high score isn't proof of being real, as detectors miss many fakes."
         )

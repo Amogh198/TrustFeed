@@ -200,24 +200,17 @@ def test_detector_scores_become_a_decimal_score():
     assert risk.trust_score == 98.77 and "1.23%" in risk.trust_note
 
 
-def test_an_old_exact_source_match_outweighs_the_detectors():
-    risk = build(media=media(0.9), media_vote=_vote(2), source_evidence={"earliest": "2021-01-06", "domains": 9})
-    assert risk.level is RiskLevel.INCONCLUSIVE and risk.trust_score == 87.4
-    assert "2021-01-06" in risk.trust_note
+def test_strong_web_evidence_decides_and_ignores_the_detectors():
+    old = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"searched": True, "earliest": "2021-01-06", "domains": 2})
+    assert old.level is RiskLevel.LOW and old.trust_score > 60 and "2021-01-06" in old.trust_note
+    wide = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"searched": True, "earliest": "2024-03-05", "domains": 25})
+    assert wide.level is RiskLevel.LOW and wide.trust_score > 90
+    assert wide.media_decision.combined.startswith("Web search decides")
 
 
-def test_wide_sharing_only_softens_a_split_vote():
-    split = build(media=media(0.9), media_vote=_vote(2), source_evidence={"earliest": "2024-03-05", "domains": 6})
-    assert split.level is RiskLevel.MODERATE
-    unanimous = build(media=media(0.9), media_vote=_vote(3, 0.99), source_evidence={"earliest": "2024-09-29", "domains": 20})
-    assert unanimous.level is RiskLevel.MODERATE
-
-
-def test_original_and_ai_version_get_different_decisions():
-    original = build(media=media(0.9), media_vote=_vote(2), source_evidence={"searched": True, "earliest": "2019-05-01", "domains": 30, "similar": 4})
-    assert original.level is RiskLevel.INCONCLUSIVE
-    assert original.media_decision.web_verdict == "Same image found online"
-    assert original.media_decision.combined.startswith("Probably a real image")
+def test_weak_web_evidence_leaves_the_detectors_deciding():
+    few = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence={"searched": True, "earliest": "2024-03-05", "domains": 2})
+    assert few.level is RiskLevel.HIGH
     ai_version = build(media=media(0.9), media_vote=_vote(3, 0.97), source_evidence={"searched": True, "earliest": None, "domains": 0, "similar": 25})
     assert ai_version.level is RiskLevel.HIGH
     assert ai_version.media_decision.web_verdict == "Only similar images found"
