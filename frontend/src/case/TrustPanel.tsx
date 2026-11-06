@@ -61,7 +61,7 @@ export default function TrustPanel({ report, explanation }: { report: AnalysisRe
                 ? ' The overall result raised concern for another reason, so the score is lower. See Why it got this result.'
                 : trust.capped
                   ? ` Finding no warning doesn't show content is genuine, so the score stops at ${NEUTRAL_TRUST}, which is a neutral midpoint, not a measurement.`
-                  : ' The score is 100 minus the strongest signal.'}
+                  : ' The score also weighs any model scores, so it can differ from 100 minus one signal. See What makes up this risk level.'}
             </p>
             {trust.mediaMissing && <p className="trust-warn">The media check didn't run, so this score covers the text and link only.</p>}
             <p className="fineprint">
