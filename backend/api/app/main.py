@@ -61,7 +61,7 @@ from backend.api.app.auth import (
     current_owner,
 )
 from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
-from backend.api.app.risk import build_unified_risk, summary_for
+from backend.api.app.risk import build_unified_risk, panel_vote, summary_for
 from backend.api.app.scam_records import build_scam_analysis
 from backend.text.cross_modal import compare_channels
 from backend.text.link_model import score_host
@@ -234,6 +234,13 @@ def _follow_short_link(url: str | None) -> str | None:
 
 
 LINK_CHECK_LIMIT_SECONDS = 30.0
+
+
+def _media_vote(media: MediaAnalysisResult | None) -> dict[str, Any] | None:
+    panel = getattr(media.checks, "detector_panel", None) if media else None
+    return panel_vote(panel.model_dump(mode="json").get("detectors", [])) if panel else None
+
+
 MAX_SEARCHED_CASES = 500
 
 
@@ -425,6 +432,7 @@ def _store_case(
         url=url_result,
         media=media_module,
         media_level=media_risk(media) if media else None,
+        media_vote=_media_vote(media),
         network=network,
         claims=claim_records,
         claim_analysis=claim_analysis,
@@ -638,7 +646,7 @@ def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisRe
             path.unlink(missing_ok=True)
             raise
     try:
-        media = analyze_media(path)
+        media = analyze_media(path, run_panel=True) if os.getenv("MEDIA_PANEL", "on").casefold() != "off" else analyze_media(path)
         if media.failure_code in MEDIA_REJECTION_STATUS:
             return media, None
         return media, investigate_provenance(path, search_web=search_web)

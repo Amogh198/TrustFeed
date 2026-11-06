@@ -51,6 +51,19 @@ LINK_MODEL_LINE = 0.8
 _NOT_MEASURED = "Not scored, because this has not been measured on labelled data."
 
 
+# The panel detectors that separated fakes from real images in backend/media/README.md's benchmark.
+VOTING_DETECTORS = ("nonescape/nonescape-mini-v0", "Ateeqq/ai-vs-human-image-detector", "haywoodsloan/ai-image-detector-deploy")
+VOTE_LINE = 0.75
+
+
+def panel_vote(detectors: list[dict]) -> dict | None:
+    """Count how many useful detectors flag the media. Fewer than two results is no vote."""
+    scores = {d["model_id"]: d["score"] for d in detectors if d.get("model_id") in VOTING_DETECTORS and d.get("score") is not None}
+    if len(scores) < 2:
+        return None
+    return {"flagged": sum(score >= VOTE_LINE for score in scores.values()), "total": len(scores), "mean": sum(scores.values()) / len(scores)}
+
+
 def load_weights(raw: str | None = None) -> dict[str, float]:
     """Read ``RISK_WEIGHTS``, set by whoever runs the server. Anything invalid keeps the default."""
     raw = os.getenv("RISK_WEIGHTS", "") if raw is None else raw
@@ -90,6 +103,12 @@ def _media(module: ModuleResult | None, level: RiskLevel | None, weights: Mappin
         )
     score = min(_MEDIA_CAP, module.score) if level is RiskLevel.HIGH else max(_WEAK, min(module.score, _ELEVATED - 0.01))
     return RiskComponent(status=ModuleStatus.COMPLETE, counted=True, score=score, **base)
+
+
+def _with_vote(component: RiskComponent, vote: dict | None) -> RiskComponent:
+    if vote:
+        component.note = f"{vote['flagged']} of {vote['total']} detectors flagged this, average score {vote['mean']:.3f}. {component.note or ''}".strip()
+    return component
 
 
 def _scam(analysis: ScamAnalysis | None, weights: Mapping[str, float]) -> RiskComponent:
@@ -168,8 +187,13 @@ def build_unified_risk(
     link_analysis: LinkAnalysis | None,
     cross_modal: CrossModalAnalysis | None,
     text_model_score: float | None = None,
+    media_vote: dict | None = None,
 ) -> UnifiedRisk:
     weights = load_weights()
+    if media_vote and media:
+        # The detectors' majority replaces any single one, which often disagrees with the rest.
+        media_level = RiskLevel.HIGH if media_vote["flagged"] * 2 > media_vote["total"] else RiskLevel.INCONCLUSIVE
+        media = media.model_copy(update={"score": media_vote["mean"]})
     # Real model scores set the final figure, so it isn't only a table of fixed points.
     model_scores = {
         "link": link_analysis.model_score if link_analysis else None,
@@ -186,7 +210,7 @@ def build_unified_risk(
     refuted = [record.text for record in claims or [] if getattr(record.verdict, "value", None) == "contradicted"]
     conflicts = [item.explanation for item in (claim_analysis.inconsistencies if claim_analysis else []) if item.severity == "conflict"]
     components = [
-        _media(media, media_level, weights),
+        _with_vote(_media(media, media_level, weights), media_vote),
         _scam(scam_analysis, weights),
         _link(link_analysis, url, weights),
         _shown_only("language", "Language rules", language),

@@ -172,3 +172,20 @@ def test_model_scores_set_the_final_figure():
     plain = build(media=media(0.5), media_level=RiskLevel.HIGH)
     assert plain.trust_score == 30.0
     assert "media 0.500" in plain.trust_note
+
+
+def test_detector_majority_decides_the_media_level():
+    from backend.api.app.risk import panel_vote
+
+    rows = [
+        {"model_id": "nonescape/nonescape-mini-v0", "score": 0.98},
+        {"model_id": "Ateeqq/ai-vs-human-image-detector", "score": 0.01},
+        {"model_id": "haywoodsloan/ai-image-detector-deploy", "score": 0.01},
+        {"model_id": "other/model", "score": 0.99},
+    ]
+    vote = panel_vote(rows)
+    assert vote["flagged"] == 1 and vote["total"] == 3
+    assert build(media=media(0.98), media_level=RiskLevel.HIGH, media_vote=vote).level is RiskLevel.INCONCLUSIVE
+    rows[1]["score"] = 0.9
+    assert build(media=media(0.98), media_vote=panel_vote(rows)).level is RiskLevel.HIGH
+    assert panel_vote(rows[:1]) is None

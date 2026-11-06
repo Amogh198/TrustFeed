@@ -192,6 +192,10 @@ With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns
 
 `link_analysis.model_score` comes from a small model trained by `backend/text/train_link_model.py` on host names. Figures are in `backend/text/evaluation/results/link_model_train.json`. A score of 0.8 or more counts as a weak link sign. `trust_score` is now a decimal: the evidence-based figure multiplied down by the link, text and media model scores. `TRUST_MODELS=off` turns this off.
 
+## Detector vote
+
+Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
+
 ## Common response sketch
 
 ```json
