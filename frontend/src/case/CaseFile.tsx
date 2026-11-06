@@ -7,6 +7,7 @@ import { freshResult } from '../lib/session';
 import type { AnalysisResponse, Coverage, Explanation, NetworkPayload, ProvenanceReport, TimelineEvent } from '../types';
 import { Loading, Meter, Problem, Tape, Unknown } from '../ui/ui';
 import ActionTab from './ActionTab';
+import ReportTab from './ReportTab';
 import { CoordinationTests } from './AnalysisPanels';
 import FindingsTab from './FindingsTab';
 import MediaTab from './MediaTab';
@@ -31,6 +32,7 @@ const TABS: [string, string][] = [
   ['source', 'Source search'],
   ['spread', 'Spread'],
   ['timeline', 'Timeline'],
+  ['report', 'Full report'],
   ['action', 'Action packet'],
 ];
 
@@ -149,6 +151,7 @@ export default function CaseFile({ caseId, tab }: { caseId: string; tab: string 
     source: <SourceTab report={report} data={details.provenance} loading={loading} />,
     spread: <><CoordinationTests caseId={caseId} /><SpreadTab report={report} graph={details.network} coverage={details.coverage} loading={loading} /></>,
     timeline: <TimelineTab events={details.timeline?.events} loading={loading} />,
+    report: <ReportTab caseId={caseId} />,
     action: <ActionTab report={report} />,
   };
 

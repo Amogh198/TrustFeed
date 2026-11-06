@@ -1,5 +1,6 @@
 import base64
 import json
+from datetime import UTC, datetime
 import logging
 from collections import Counter
 import os
@@ -60,6 +61,7 @@ from backend.api.app.auth import (
     build_router,
     current_owner,
 )
+from backend.api.app.judge_report import build_sections, render_report_pdf
 from backend.api.app.report import build_overview, build_report, case_kinds, render_pdf
 from backend.api.app.risk import BEFORE_IMAGE_GENERATORS, WARNING_TITLE, build_unified_risk, panel_vote, summary_for
 from backend.api.app.scam_records import build_scam_analysis
@@ -220,7 +222,7 @@ def _network_detail(case_id: str) -> dict[str, Any] | None:
     """Return a case's network data, from this process's trace or from the case store."""
     payload = get_network_payload(case_id)
     if payload is not None:
-        return {"payload": payload, "coverage": get_network_coverage(case_id), "tests": get_network_tests(case_id)}
+        return {"payload": payload, "coverage": get_network_coverage(case_id), "tests": get_network_tests(case_id), "clusters": get_network_clusters(case_id)}
     return CASE_STORE.get_detail(case_id, "network")
 
 
@@ -234,6 +236,32 @@ def _follow_short_link(url: str | None) -> str | None:
 
 
 LINK_CHECK_LIMIT_SECONDS = 30.0
+
+
+def _clean_file_name(name: str | None) -> str | None:
+    """Keep the name for the report only. It is written by the sender and never used as a path."""
+    base = (name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    return "".join(ch for ch in base if ch.isprintable())[:200] or None
+
+
+def _submission(inputs: list[str], search_web: bool, file: UploadFile | None = None) -> dict[str, Any]:
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    return {
+        "submitted_at": now,
+        "started_at": now,
+        "inputs": inputs,
+        "search_web": search_web,
+        "file_name": _clean_file_name(file.filename) if file else None,
+        "content_type": (file.content_type or None) if file else None,
+    }
+
+
+def _report_pdf(report: dict[str, Any]) -> bytes:
+    try:
+        return render_report_pdf(report)
+    except ImportError:
+        # Without the PDF library, export still works in the simpler form.
+        return render_pdf(report)
 
 
 def _source_evidence(provenance: ProvenanceReport | None) -> dict[str, Any] | None:
@@ -345,6 +373,7 @@ def _store_case(
     provenance: ProvenanceReport | None = None,
     network: ModuleResult | None = None,
     link_analysis: LinkAnalysis | None = None,
+    submission: dict[str, Any] | None = None,
 ) -> AnalysisResponse:
     """Build and save a case. ``network`` is given only when the user asked for a trace."""
     module_levels: dict[str, RiskLevel] = {}
@@ -508,6 +537,9 @@ def _store_case(
     )
     CASES[case_id] = result
     CASE_STORE.save(result, owner_id=current_owner())
+    CASE_STORE.save_detail(case_id, "submission", {**(submission or {}), "completed_at": datetime.now(UTC).isoformat(timespec="seconds")})
+    if media is not None:
+        CASE_STORE.save_detail(case_id, "media_full", media.model_dump(mode="json"))
     if media is not None:
         # The upload is deleted, so its explanation is saved now while the result exists.
         CASE_STORE.save_detail(case_id, "media_checks", {"checks": media.to_checks()})
@@ -681,17 +713,18 @@ def _analyze_upload(file: UploadFile, search_web: bool) -> tuple[MediaAnalysisRe
 
 @app.post("/api/cases/analyze", response_model=AnalysisResponse)
 def analyze_case(request: AnalyzeRequest) -> AnalysisResponse:
+    submission = _submission(["text"] * bool(request.text) + ["link"] * bool(request.url), request.search_web)
     text_result, claims = analyze_text(request.text) if request.text else (None, [])
     url = str(request.url) if request.url else None
     if not request.search_web:
         url_result = analyze_url(url) if url else None
-        return _store_case(text_result, url_result, claims=claims, link_analysis=_check_link(url, False))
+        return _store_case(text_result, url_result, claims=claims, link_analysis=_check_link(url, False), submission=submission)
     destination = _follow_short_link(url)
     url_result = analyze_url(url, destination, follow_tried=not _replay_mode()) if url else None
     case_id = str(uuid4())
     network = _trace_spread(case_id, request.text if text_result else None, destination or url)
     link_analysis = _check_link(url, True, request.text if text_result else None)
-    return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network, link_analysis=link_analysis)
+    return _store_case(text_result, url_result, claims=claims, case_id=case_id, network=network, link_analysis=link_analysis, submission=submission)
 
 
 @app.post(MEDIA_UPLOAD_PATH, response_model=AnalysisResponse)
@@ -702,6 +735,7 @@ def analyze_media_case(
     url: Annotated[HttpUrl | None, Form()] = None,
     search_web: Annotated[bool, Form(description="Allow sending the image, text and link to outside services.")] = False,
 ) -> AnalysisResponse:
+    submission = _submission(["media"] + ["text"] * bool(text and text.strip()) + ["link"] * bool(url), search_web, file)
     media, provenance = _analyze_upload(file, search_web)
     rejection = MEDIA_REJECTION_STATUS.get(media.failure_code or "")
     if rejection is not None:
@@ -714,7 +748,7 @@ def analyze_media_case(
     if not search_web:
         url_result = analyze_url(link) if link else None
         return _store_case(
-            text_result, url_result, media, claims, provenance=provenance, link_analysis=_check_link(link, False)
+            text_result, url_result, media, claims, provenance=provenance, link_analysis=_check_link(link, False), submission=submission
         )
     destination = _follow_short_link(link)
     url_result = analyze_url(link, destination, follow_tried=not _replay_mode()) if link else None
@@ -722,7 +756,7 @@ def analyze_media_case(
     network = _trace_spread(case_id, text if text_result else None, destination or link, provenance)
     link_analysis = _check_link(link, True, text if text_result else None)
     return _store_case(
-        text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network, link_analysis=link_analysis
+        text_result, url_result, media, claims, case_id=case_id, provenance=provenance, network=network, link_analysis=link_analysis, submission=submission
     )
 
 
@@ -771,7 +805,7 @@ def start_replay(scenario_id: str) -> AnalysisResponse:
     link = str(scenario.url) if scenario.url else None
     url_result = analyze_url(link) if link else None
     link_analysis = investigate_link(link, offline_reason="Replay stays offline, so this was not checked.") if link else None
-    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label, link_analysis=link_analysis)
+    return _store_case(text_result, url_result, claims=claims, replay_label=scenario.label, link_analysis=link_analysis, submission=_submission(["replay"], False))
 
 
 @app.get("/api/cases/{case_id}/export", response_model=AnalysisResponse)
@@ -786,8 +820,13 @@ def get_case(case_id: str) -> AnalysisResponse:
 
 
 def _report(case_id: str) -> dict[str, Any]:
+    """The earlier fields stay for existing readers, and the sections are what both views draw."""
     case = _find_case(case_id)
-    return build_report(case, CASE_STORE.get_detail(case_id, "provenance"), _network_detail(case_id))
+    provenance, network = CASE_STORE.get_detail(case_id, "provenance"), _network_detail(case_id)
+    return {
+        **build_report(case, provenance, network),
+        **build_sections(case, CASE_STORE.get_detail(case_id, "submission"), CASE_STORE.get_detail(case_id, "media_full"), provenance, network),
+    }
 
 
 @app.get("/api/cases/{case_id}/report")
@@ -800,7 +839,7 @@ def get_report_pdf(case_id: str) -> Response:
     # The name comes from the stored ID, never from the request, as _find_case has matched it.
     name = f"trustfeed-report-{_find_case(case_id).case_id[:8]}.pdf"
     return Response(
-        render_pdf(_report(case_id)),
+        _report_pdf(_report(case_id)),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )

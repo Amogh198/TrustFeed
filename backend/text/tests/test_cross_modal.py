@@ -63,3 +63,8 @@ def test_checks_cover_both_parts_even_when_nothing_ran():
     checks = cross_modal_checks(compare_channels("A claim.", None))
     assert [check["check_id"] for check in checks] == ["text.cross_modal", "text.image_caption"]
     assert all(check["reasoning"] for check in checks)
+
+
+def test_media_text_records_are_read():
+    report = compare_channels("Flood hit the town on 3 March 2024.", {"ocr": [{"text": "Recorded on 12 June 2019", "confidence": 0.9}], "speech": []})
+    assert report.status is ModuleStatus.COMPLETE and report.conflicts

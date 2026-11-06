@@ -304,6 +304,8 @@ class UnifiedRisk(BaseModel):
     components: list[RiskComponent] = Field(default_factory=list)
     weights: dict[str, float] = Field(default_factory=dict)
     media_decision: MediaDecision | None = None
+    # The vote and web evidence behind this result, so a report can show the working.
+    calculation: dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalyzeRequest(BaseModel):

@@ -294,6 +294,7 @@ def build_unified_risk(
         others = [item for item in result.components if item.counted and item.name != "media" and item.score]
         media_trust = round(100 * (1 - vote["mean"]), 2)
         result.media_decision = _media_decision(vote, source_evidence)
+        result.calculation = {"vote": {k: str(v) if isinstance(v, RiskLevel) else v for k, v in vote.items()}, "sources": source_evidence, "vote_line": VOTE_LINE}
         if vote.get("web_decides"):
             if not others:
                 result.level = RiskLevel.LOW

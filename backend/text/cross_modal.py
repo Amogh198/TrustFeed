@@ -41,7 +41,9 @@ def _clean_items(value: Any) -> list[str]:
     """Media text comes from another module and from the file itself, so its shape isn't trusted."""
     if not isinstance(value, (list, tuple)):
         return []
-    return [item.strip()[:_MAX_ITEM_CHARS] for item in value[:_MAX_ITEMS] if isinstance(item, str) and item.strip()]
+    # The media check sends records with a "text" field. Plain strings are accepted too.
+    texts = [item.get("text") if isinstance(item, dict) else item for item in value[:_MAX_ITEMS]]
+    return [item.strip()[:_MAX_ITEM_CHARS] for item in texts if isinstance(item, str) and item.strip()]
 
 
 def _channels(caption: str | None, extracted: Mapping[str, Any] | None) -> dict[str, list[str]]:

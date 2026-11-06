@@ -1,5 +1,8 @@
 """Investigation report, PDF export, search and overview."""
 
+import json
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -39,8 +42,8 @@ def test_report_on_a_synthetic_replay_is_labelled():
     case = client.post(f"/api/replay/{scenario}/start").json()
     report = client.get(f"/api/cases/{case['case_id']}/report").json()
     assert report["replay_label"]
-    pdf = client.get(f"/api/cases/{case['case_id']}/report.pdf").content
-    assert b"REPLAY" in pdf
+    assert report["synthetic"] is True
+    assert client.get(f"/api/cases/{case['case_id']}/report.pdf").content.startswith(b"%PDF-")
 
 
 def test_pdf_download_is_a_valid_looking_pdf():
@@ -49,12 +52,7 @@ def test_pdf_download_is_a_valid_looking_pdf():
     assert response.status_code == 200 and response.headers["content-type"] == "application/pdf"
     assert "attachment" in response.headers["content-disposition"]
     body = response.content
-    assert body.startswith(b"%PDF-1.4") and body.rstrip().endswith(b"%%EOF")
-    # The cross-reference table must point at the real position of each object.
-    start = int(body.rsplit(b"startxref\n", 1)[1].split(b"\n")[0])
-    assert body[start:start + 4] == b"xref"
-    entries = body[start:].split(b"\n")[3:]
-    assert body[int(entries[0][:10]):].startswith(b"1 0 obj")
+    assert body.startswith(b"%PDF-") and body.rstrip().endswith(b"%%EOF")
 
 
 def test_long_report_flows_onto_more_pages():
@@ -107,3 +105,55 @@ def test_pdf_text_is_escaped_and_never_breaks_the_file():
     backslash = chr(92)
     assert _pdf_text(f"back{backslash}slash") == f"back{backslash * 2}slash"
     assert set(_pdf_text("हिन्दी")) == {"?"}
+
+
+def blocks(report, number):
+    return next(section for section in report["sections"] if section["id"] == f"s{number}")["blocks"]
+
+
+def flat(report, number):
+    return json.dumps(blocks(report, number))
+
+
+def test_all_thirteen_sections_exist_for_every_input_type():
+    cases = [make(text=SCAM), make(url="https://paypa1.com/a"), make(text=SCAM, url="https://paypa1.com/a")]
+    for case in cases:
+        report = client.get(f"/api/cases/{case['case_id']}/report").json()
+        assert [section["id"] for section in report["sections"]] == [f"s{i}" for i in range(1, 14)]
+        assert report["report_id"] and report["generated_at"]
+    for demo in ("demo-001", "demo-story-001"):
+        report = client.get(f"/api/cases/{demo}/report").json()
+        assert report["synthetic"] is True and len(report["sections"]) == 13
+        assert client.get(f"/api/cases/{demo}/report.pdf").status_code == 200
+
+
+def test_score_arithmetic_matches_the_stored_score():
+    case = make(text=SCAM, url="https://paypa1.com/a")
+    report = client.get(f"/api/cases/{case['case_id']}/report").json()
+    text = flat(report, 4)
+    assert f"Stored score: {case['unified_risk']['score']}" in text
+    assert "unexplained" not in text
+    assert "uncalibrated" in text
+
+
+def test_nothing_is_invented_when_data_is_missing():
+    report = client.get(f"/api/cases/{make(text=SCAM)['case_id']}/report").json()
+    assert "Not recorded" in flat(report, 3)
+    assert "No fingerprint comparison was performed" in flat(report, 3)
+    assert "No source search ran" in flat(report, 6)
+    assert report["missing_data"]
+
+
+def test_evidence_ids_in_the_summary_exist_in_the_register():
+    report = client.get(f"/api/cases/{make(text=SCAM, url='https://paypa1.com/a')['case_id']}/report").json()
+    cited = re.findall(r"\bE\d+\b", flat(report, 2))
+    assert cited
+    register = {row[0] for row in blocks(report, 10)[0]["rows"]}
+    assert set(cited) <= register
+
+
+def test_a_case_without_a_source_url_gets_no_link():
+    from backend.api.app.judge_report import _link
+
+    assert _link("x", "javascript:alert(1)") == "x"
+    assert _link("x", "https://a.example/") == {"text": "x", "url": "https://a.example/"}

@@ -196,6 +196,10 @@ With `AUTH_REQUIRED=true`, everything except `/health` and `/api/auth/*` returns
 
 Uploads run the detector panel. Nonescape, Ateeq and Haywood vote at 0.75, and a majority reads High, otherwise Inconclusive. With a vote, `trust_score` is 100 minus the detectors' average in percent, to two decimals, and can reach 100. Order of evidence: 2 or more sites whose titles call the image fake or AI-generated read `high`. Metadata naming a generator keeps the detectors' vote. Exact matches on 2 or more sites dated before April 2022 make web search decide. Exact matches on 5 or more sites decide if at most one detector flags it, otherwise the result reads `moderate`, disputed, with a score from 40 to 60. `unified_risk.media_decision` gives the detectors' verdict, the web's verdict and the combined one. The vote hasn't been measured on the benchmark as a group. `MEDIA_PANEL=off` turns it off.
 
+## Investigation report sections
+
+`GET /api/cases/{id}/report` keeps its earlier fields and adds `report_id`, `generated_at`, `synthetic`, `missing_data` and `sections`. Each section has `id`, `title` and `blocks`, of type `text`, `list`, `kv` or `table`. A cell is text or `{text, url}`. The dashboard's Full report tab and the PDF draw these same sections. The PDF needs `reportlab`, and falls back to a simpler form without it. `unified_risk.calculation` holds the vote and web evidence.
+
 ## Common response sketch
 
 ```json

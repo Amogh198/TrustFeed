@@ -489,3 +489,8 @@ input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--uv); fle
 .page-narrow { max-width: 480px; }
 .account-form { display: grid; gap: 14px; }
 .link-button { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+.report-section { margin-bottom: 32px; }
+.report-section p { margin: 10px 0; }
+.report-kv th { width: 30%; text-align: left; }
+.report-kv td { overflow-wrap: anywhere; }
+.report-copy { margin-left: 8px; }
